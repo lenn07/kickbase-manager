@@ -1,0 +1,1 @@
+"""Persistenz (SQLite via SQLModel)."""

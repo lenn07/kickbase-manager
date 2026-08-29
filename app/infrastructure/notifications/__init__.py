@@ -1,0 +1,1 @@
+"""Notifications (SMTP via aiosmtplib)."""

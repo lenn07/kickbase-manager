@@ -1,0 +1,1 @@
+"""Kickbase-API-Adapter."""
