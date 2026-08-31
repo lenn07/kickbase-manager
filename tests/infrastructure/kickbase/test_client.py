@@ -16,13 +16,8 @@ from app.domain.gateways import KickbaseGateway
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.kickbase.config import KickbaseClientConfig
 
-_LOGIN_OK = {
-    "token": "tkn-1",
-    "tokenExp": "2026-12-31T23:59:59+00:00",
-    "user": {"id": "u1", "email": "a@b.de", "name": "L"},
-}
-
-_LOGIN_OK_2 = {**_LOGIN_OK, "token": "tkn-2"}
+_LOGIN_OK = {"tkn": "tkn-1", "u": {"i": "u1", "em": "a@b.de", "n": "L"}}
+_LOGIN_OK_2 = {"tkn": "tkn-2", "u": {"i": "u1", "em": "a@b.de", "n": "L"}}
 
 
 def _fast_config() -> KickbaseClientConfig:
@@ -47,6 +42,9 @@ async def test_login_returns_session_and_stores_token() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/v4/user/login"
         assert "Authorization" not in request.headers
+        # v4 erwartet em/pass, nicht email/password
+        assert b'"em":"a@b.de"' in request.content
+        assert b'"pass":"pw"' in request.content
         return httpx.Response(200, json=_LOGIN_OK)
 
     async with _client(httpx.MockTransport(handler)) as client:

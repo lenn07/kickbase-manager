@@ -82,7 +82,7 @@ class HttpxKickbaseClient:
     # -- Auth ----------------------------------------------------------
 
     async def login(self, email: str, password: str) -> Session:
-        payload = {"email": email, "password": password, "ext": False}
+        payload = {"em": email, "pass": password}
         response = await self._request("POST", "/v4/user/login", json=payload, authed=False)
         session = LoginResponseDTO.model_validate(response).to_session()
         self._session = session

@@ -10,7 +10,21 @@ from app.infrastructure.kickbase.dto import (
 )
 
 
-def test_login_response_maps_to_session() -> None:
+def test_login_response_v4_short_fields() -> None:
+    """v4 nutzt `tkn` + `u`-Objekt mit Kurzfeldern, kein `tokenExp` — JWT enthält exp."""
+    # JWT mit exp=2000000000 (2033-05-18)
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjIwMDAwMDAwMDB9.sig"
+    payload = {"tkn": jwt, "u": {"i": "u42", "em": "a@b.de", "n": "Lenn"}}
+
+    session = LoginResponseDTO.model_validate(payload).to_session()
+
+    assert session.token == jwt
+    assert session.user_id == "u42"
+    assert session.email == "a@b.de"
+    assert session.token_expires_at.year == 2033
+
+
+def test_login_response_legacy_format_still_parses() -> None:
     payload = {
         "token": "abc.def.ghi",
         "tokenExp": "2026-12-31T23:59:59+00:00",

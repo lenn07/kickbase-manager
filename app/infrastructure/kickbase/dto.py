@@ -7,10 +7,13 @@ Domain-Modelle — der Rest der App sieht die kryptischen Namen nie.
 
 from __future__ import annotations
 
-from datetime import datetime
+import base64
+import contextlib
+import json as _json
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.domain.models import (
     League,
@@ -35,25 +38,46 @@ _STATUS_VALUES = frozenset(s.value for s in PlayerStatus)
 class UserDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    id: str
-    email: str
-    name: str = ""
+    # v4 nutzt kurze Feldnamen; frühere Versionen die vollen — beide akzeptieren.
+    id: str = Field(default="", validation_alias=AliasChoices("id", "i"))
+    email: str = Field(default="", validation_alias=AliasChoices("email", "em"))
+    name: str = Field(default="", validation_alias=AliasChoices("name", "n"))
 
 
 class LoginResponseDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    token: str
-    token_exp: datetime = Field(alias="tokenExp")
-    user: UserDTO
+    # v4 nutzt "tkn" / "u"; frühere Versionen "token" / "user" — beide akzeptieren.
+    token: str = Field(validation_alias=AliasChoices("tkn", "token"))
+    token_exp: datetime | None = Field(default=None, validation_alias="tokenExp")
+    user: UserDTO = Field(default_factory=UserDTO, validation_alias=AliasChoices("u", "user"))
 
     def to_session(self) -> Session:
+        expires = (
+            self.token_exp or _extract_jwt_exp(self.token) or datetime.now(UTC) + timedelta(days=7)
+        )
         return Session(
             token=self.token,
-            token_expires_at=self.token_exp,
+            token_expires_at=expires,
             user_id=self.user.id,
             email=self.user.email,
         )
+
+
+def _extract_jwt_exp(token: str) -> datetime | None:
+    """Liest den `exp`-Claim aus einem JWT. Gibt None zurück, wenn das Token
+    kein gültiges JWT ist oder keinen `exp`-Claim enthält."""
+    parts = token.split(".")
+    if len(parts) != 3:  # noqa: PLR2004 — JWT-Struktur
+        return None
+    payload_b64 = parts[1]
+    padding = "=" * (-len(payload_b64) % 4)
+    with contextlib.suppress(ValueError, _json.JSONDecodeError, UnicodeDecodeError):
+        payload = _json.loads(base64.urlsafe_b64decode(payload_b64 + padding))
+        exp = payload.get("exp")
+        if isinstance(exp, int | float):
+            return datetime.fromtimestamp(exp, tz=UTC)
+    return None
 
 
 class LeagueDTO(BaseModel):
