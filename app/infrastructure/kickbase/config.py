@@ -1,0 +1,16 @@
+"""Konfiguration des Kickbase-Clients."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class KickbaseClientConfig:
+    base_url: str = "https://api.kickbase.com"
+    user_agent: str = "Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)"
+    request_timeout_s: float = 15.0
+    max_requests_per_minute: int = 30
+    jitter_min_s: float = 0.15
+    jitter_max_s: float = 0.75
+    max_relogin_attempts: int = 1

@@ -1,0 +1,149 @@
+"""Client-Tests mit `httpx.MockTransport` — 0 echte Netzwerk-Aufrufe."""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+import httpx
+import pytest
+from app.domain.exceptions import (
+    AuthError,
+    ConflictError,
+    NotFoundError,
+    RateLimitError,
+)
+from app.domain.gateways import KickbaseGateway
+from app.infrastructure.kickbase.client import HttpxKickbaseClient
+from app.infrastructure.kickbase.config import KickbaseClientConfig
+
+_LOGIN_OK = {
+    "token": "tkn-1",
+    "tokenExp": "2026-12-31T23:59:59+00:00",
+    "user": {"id": "u1", "email": "a@b.de", "name": "L"},
+}
+
+_LOGIN_OK_2 = {**_LOGIN_OK, "token": "tkn-2"}
+
+
+def _fast_config() -> KickbaseClientConfig:
+    return KickbaseClientConfig(
+        max_requests_per_minute=10_000,
+        jitter_min_s=0.0,
+        jitter_max_s=0.0,
+    )
+
+
+def _client(handler: httpx.MockTransport) -> HttpxKickbaseClient:
+    return HttpxKickbaseClient(config=_fast_config(), transport=handler)
+
+
+async def test_client_conforms_to_gateway_protocol() -> None:
+    client = _client(httpx.MockTransport(lambda _r: httpx.Response(204)))
+    assert isinstance(client, KickbaseGateway)
+    await client.aclose()
+
+
+async def test_login_returns_session_and_stores_token() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v4/user/login"
+        assert "Authorization" not in request.headers
+        return httpx.Response(200, json=_LOGIN_OK)
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        session = await client.login("a@b.de", "pw")
+        assert session.token == "tkn-1"
+        assert session.user_id == "u1"
+
+
+async def test_authenticated_request_sends_bearer_token() -> None:
+    calls: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        calls.append(request.headers.get("Authorization"))
+        return httpx.Response(200, json={"it": []})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        await client.list_leagues()
+
+    assert calls == ["Bearer tkn-1"]
+
+
+async def test_401_triggers_relogin_and_retries() -> None:
+    state = {"login_count": 0, "list_count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            state["login_count"] += 1
+            token = _LOGIN_OK if state["login_count"] == 1 else _LOGIN_OK_2
+            return httpx.Response(200, json=token)
+        state["list_count"] += 1
+        if state["list_count"] == 1:
+            return httpx.Response(401, json={"message": "token expired"})
+        assert request.headers["Authorization"] == "Bearer tkn-2"
+        return httpx.Response(200, json={"it": []})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        result = await client.list_leagues()
+
+    assert result == []
+    assert state["login_count"] == 2
+    assert state["list_count"] == 2
+
+
+async def test_persistent_401_raises_auth_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        return httpx.Response(401, json={"message": "nope"})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        with pytest.raises(AuthError):
+            await client.list_leagues()
+
+
+@pytest.mark.parametrize(
+    ("code", "exc"),
+    [
+        (403, AuthError),
+        (404, NotFoundError),
+        (409, ConflictError),
+        (429, RateLimitError),
+    ],
+)
+async def test_http_errors_map_to_domain_exceptions(code: int, exc: type[Exception]) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        return httpx.Response(code, json={"message": "boom"})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        with pytest.raises(exc):
+            await client.list_leagues()
+
+
+async def test_place_bid_sends_price_and_returns_offer_id() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        assert request.url.path == "/v4/leagues/L1/market/P1/offers"
+        body = httpx.Request(request.method, request.url, content=request.content).content
+        assert b'"price":1500000' in body
+        return httpx.Response(200, json={"i": "offer-42"})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        offer_id = await client.place_bid("L1", "P1", Decimal("1500000"))
+
+    assert offer_id == "offer-42"
+
+
+async def test_authenticated_call_without_login_raises() -> None:
+    async with _client(httpx.MockTransport(lambda _r: httpx.Response(200, json={}))) as client:
+        with pytest.raises(AuthError):
+            await client.list_leagues()
