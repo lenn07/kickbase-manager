@@ -14,3 +14,5 @@ class KickbaseClientConfig:
     jitter_min_s: float = 0.15
     jitter_max_s: float = 0.75
     max_relogin_attempts: int = 1
+    # Wie lange vor Ablauf ein gecachter Token als "abgelaufen" behandelt wird.
+    session_expiry_margin_s: int = 300

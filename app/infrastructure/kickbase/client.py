@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from http import HTTPStatus
 from typing import Any
@@ -17,6 +18,7 @@ from app.domain.exceptions import (
     RateLimitError,
     TransportError,
 )
+from app.domain.gateways import SessionStore
 from app.domain.models import (
     League,
     LeagueMe,
@@ -55,10 +57,12 @@ class HttpxKickbaseClient:
         self,
         config: KickbaseClientConfig | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        session_store: SessionStore | None = None,
     ) -> None:
         self._config = config or KickbaseClientConfig()
         self._session: Session | None = None
         self._credentials: tuple[str, str] | None = None
+        self._session_store = session_store
         self._limiter = AsyncRateLimiter(
             max_calls=self._config.max_requests_per_minute,
             jitter=(self._config.jitter_min_s, self._config.jitter_max_s),
@@ -89,6 +93,8 @@ class HttpxKickbaseClient:
         session = LoginResponseDTO.model_validate(response).to_session()
         self._session = session
         self._credentials = (email, password)
+        if self._session_store is not None:
+            await self._session_store.save_session(session)
         return session
 
     # -- Ligen ---------------------------------------------------------
@@ -153,8 +159,8 @@ class HttpxKickbaseClient:
 
         headers: dict[str, str] = {}
         if authed:
-            if self._session is None:
-                raise AuthError("Nicht eingeloggt — login() zuerst aufrufen.")
+            await self._ensure_session()
+            assert self._session is not None  # von _ensure_session garantiert
             headers["Authorization"] = f"Bearer {self._session.token}"
 
         try:
@@ -185,12 +191,32 @@ class HttpxKickbaseClient:
             raise TransportError(f"Erwartetes JSON-Objekt von {path}, bekam: {type(data).__name__}")
         return data
 
+    async def _ensure_session(self) -> None:
+        if self._session is not None and not self._is_session_expired(self._session):
+            return
+
+        if self._session_store is not None:
+            cached = await self._session_store.load_session()
+            if cached is not None and not self._is_session_expired(cached):
+                self._session = cached
+                return
+
+        self._session = None
+        await self._relogin()
+
     async def _relogin(self) -> None:
-        if self._credentials is None:
+        credentials = self._credentials
+        if credentials is None and self._session_store is not None:
+            credentials = await self._session_store.load_credentials()
+        if credentials is None:
             raise AuthError("Session abgelaufen, aber keine Credentials für Relogin vorhanden.")
-        email, password = self._credentials
+        email, password = credentials
         self._session = None
         await self.login(email, password)
+
+    def _is_session_expired(self, session: Session) -> bool:
+        margin = timedelta(seconds=self._config.session_expiry_margin_s)
+        return datetime.now(UTC) + margin >= session.token_expires_at
 
     @staticmethod
     def _raise_for_status(response: httpx.Response, method: str, path: str) -> None:

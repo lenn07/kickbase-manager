@@ -20,6 +20,7 @@ from app.infrastructure.crypto.vault import FernetVault
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.llm.anthropic_client import AnthropicClient
 from app.infrastructure.notifications.smtp_client import AiosmtplibClient
+from app.infrastructure.persistence.session_store import DbSessionStore
 
 
 def get_settings(request: Request) -> Settings:
@@ -61,5 +62,24 @@ async def get_setup_service(
         await kickbase.aclose()
 
 
+async def get_runtime_kickbase_client(
+    session: Annotated[Session, Depends(get_session)],
+    vault: Annotated[FernetVault, Depends(get_vault)],
+) -> AsyncIterator[HttpxKickbaseClient]:
+    """Client für Post-Setup-Nutzung (Scheduler, Dashboard) — nutzt persistente Session.
+
+    Anders als beim Setup-Client wird kein `login()`-Call vom Aufrufer erwartet:
+    der Client lädt beim ersten authed Request das Token aus der DB und loggt
+    bei Bedarf mit den ebenfalls persistierten Credentials neu ein.
+    """
+    store = DbSessionStore(session, vault)
+    kickbase = HttpxKickbaseClient(session_store=store)
+    try:
+        yield kickbase
+    finally:
+        await kickbase.aclose()
+
+
 SessionDep = Annotated[Session, Depends(get_session)]
 SetupServiceDep = Annotated[SetupService, Depends(get_setup_service)]
+RuntimeKickbaseDep = Annotated[HttpxKickbaseClient, Depends(get_runtime_kickbase_client)]

@@ -17,6 +17,22 @@ from app.domain.models import (
 
 
 @runtime_checkable
+class SessionStore(Protocol):
+    """Persistente Cache-Schicht für Kickbase-Session + Login-Credentials.
+
+    Der Client konsultiert den Store vor jedem authenticated Request, um
+    Login-Roundtrips zu sparen (Ban-Schutz) und Sessions über Prozess-Restarts
+    hinweg wiederzuverwenden.
+    """
+
+    async def load_session(self) -> Session | None: ...
+
+    async def save_session(self, session: Session) -> None: ...
+
+    async def load_credentials(self) -> tuple[str, str] | None: ...
+
+
+@runtime_checkable
 class KickbaseGateway(Protocol):
     """Alles, was die Anwendung von der Kickbase-API braucht.
 

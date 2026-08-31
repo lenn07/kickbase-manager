@@ -93,14 +93,16 @@ class SetupService:
         except KickbaseError as exc:
             raise SetupError(f"Kickbase-Login fehlgeschlagen: {exc}") from exc
 
-        user = self._users.upsert(
-            email=email,
-            encrypted_password=self._vault.encrypt(password),
+        user = self._users.upsert_credentials(
+            email=email, encrypted_password=self._vault.encrypt(password)
+        )
+        assert user.id is not None
+        self._users.update_session(
+            user_id=user.id,
             kb_user_id=session.user_id,
             kb_token=self._vault.encrypt(session.token),
             kb_token_expires_at=session.token_expires_at,
         )
-        assert user.id is not None
         self._leagues.replace(
             user_id=user.id,
             leagues=[(league.id, league.name) for league in leagues],

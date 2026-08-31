@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -12,12 +13,37 @@ from app.domain.exceptions import (
     NotFoundError,
     RateLimitError,
 )
-from app.domain.gateways import KickbaseGateway
+from app.domain.gateways import KickbaseGateway, SessionStore
+from app.domain.models import Session as KbSession
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.kickbase.config import KickbaseClientConfig
 
 _LOGIN_OK = {"tkn": "tkn-1", "u": {"i": "u1", "em": "a@b.de", "n": "L"}}
 _LOGIN_OK_2 = {"tkn": "tkn-2", "u": {"i": "u1", "em": "a@b.de", "n": "L"}}
+
+
+class FakeSessionStore:
+    """In-Memory-Fake — imitiert DbSessionStore ohne DB oder Vault."""
+
+    def __init__(
+        self,
+        *,
+        session: KbSession | None = None,
+        credentials: tuple[str, str] | None = None,
+    ) -> None:
+        self.session = session
+        self.credentials = credentials
+        self.saves: list[KbSession] = []
+
+    async def load_session(self) -> KbSession | None:
+        return self.session
+
+    async def save_session(self, session: KbSession) -> None:
+        self.session = session
+        self.saves.append(session)
+
+    async def load_credentials(self) -> tuple[str, str] | None:
+        return self.credentials
 
 
 def _fast_config() -> KickbaseClientConfig:
@@ -28,8 +54,14 @@ def _fast_config() -> KickbaseClientConfig:
     )
 
 
-def _client(handler: httpx.MockTransport) -> HttpxKickbaseClient:
-    return HttpxKickbaseClient(config=_fast_config(), transport=handler)
+def _client(
+    handler: httpx.MockTransport,
+    *,
+    session_store: SessionStore | None = None,
+) -> HttpxKickbaseClient:
+    return HttpxKickbaseClient(
+        config=_fast_config(), transport=handler, session_store=session_store
+    )
 
 
 async def test_client_conforms_to_gateway_protocol() -> None:
@@ -145,3 +177,110 @@ async def test_authenticated_call_without_login_raises() -> None:
     async with _client(httpx.MockTransport(lambda _r: httpx.Response(200, json={}))) as client:
         with pytest.raises(AuthError):
             await client.list_leagues()
+
+
+# -- Session-Reuse via SessionStore ------------------------------------
+
+
+def _valid_session(token: str = "cached-token") -> KbSession:
+    return KbSession(
+        token=token,
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
+        user_id="u1",
+        email="a@b.de",
+    )
+
+
+async def test_cached_session_is_reused_without_login() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        assert request.headers.get("Authorization") == "Bearer cached-token"
+        return httpx.Response(200, json={"it": []})
+
+    store = FakeSessionStore(session=_valid_session(), credentials=("a@b.de", "pw"))
+
+    async with _client(httpx.MockTransport(handler), session_store=store) as client:
+        result = await client.list_leagues()
+
+    assert result == []
+    assert "/v4/user/login" not in calls
+    assert calls == ["/v4/leagues/selection"]
+
+
+async def test_expired_cached_session_triggers_relogin() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        assert request.headers.get("Authorization") == "Bearer tkn-1"
+        return httpx.Response(200, json={"it": []})
+
+    expired = KbSession(
+        token="stale",
+        token_expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        user_id="u1",
+        email="a@b.de",
+    )
+    store = FakeSessionStore(session=expired, credentials=("a@b.de", "pw"))
+
+    async with _client(httpx.MockTransport(handler), session_store=store) as client:
+        await client.list_leagues()
+
+    assert calls == ["/v4/user/login", "/v4/leagues/selection"]
+    # Nach Relogin muss die neue Session im Store persistiert sein.
+    assert store.session is not None
+    assert store.session.token == "tkn-1"
+    assert store.saves and store.saves[-1].token == "tkn-1"
+
+
+async def test_401_relogin_uses_credentials_from_store() -> None:
+    """Nach einem 401 muss der Client mit Store-Credentials neu einloggen — auch ohne
+    vorherigen expliziten `login()`-Aufruf."""
+    state = {"login": 0, "list": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            state["login"] += 1
+            return httpx.Response(200, json=_LOGIN_OK_2)
+        state["list"] += 1
+        if state["list"] == 1:
+            return httpx.Response(401, json={"message": "token expired"})
+        assert request.headers["Authorization"] == "Bearer tkn-2"
+        return httpx.Response(200, json={"it": []})
+
+    store = FakeSessionStore(session=_valid_session(), credentials=("a@b.de", "pw"))
+
+    async with _client(httpx.MockTransport(handler), session_store=store) as client:
+        await client.list_leagues()
+
+    assert state["login"] == 1
+    assert state["list"] == 2
+    assert store.session is not None
+    assert store.session.token == "tkn-2"
+
+
+async def test_no_cached_session_and_no_credentials_raises_auth_error() -> None:
+    async with _client(
+        httpx.MockTransport(lambda _r: httpx.Response(200, json={})),
+        session_store=FakeSessionStore(),
+    ) as client:
+        with pytest.raises(AuthError):
+            await client.list_leagues()
+
+
+async def test_login_saves_session_to_store() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_LOGIN_OK)
+
+    store = FakeSessionStore()
+    async with _client(httpx.MockTransport(handler), session_store=store) as client:
+        await client.login("a@b.de", "pw")
+
+    assert store.saves
+    assert store.saves[-1].token == "tkn-1"

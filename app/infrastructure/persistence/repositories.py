@@ -26,32 +26,36 @@ class UserRepository:
     def get_singleton(self) -> UserRow | None:
         return self._session.exec(select(UserRow).limit(1)).first()
 
-    def upsert(
-        self,
-        *,
-        email: str,
-        encrypted_password: bytes,
-        kb_user_id: str,
-        kb_token: bytes | None,
-        kb_token_expires_at: datetime | None,
-    ) -> UserRow:
+    def upsert_credentials(self, *, email: str, encrypted_password: bytes) -> UserRow:
+        """Legt den User an bzw. aktualisiert das Passwort. Session-Felder bleiben unberührt."""
         existing = self._session.exec(select(UserRow).where(UserRow.email == email)).first()
         if existing is None:
-            row = UserRow(
-                email=email,
-                encrypted_password=encrypted_password,
-                kb_user_id=kb_user_id,
-                kb_token=kb_token,
-                kb_token_expires_at=kb_token_expires_at,
-            )
+            row = UserRow(email=email, encrypted_password=encrypted_password)
             self._session.add(row)
         else:
             existing.encrypted_password = encrypted_password
-            existing.kb_user_id = kb_user_id
-            existing.kb_token = kb_token
-            existing.kb_token_expires_at = kb_token_expires_at
             existing.updated_at = datetime.now(UTC)
             row = existing
+        self._session.commit()
+        self._session.refresh(row)
+        return row
+
+    def update_session(
+        self,
+        *,
+        user_id: int,
+        kb_user_id: str,
+        kb_token: bytes,
+        kb_token_expires_at: datetime,
+    ) -> UserRow:
+        """Aktualisiert nur die Session-bezogenen Felder — Credentials bleiben unangetastet."""
+        row = self._session.get(UserRow, user_id)
+        if row is None:
+            raise LookupError(f"User {user_id} nicht gefunden.")
+        row.kb_user_id = kb_user_id
+        row.kb_token = kb_token
+        row.kb_token_expires_at = kb_token_expires_at
+        row.updated_at = datetime.now(UTC)
         self._session.commit()
         self._session.refresh(row)
         return row
