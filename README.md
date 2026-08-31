@@ -13,7 +13,8 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install
 
-uvicorn app.main:app --reload
+KB_DATA_DIR=./data uvicorn --factory app.main:create_app --reload
+# → http://127.0.0.1:8000/  (redirect zum Setup-Wizard)
 # → http://127.0.0.1:8000/health
 ```
 

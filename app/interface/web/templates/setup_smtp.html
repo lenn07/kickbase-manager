@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}SMTP-Konfiguration{% endblock %}
+{% block content %}
+  <h2 style="margin-top:0">SMTP-Zugang für Benachrichtigungen</h2>
+  <p class="hint">Nach dem Absenden wird eine echte Test-Mail versendet. Erst wenn sie durchgeht, gilt die Konfiguration als verifiziert.</p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  {% set f = form %}
+  <form method="post"
+        action="/setup/smtp"
+        hx-post="/setup/smtp"
+        hx-target="closest .panel"
+        hx-swap="outerHTML"
+        hx-disabled-elt="button">
+    <div class="row">
+      <label>
+        SMTP-Host
+        <input name="host" required placeholder="smtp.example.com"
+               value="{{ f.host if f else '' }}">
+      </label>
+      <label>
+        Port
+        <input name="port" type="number" min="1" max="65535" required
+               value="{{ f.port if f else 465 }}">
+      </label>
+    </div>
+    <div class="row">
+      <label>
+        Benutzer
+        <input name="username" autocomplete="off"
+               value="{{ f.username if f else '' }}">
+      </label>
+      <label>
+        Passwort
+        <input name="password" type="password" autocomplete="off">
+      </label>
+    </div>
+    <div class="row">
+      <label>
+        Absender
+        <input name="from_addr" type="email" required
+               value="{{ f.from_addr if f else '' }}">
+      </label>
+      <label>
+        Empfänger
+        <input name="to_addr" type="email" required
+               value="{{ f.to_addr if f else '' }}">
+      </label>
+    </div>
+    <fieldset>
+      <legend>Verschlüsselung</legend>
+      <label style="flex-direction:row;align-items:center;gap:0.5rem">
+        <input type="radio" name="security" value="tls"
+               {% if not f or f.use_tls %}checked{% endif %}>
+        Implicit TLS (Port 465)
+      </label>
+      <label style="flex-direction:row;align-items:center;gap:0.5rem">
+        <input type="radio" name="security" value="starttls"
+               {% if f and f.use_starttls %}checked{% endif %}>
+        STARTTLS (Port 587)
+      </label>
+      <label style="flex-direction:row;align-items:center;gap:0.5rem">
+        <input type="radio" name="security" value="none"
+               {% if f and not f.use_tls and not f.use_starttls %}checked{% endif %}>
+        Keine (nur lokale MTAs)
+      </label>
+    </fieldset>
+    <button type="submit">Test-Mail senden</button>
+  </form>
+{% endblock %}

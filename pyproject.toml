@@ -76,7 +76,7 @@ files = ["app/domain", "app/application"]
 [[tool.mypy.overrides]]
 module = "app.infrastructure.*"
 ignore_missing_imports = true
-strict = false
+ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

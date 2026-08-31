@@ -1,0 +1,15 @@
+{% set steps_meta = [
+  ('kickbase', 'Kickbase', state.kickbase_ok),
+  ('league',   'Liga',     state.league_ok),
+  ('anthropic','Claude',   state.anthropic_ok),
+  ('smtp',     'SMTP',     state.smtp_ok),
+] %}
+<ol class="steps">
+  {% for slug, label, done in steps_meta %}
+    {% set is_current = step == slug %}
+    <li class="{% if done %}done{% endif %} {% if is_current %}current{% endif %}">
+      <span class="marker">{% if done %}✓{% else %}{{ loop.index }}{% endif %}</span>
+      <span>{{ label }}</span>
+    </li>
+  {% endfor %}
+</ol>

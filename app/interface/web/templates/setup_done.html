@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Setup abgeschlossen{% endblock %}
+{% block content %}
+  <h2 style="margin-top:0">Setup abgeschlossen 🎉</h2>
+  <p>Alle drei Verifikations-Schritte sind grün.</p>
+  <ul>
+    <li>Kickbase-Login: <strong>OK</strong></li>
+    <li>Aktive Liga: <strong>{{ active_league.name }}</strong> ({{ active_league.kb_league_id }})</li>
+    <li>Anthropic-Key: <strong>verifiziert</strong></li>
+    <li>SMTP-Test-Mail: <strong>zugestellt</strong></li>
+  </ul>
+  <p class="hint">
+    Der Auto-Loop wird in Phase 3 hier aktiviert. Solange bleibt die App im Bereitschaftsmodus.
+  </p>
+{% endblock %}

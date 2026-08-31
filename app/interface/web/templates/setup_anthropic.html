@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Anthropic-Key{% endblock %}
+{% block content %}
+  <h2 style="margin-top:0">Anthropic-API-Key hinterlegen</h2>
+  <p class="hint">Der Key wird per Test-Call gegen <code>POST /v1/messages</code> geprüft und anschließend verschlüsselt gespeichert. Ohne validen Key startet der Auto-Loop nicht (F-1).</p>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post"
+        action="/setup/anthropic"
+        hx-post="/setup/anthropic"
+        hx-target="closest .panel"
+        hx-swap="outerHTML"
+        hx-disabled-elt="button">
+    <label>
+      API-Key
+      <input type="password" name="api_key" required autocomplete="off" placeholder="sk-ant-...">
+    </label>
+    <button type="submit">Key testen &amp; speichern</button>
+  </form>
+{% endblock %}
