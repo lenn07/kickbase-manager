@@ -1,0 +1,58 @@
+interactions:
+- request:
+    body: '{"em": "redacted@example.com", "pass": "REDACTED_PASSWORD"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '55'
+      content-type:
+      - application/json
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: POST
+    uri: https://api.kickbase.com/v4/user/login
+  response:
+    body:
+      string: '{"emve": "redacted@example.com", "u": {"email": "redacted@example.com",
+        "notifications": 1023, "flags": 8209, "proExpiry": "2026-09-08T14:18:11Z",
+        "vemail": "redacted@example.com", "perms": [1, 1000, 2, 500, 1001, 1002, 3001,
+        4, 5, 501, 501, 8, 9, 10, 12, 14, 3, 7, 11, 13, 3000, 16], "id": "9999999",
+        "name": "Redacted", "profile": "redacted/image.png", "trialExpiry": "2026-09-08T14:18:11Z",
+        "trd": 2, "sfb": "redacted/image.png", "efb": "redacted/image.png", "mfacp":
+        [], "emv": true, "emvr": false, "uim": "redacted/image.png"}, "srvl": [{"id":
+        "1111111", "cpi": "1", "name": "Redacted", "creator": "Redacted", "creatorId":
+        "4320349", "creation": "2026-08-25T12:14:58Z", "ai": 1.0, "t": 45, "au": 4,
+        "mu": 18, "ap": 600, "pub": false, "gm": 1, "mpl": true, "pl": 16, "amd":
+        false, "vr": 4, "adm": false, "uim": "redacted/image.png"}], "tkn": "REDACTED_JWT",
+        "tknex": "2026-09-07T11:01:21Z", "chttkn": "REDACTED_JWT", "chtknex": "2026-08-31T12:01:21Z",
+        "isnu": false, "isnr": false, "emv": true, "emvr": false}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '2310'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Mon, 31 Aug 2026 11:01:21 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

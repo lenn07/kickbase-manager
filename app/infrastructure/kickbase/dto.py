@@ -1,8 +1,13 @@
 """Wire-Format-DTOs für Kickbase v4.
 
-Kickbase liefert kryptische Feldnamen (`fn`, `ln`, `mv`, `st`, ...).
-Diese DTOs bilden das Wire-Format 1:1 ab und mappen anschließend auf die
-Domain-Modelle — der Rest der App sieht die kryptischen Namen nie.
+Kickbase verwendet **unterschiedliche** Kurzformen je nach Endpoint:
+- Squad-Spieler: `pi`, `pn`, `pos`, `p`, `ap`, `mv`, ...
+- Market-Spieler: `i`, `fn`, `n`, `pos`, `mv`, `prc`, `exs`, ...
+- User (im Login): lange Namen `id`, `email`, `name`
+- Login-Root: `tkn`, `tknex`, `u`
+
+Diese DTOs bilden das jeweilige Wire-Format 1:1 ab und mappen dann auf
+Domain-Modelle — der Rest der App sieht die Kurzform nie.
 """
 
 from __future__ import annotations
@@ -17,7 +22,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.domain.models import (
     League,
-    MarketOffer,
+    LeagueMe,
     MarketPlayer,
     MarketValuePoint,
     Matchday,
@@ -35,10 +40,12 @@ _POSITION_VALUES = frozenset(p.value for p in Position)
 _STATUS_VALUES = frozenset(s.value for s in PlayerStatus)
 
 
+# ---------- Auth / User ----------
+
+
 class UserDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    # v4 nutzt kurze Feldnamen; frühere Versionen die vollen — beide akzeptieren.
     id: str = Field(default="", validation_alias=AliasChoices("id", "i"))
     email: str = Field(default="", validation_alias=AliasChoices("email", "em"))
     name: str = Field(default="", validation_alias=AliasChoices("name", "n"))
@@ -47,9 +54,11 @@ class UserDTO(BaseModel):
 class LoginResponseDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    # v4 nutzt "tkn" / "u"; frühere Versionen "token" / "user" — beide akzeptieren.
     token: str = Field(validation_alias=AliasChoices("tkn", "token"))
-    token_exp: datetime | None = Field(default=None, validation_alias="tokenExp")
+    # v4 liefert Token-Ablauf direkt als ISO-String in `tknex`.
+    token_exp: datetime | None = Field(
+        default=None, validation_alias=AliasChoices("tknex", "tokenExp")
+    )
     user: UserDTO = Field(default_factory=UserDTO, validation_alias=AliasChoices("u", "user"))
 
     def to_session(self) -> Session:
@@ -65,8 +74,6 @@ class LoginResponseDTO(BaseModel):
 
 
 def _extract_jwt_exp(token: str) -> datetime | None:
-    """Liest den `exp`-Claim aus einem JWT. Gibt None zurück, wenn das Token
-    kein gültiges JWT ist oder keinen `exp`-Claim enthält."""
     parts = token.split(".")
     if len(parts) != 3:  # noqa: PLR2004 — JWT-Struktur
         return None
@@ -80,21 +87,20 @@ def _extract_jwt_exp(token: str) -> datetime | None:
     return None
 
 
+# ---------- Leagues ----------
+
+
 class LeagueDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    id: str = Field(alias="i")
-    name: str = Field(alias="n")
-    creator_id: str = Field(alias="ci", default="")
-    budget: Decimal | None = Field(alias="b", default=None)
+    id: str = Field(validation_alias=AliasChoices("i", "id"))
+    name: str = Field(validation_alias=AliasChoices("n", "name"))
+    competition_id: str = Field(default="1", validation_alias=AliasChoices("cpi", "cp"))
+    # `b` = Budget, `tv` = Team-Value; nur in /leagues/selection direkt vorhanden.
+    budget: Decimal | None = Field(default=None, validation_alias="b")
 
     def to_domain(self) -> League:
-        return League(
-            id=self.id,
-            name=self.name,
-            creator_id=self.creator_id,
-            budget=self.budget,
-        )
+        return League(id=self.id, name=self.name, creator_id="", budget=self.budget)
 
 
 class LeagueSelectionDTO(BaseModel):
@@ -103,96 +109,120 @@ class LeagueSelectionDTO(BaseModel):
     it: list[LeagueDTO] = Field(default_factory=list)
 
 
-class PlayerDTO(BaseModel):
-    """Spieler-Wire-Format (in Squad, Market und Kader-Views).
+class LeagueMeDTO(BaseModel):
+    model_config = _DTO_CONFIG
 
-    Die Feldnamen sind Kickbase-Kurzformen — hier zentral gemappt.
-    """
+    budget: Decimal = Field(default=Decimal(0), validation_alias="b")
+    unread_notifications: int = Field(default=0, validation_alias=AliasChoices("un", "unm"))
+    is_admin: bool = Field(default=False, validation_alias="adm")
+
+    def to_domain(self, league_id: str) -> LeagueMe:
+        return LeagueMe(
+            league_id=league_id,
+            budget=self.budget,
+            unread_notifications=self.unread_notifications,
+            is_admin=self.is_admin,
+        )
+
+
+# ---------- Player-Basis + Squad ----------
+
+
+def _to_position(raw: int) -> Position:
+    return Position(raw) if raw in _POSITION_VALUES else Position.MIDFIELDER
+
+
+def _to_status(raw: int) -> PlayerStatus:
+    return PlayerStatus(raw) if raw in _STATUS_VALUES else PlayerStatus.FIT
+
+
+class SquadPlayerDTO(BaseModel):
+    """Spieler-Wire-Format innerhalb `/managers/{mid}/squad`."""
 
     model_config = _DTO_CONFIG
 
-    id: str = Field(alias="i")
-    first_name: str = Field(alias="fn", default="")
-    last_name: str = Field(alias="n")
-    team_id: str = Field(alias="tid", default="")
-    position: int = Field(alias="pos", default=0)
-    status: int = Field(alias="st", default=0)
-    market_value: Decimal = Field(alias="mv", default=Decimal(0))
-    average_points: float = Field(alias="ap", default=0.0)
-    total_points: int = Field(alias="tp", default=0)
+    id: str = Field(validation_alias="pi")
+    last_name: str = Field(default="", validation_alias="pn")
+    first_name: str = Field(default="", validation_alias="fn")
+    team_id: str = Field(default="", validation_alias="tid")
+    position: int = Field(default=0, validation_alias="pos")
+    status: int = Field(default=0, validation_alias="st")
+    market_value: Decimal = Field(default=Decimal(0), validation_alias="mv")
+    average_points: float = Field(default=0.0, validation_alias="ap")
+    total_points: int = Field(default=0, validation_alias="p")
 
-    def to_domain(self) -> Player:
-        pos = Position(self.position) if self.position in _POSITION_VALUES else Position.MIDFIELDER
-        status = PlayerStatus(self.status) if self.status in _STATUS_VALUES else PlayerStatus.FIT
-        return Player(
+    def to_squad_player(self) -> SquadPlayer:
+        player = Player(
             id=self.id,
             first_name=self.first_name,
             last_name=self.last_name,
             team_id=self.team_id,
-            position=pos,
-            status=status,
+            position=_to_position(self.position),
+            status=_to_status(self.status),
             market_value=self.market_value,
             average_points=self.average_points,
             total_points=self.total_points,
         )
-
-
-class SquadPlayerDTO(PlayerDTO):
-    buy_price: Decimal = Field(alias="p", default=Decimal(0))
-
-    def to_squad_player(self) -> SquadPlayer:
-        return SquadPlayer(player=self.to_domain(), buy_price=self.buy_price)
+        return SquadPlayer(player=player)
 
 
 class SquadResponseDTO(BaseModel):
     model_config = _DTO_CONFIG
 
     it: list[SquadPlayerDTO] = Field(default_factory=list)
-    team_value: Decimal = Field(alias="tv", default=Decimal(0))
-    budget: Decimal = Field(alias="b", default=Decimal(0))
+    manager_id: str = Field(default="", validation_alias="u")
 
     def to_domain(self, league_id: str, manager_id: str) -> Squad:
         return Squad(
             league_id=league_id,
-            manager_id=manager_id,
+            manager_id=manager_id or self.manager_id,
             players=tuple(sp.to_squad_player() for sp in self.it),
-            team_value=self.team_value,
-            budget=self.budget,
         )
 
 
-class MarketOfferDTO(BaseModel):
+# ---------- Market ----------
+
+
+class MarketPlayerDTO(BaseModel):
+    """Spieler-Wire-Format im Markt (Struktur unterscheidet sich von Squad)."""
+
     model_config = _DTO_CONFIG
 
-    id: str = Field(alias="i")
-    user_id: str = Field(alias="uid", default="")
-    user_name: str = Field(alias="un", default="")
-    price: Decimal = Field(alias="p", default=Decimal(0))
-    valid_until: datetime | None = Field(alias="exs", default=None)
-
-    def to_domain(self) -> MarketOffer:
-        return MarketOffer(
-            id=self.id,
-            user_id=self.user_id,
-            user_name=self.user_name,
-            price=self.price,
-            valid_until=self.valid_until,
-        )
-
-
-class MarketPlayerDTO(PlayerDTO):
-    price: Decimal = Field(alias="prc", default=Decimal(0))
-    expires_at: datetime | None = Field(alias="exs", default=None)
-    seller_id: str | None = Field(alias="u", default=None)
-    offers: list[MarketOfferDTO] = Field(alias="ofs", default_factory=list)
+    id: str = Field(validation_alias="i")
+    first_name: str = Field(default="", validation_alias="fn")
+    last_name: str = Field(default="", validation_alias="n")
+    team_id: str = Field(default="", validation_alias="tid")
+    position: int = Field(default=0, validation_alias="pos")
+    status: int = Field(default=0, validation_alias="st")
+    market_value: Decimal = Field(default=Decimal(0), validation_alias="mv")
+    price: Decimal = Field(default=Decimal(0), validation_alias="prc")
+    # `exs` = Sekunden bis Ablauf. Wir konvertieren in absolute Zeit.
+    expires_in_s: int | None = Field(default=None, validation_alias="exs")
+    seller_id: str | None = Field(default=None, validation_alias="u")
 
     def to_market_player(self) -> MarketPlayer:
+        expires_at = (
+            datetime.now(UTC) + timedelta(seconds=self.expires_in_s)
+            if self.expires_in_s is not None
+            else None
+        )
+        player = Player(
+            id=self.id,
+            first_name=self.first_name,
+            last_name=self.last_name,
+            team_id=self.team_id,
+            position=_to_position(self.position),
+            status=_to_status(self.status),
+            market_value=self.market_value,
+            average_points=0.0,
+            total_points=0,
+        )
         return MarketPlayer(
-            player=self.to_domain(),
+            player=player,
             price=self.price,
-            expires_at=self.expires_at,
+            expires_at=expires_at,
             seller_id=self.seller_id,
-            offers=tuple(o.to_domain() for o in self.offers),
+            offers=(),
         )
 
 
@@ -202,35 +232,59 @@ class MarketResponseDTO(BaseModel):
     it: list[MarketPlayerDTO] = Field(default_factory=list)
 
 
-class MatchdayDTO(BaseModel):
+# ---------- Matchdays ----------
+
+
+class MatchDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    number: int = Field(alias="day")
-    starts_at: datetime = Field(alias="dt")
-    ends_at: datetime = Field(alias="dtl", default=None)  # type: ignore[assignment]
-    is_current: bool = Field(alias="cur", default=False)
+    id: str = Field(default="", validation_alias="mi")
+    day: int = Field(default=0)
+    starts_at: datetime = Field(validation_alias="dt")
+    status: int = Field(default=0, validation_alias="st")
 
-    def to_domain(self) -> Matchday:
-        end = self.ends_at or self.starts_at
-        return Matchday(
-            number=self.number,
-            starts_at=self.starts_at,
-            ends_at=end,
-            is_current=self.is_current,
-        )
+
+class MatchdayGroupDTO(BaseModel):
+    model_config = _DTO_CONFIG
+
+    day: int
+    it: list[MatchDTO] = Field(default_factory=list)
 
 
 class MatchdaysResponseDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    it: list[MatchdayDTO] = Field(default_factory=list)
+    it: list[MatchdayGroupDTO] = Field(default_factory=list)
+    # `day` auf Root-Ebene = aktueller Spieltag.
+    current_day: int = Field(default=0, validation_alias="day")
+
+    def to_domain(self) -> list[Matchday]:
+        result: list[Matchday] = []
+        for group in self.it:
+            if not group.it:
+                continue
+            starts = min(m.starts_at for m in group.it)
+            # Ohne echtes Endzeit-Feld: letzter Kickoff + 2h (Halbzeitpause + Nachspielzeit).
+            ends = max(m.starts_at for m in group.it) + timedelta(hours=2)
+            result.append(
+                Matchday(
+                    number=group.day,
+                    starts_at=starts,
+                    ends_at=ends,
+                    is_current=group.day == self.current_day,
+                )
+            )
+        return result
+
+
+# ---------- Market Value History ----------
 
 
 class MarketValuePointDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    day: datetime = Field(alias="dt")
-    value: Decimal = Field(alias="mv")
+    day: datetime = Field(validation_alias=AliasChoices("dt", "d"))
+    value: Decimal = Field(validation_alias=AliasChoices("mv", "v"))
 
     def to_domain(self) -> MarketValuePoint:
         return MarketValuePoint(day=self.day, value=self.value)
@@ -242,7 +296,10 @@ class MarketValueResponseDTO(BaseModel):
     it: list[MarketValuePointDTO] = Field(default_factory=list)
 
 
+# ---------- Bidding ----------
+
+
 class BidResponseDTO(BaseModel):
     model_config = _DTO_CONFIG
 
-    id: str = Field(alias="i", default="")
+    id: str = Field(default="", validation_alias="i")

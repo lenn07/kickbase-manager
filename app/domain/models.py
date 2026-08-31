@@ -58,7 +58,8 @@ class Player:
 @dataclass(frozen=True, slots=True)
 class SquadPlayer:
     player: Player
-    buy_price: Decimal
+    # Kickbase v4 Squad-Response enthält keinen Kaufpreis mehr — bleibt 0.
+    buy_price: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,8 +67,9 @@ class Squad:
     league_id: str
     manager_id: str
     players: tuple[SquadPlayer, ...]
-    team_value: Decimal
-    budget: Decimal
+    # team_value/budget stehen in /leagues/{id}/me, nicht in /squad — Default 0.
+    team_value: Decimal = Decimal(0)
+    budget: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,3 +102,13 @@ class Matchday:
 class MarketValuePoint:
     day: datetime
     value: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class LeagueMe:
+    """Meine Sicht auf eine Liga: Budget, Team-Wert, Metadaten."""
+
+    league_id: str
+    budget: Decimal
+    unread_notifications: int = 0
+    is_admin: bool = False

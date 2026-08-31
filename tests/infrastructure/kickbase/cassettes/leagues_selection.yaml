@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      cookie:
+      - REDACTED_COOKIE
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/selection
+  response:
+    body:
+      string: '{"it": [{"i": "1111111", "n": "Noob_League", "cpi": "1", "b": 9373464,
+        "un": 24, "lpc": 9, "bs": 1, "vr": 4, "adm": false, "pl": 1, "tv": 135562602,
+        "idf": true, "cpim": "content/file/a9eb2919122b4e248349ba91db351901.png",
+        "gpm": 1, "rnkm": 1, "isvf": false, "vft": 0, "hum": false, "isp": false}],
+        "anol": 12, "anopl": 12, "anoprl": 12}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '294'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Mon, 31 Aug 2026 11:01:22 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

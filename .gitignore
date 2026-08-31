@@ -38,3 +38,5 @@ data/
 .DS_Store
 
 .claude/
+
+tmp/

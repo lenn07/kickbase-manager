@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      cookie:
+      - REDACTED_COOKIE
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/players/1991/marketvalue/7
+  response:
+    body:
+      string: '{"it": [], "trp": 33879307.0, "prlo": -626106.0, "lmv": 0.0, "hmv":
+        0.0, "iso": true, "idp": true}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '85'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Mon, 31 Aug 2026 11:01:24 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -7,6 +7,7 @@ from typing import Protocol, runtime_checkable
 
 from app.domain.models import (
     League,
+    LeagueMe,
     MarketPlayer,
     MarketValuePoint,
     Matchday,
@@ -26,6 +27,8 @@ class KickbaseGateway(Protocol):
     async def login(self, email: str, password: str) -> Session: ...
 
     async def list_leagues(self) -> list[League]: ...
+
+    async def get_league_me(self, league_id: str) -> LeagueMe: ...
 
     async def get_squad(self, league_id: str, manager_id: str) -> Squad: ...
 
