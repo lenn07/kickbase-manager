@@ -14,7 +14,9 @@ from sqlmodel import Session, select
 from app.infrastructure.persistence.models import (
     CredentialRow,
     LeagueRow,
+    SettingsRow,
     SmtpConfigRow,
+    TradeLogRow,
     UserRow,
 )
 
@@ -159,3 +161,94 @@ class LeagueRepository:
             raise LookupError(f"Liga {kb_league_id} nicht in DB")
         self._session.refresh(target)
         return target
+
+
+class SettingsRepository:
+    """Runtime-Overrides für Guardrails + Intervall (F-3, F-10).
+
+    `get_or_default` legt bei Bedarf einen Default-Row an, damit Aufrufer nie
+    mit `None` rechnen müssen.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, user_id: int) -> SettingsRow | None:
+        return self._session.exec(select(SettingsRow).where(SettingsRow.user_id == user_id)).first()
+
+    def get_or_default(self, user_id: int) -> SettingsRow:
+        row = self.get(user_id)
+        if row is not None:
+            return row
+        row = SettingsRow(user_id=user_id)
+        self._session.add(row)
+        self._session.commit()
+        self._session.refresh(row)
+        return row
+
+    def upsert(self, row: SettingsRow) -> SettingsRow:
+        existing = self.get(row.user_id)
+        if existing is None:
+            self._session.add(row)
+            self._session.commit()
+            self._session.refresh(row)
+            return row
+        existing.interval_min = row.interval_min
+        existing.dry_run = row.dry_run
+        existing.max_trade_pct = row.max_trade_pct
+        existing.min_cash_reserve = row.min_cash_reserve
+        existing.min_action_score = row.min_action_score
+        existing.blacklist = row.blacklist
+        existing.digest_enabled = row.digest_enabled
+        existing.digest_hour = row.digest_hour
+        self._session.commit()
+        self._session.refresh(existing)
+        return existing
+
+
+class TradeLogRepository:
+    """Persistiert jede Tick-Entscheidung — HOLD inklusive (§ 7 Nachvollziehbarkeit)."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, row: TradeLogRow) -> TradeLogRow:
+        self._session.add(row)
+        self._session.commit()
+        self._session.refresh(row)
+        return row
+
+    def list_recent(self, *, user_id: int, limit: int = 50) -> list[TradeLogRow]:
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return list(self._session.exec(stmt))
+
+    def latest(self, user_id: int) -> TradeLogRow | None:
+        rows = self.list_recent(user_id=user_id, limit=1)
+        return rows[0] if rows else None
+
+    def list_pending_holds(self, user_id: int) -> list[TradeLogRow]:
+        """HOLD-Ticks, die noch in keinem Digest gemeldet wurden (F-9).
+
+        `notified_at IS NULL` reicht als Filter: der Tick-UseCase setzt
+        `notified_at` nur bei ausgeführten Non-HOLD-Aktionen — HOLD-Rows
+        bleiben unmarkiert, bis der Digest sie einsammelt.
+        """
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .where(TradeLogRow.action == "HOLD")
+            .where(TradeLogRow.notified_at.is_(None))  # type: ignore[union-attr]
+            .order_by(TradeLogRow.ts.asc())  # type: ignore[attr-defined]
+        )
+        return list(self._session.exec(stmt))
+
+    def mark_notified(self, rows: list[TradeLogRow], *, ts: datetime) -> None:
+        for row in rows:
+            row.notified_at = ts
+        if rows:
+            self._session.commit()

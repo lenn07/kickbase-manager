@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.application.setup_service import SetupError, SmtpFormInput
 from app.application.setup_state import SetupStep, read_setup_state
 from app.interface.web.dependencies import SessionDep, SetupServiceDep
+from app.interface.web.rate_limit import enforce_login_rate_limit
 from app.interface.web.templates import templates
 
 router = APIRouter(tags=["setup"])
@@ -41,7 +42,7 @@ async def index(request: Request, session: SessionDep) -> Response:
     state = read_setup_state(session)
     if not state.is_complete:
         return RedirectResponse(url=_url_for_step(state.next_step), status_code=303)
-    return RedirectResponse(url="/setup/done", status_code=303)
+    return RedirectResponse(url="/dashboard", status_code=303)
 
 
 @router.get("/setup", response_class=HTMLResponse)
@@ -58,7 +59,7 @@ async def setup_kickbase_form(request: Request, service: SetupServiceDep) -> Res
     return _render_kickbase(request, service, prefill_email=service.current_email())
 
 
-@router.post("/setup/kickbase")
+@router.post("/setup/kickbase", dependencies=[Depends(enforce_login_rate_limit)])
 async def setup_kickbase_submit(
     request: Request,
     service: SetupServiceDep,
@@ -107,7 +108,7 @@ async def setup_anthropic_form(request: Request, service: SetupServiceDep) -> Re
     return _render_anthropic(request, service)
 
 
-@router.post("/setup/anthropic")
+@router.post("/setup/anthropic", dependencies=[Depends(enforce_login_rate_limit)])
 async def setup_anthropic_submit(
     request: Request,
     service: SetupServiceDep,
@@ -131,7 +132,7 @@ async def setup_smtp_form(request: Request, service: SetupServiceDep) -> Respons
     return _render_smtp(request, service)
 
 
-@router.post("/setup/smtp")
+@router.post("/setup/smtp", dependencies=[Depends(enforce_login_rate_limit)])
 async def setup_smtp_submit(
     request: Request,
     service: SetupServiceDep,

@@ -1,0 +1,90 @@
+<div class="panel-header">
+  <h2>{{ status.league_name }}</h2>
+  <span>
+    {% if status.dry_run %}
+      <span class="badge dry">Dry-Run</span>
+    {% else %}
+      <span class="badge live">Live</span>
+    {% endif %}
+    {% if status.scheduler_paused %}
+      <span class="badge paused">Pausiert</span>
+    {% endif %}
+  </span>
+</div>
+
+{% if status.kickbase_error %}
+  <div class="error">Kickbase-Fehler: {{ status.kickbase_error }}</div>
+{% endif %}
+
+<div class="status-grid">
+  <div class="stat">
+    <div class="label">Budget</div>
+    <div class="value {% if status.budget is none %}muted{% endif %}">
+      {% if status.budget is not none %}{{ "{:,.0f}".format(status.budget).replace(",", ".") }} €{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Kader-Wert</div>
+    <div class="value {% if status.team_value is none %}muted{% endif %}">
+      {% if status.team_value is not none %}{{ "{:,.0f}".format(status.team_value).replace(",", ".") }} €{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Kader-Größe</div>
+    <div class="value {% if status.squad_size is none %}muted{% endif %}">
+      {% if status.squad_size is not none %}{{ status.squad_size }}{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Intervall</div>
+    <div class="value">{{ status.interval_min }} min</div>
+  </div>
+  <div class="stat">
+    <div class="label">Nächster Tick</div>
+    <div class="value {% if not status.next_run %}muted{% endif %}">
+      {% if status.next_run %}{{ status.next_run.strftime("%H:%M:%S") }}{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="label">Letzte Aktion</div>
+    <div class="value {% if not status.last_action %}muted{% endif %}">
+      {% if status.last_action %}
+        {{ status.last_action.action }}
+        {% if status.last_action.player_name %}· {{ status.last_action.player_name }}{% endif %}
+      {% else %}
+        noch keine
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if status.scheduler_enabled %}
+<div class="controls">
+  {% if status.scheduler_paused %}
+    <button hx-post="/api/scheduler/resume"
+            hx-swap="none"
+            hx-on::after-request="htmx.trigger('#status-panel', 'refresh')">
+      ▶︎ Fortsetzen
+    </button>
+  {% else %}
+    <button class="secondary"
+            hx-post="/api/scheduler/pause"
+            hx-swap="none"
+            hx-on::after-request="htmx.trigger('#status-panel', 'refresh')">
+      ⏸ Pausieren
+    </button>
+  {% endif %}
+  <button class="secondary"
+          hx-post="/api/scheduler/trigger"
+          hx-swap="none"
+          hx-on::after-request="htmx.trigger('#status-panel', 'refresh'); htmx.trigger('#history-panel', 'refresh')">
+    ⚡︎ Jetzt ausführen
+  </button>
+  <a href="/settings" class="secondary" style="background:rgba(148,163,184,0.2);color:var(--text);padding:0.45rem 0.85rem;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600">
+    ⚙︎ Einstellungen
+  </a>
+</div>
+{% else %}
+  <p class="hint">Scheduler ist deaktiviert (KB_SCHEDULER_ENABLED=false).</p>
+  <p class="hint"><a href="/settings">⚙︎ Einstellungen öffnen</a></p>
+{% endif %}

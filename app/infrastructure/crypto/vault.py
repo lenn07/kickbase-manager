@@ -9,10 +9,17 @@ Master-Key-Handling:
 
 from __future__ import annotations
 
+import logging
 import os
+import stat
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
+
+_log = logging.getLogger(__name__)
+
+# 0o077 = alle Bits für Group und Other. Ein sauberer 0600-Key hat davon 0.
+_INSECURE_MODE_MASK = 0o077
 
 
 class CryptoError(Exception):
@@ -48,8 +55,27 @@ class FernetVault:
 def _load_key(path: Path) -> bytes | None:
     if not path.exists():
         return None
+    _warn_if_insecure(path)
     data = path.read_bytes().strip()
     return data or None
+
+
+def _warn_if_insecure(path: Path) -> None:
+    """Loggt eine WARN, wenn der Master-Key für Group/Other lesbar ist.
+
+    POSIX-only: auf Windows liefert `stat().st_mode` keine sinnvollen Unix-
+    Bits — dort wird der Check übersprungen.
+    """
+    if os.name != "posix":
+        return
+    mode = stat.S_IMODE(path.stat().st_mode)
+    if mode & _INSECURE_MODE_MASK:
+        _log.warning(
+            "Master-Key %s hat unsichere Permissions %o — empfohlen: `chmod 600 %s`.",
+            path,
+            mode,
+            path,
+        )
 
 
 def _write_key(path: Path, key: bytes) -> None:

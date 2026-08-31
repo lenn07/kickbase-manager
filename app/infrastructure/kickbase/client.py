@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import random
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from http import HTTPStatus
@@ -123,6 +125,14 @@ class HttpxKickbaseClient:
         data = await self._request("POST", path, json={"price": int(price)})
         return BidResponseDTO.model_validate(data).id
 
+    async def sell_player(self, league_id: str, player_id: str, price: Decimal) -> str:
+        # v4 legt ein Verkaufs-Listing über POST /leagues/{lid}/market an
+        # (playerId + price im Body). Rückgabe: Listing-ID im gleichen Format
+        # wie BidResponseDTO ({"i": "..."}).
+        path = f"/v4/leagues/{league_id}/market"
+        data = await self._request("POST", path, json={"playerId": player_id, "price": int(price)})
+        return BidResponseDTO.model_validate(data).id
+
     async def accept_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         path = f"/v4/leagues/{league_id}/market/{player_id}/offers/{offer_id}/accept"
         await self._request("POST", path)
@@ -154,6 +164,7 @@ class HttpxKickbaseClient:
         json: dict[str, Any] | None = None,
         authed: bool = True,
         _attempt: int = 0,
+        _retry_5xx: int = 0,
     ) -> dict[str, Any]:
         await self._limiter.acquire()
 
@@ -166,6 +177,17 @@ class HttpxKickbaseClient:
         try:
             response = await self._http.request(method, path, json=json, headers=headers)
         except httpx.RequestError as exc:
+            # Netzwerkfehler zählen wie 5xx: transient, retry lohnt sich.
+            if _retry_5xx < self._config.max_retries_5xx:
+                await self._backoff_sleep(_retry_5xx)
+                return await self._request(
+                    method,
+                    path,
+                    json=json,
+                    authed=authed,
+                    _attempt=_attempt,
+                    _retry_5xx=_retry_5xx + 1,
+                )
             raise TransportError(f"Netzwerkfehler bei {method} {path}: {exc}") from exc
 
         if (
@@ -179,6 +201,28 @@ class HttpxKickbaseClient:
                 method, path, json=json, authed=authed, _attempt=_attempt + 1
             )
 
+        if (
+            HTTPStatus.INTERNAL_SERVER_ERROR <= response.status_code < _SERVER_ERROR_CEILING
+            and _retry_5xx < self._config.max_retries_5xx
+        ):
+            _log.info(
+                "5xx (%d) bei %s %s — Retry %d/%d",
+                response.status_code,
+                method,
+                path,
+                _retry_5xx + 1,
+                self._config.max_retries_5xx,
+            )
+            await self._backoff_sleep(_retry_5xx)
+            return await self._request(
+                method,
+                path,
+                json=json,
+                authed=authed,
+                _attempt=_attempt,
+                _retry_5xx=_retry_5xx + 1,
+            )
+
         self._raise_for_status(response, method, path)
 
         if not response.content:
@@ -190,6 +234,11 @@ class HttpxKickbaseClient:
         if not isinstance(data, dict):
             raise TransportError(f"Erwartetes JSON-Objekt von {path}, bekam: {type(data).__name__}")
         return data
+
+    async def _backoff_sleep(self, attempt: int) -> None:
+        base = self._config.backoff_base_s * (2**attempt)
+        jitter = random.uniform(0.0, self._config.backoff_base_s)  # noqa: S311 — nur Jitter
+        await asyncio.sleep(base + jitter)
 
     async def _ensure_session(self) -> None:
         if self._session is not None and not self._is_session_expired(self._session):

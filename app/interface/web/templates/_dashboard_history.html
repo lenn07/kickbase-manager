@@ -1,0 +1,33 @@
+<div class="panel-header">
+  <h2>Aktions-Historie</h2>
+  <span class="hint">letzte {{ history|length }} Ticks</span>
+</div>
+
+{% if not history %}
+  <p class="empty">Noch keine Ticks — sobald der Scheduler läuft, erscheinen hier die Entscheidungen.</p>
+{% else %}
+  <table class="history">
+    <thead>
+      <tr>
+        <th>Zeit</th>
+        <th>Aktion</th>
+        <th>Spieler</th>
+        <th>Preis</th>
+        <th>Ausgeführt</th>
+        <th>Begründung</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in history %}
+        <tr>
+          <td>{{ row.ts.strftime("%d.%m. %H:%M:%S") }}</td>
+          <td class="action-{{ row.action }}">{{ row.action }}</td>
+          <td>{{ row.player_name or "—" }}</td>
+          <td>{% if row.price %}{{ "{:,.0f}".format(row.price).replace(",", ".") }} €{% else %}—{% endif %}</td>
+          <td>{% if row.executed %}✓{% else %}·{% endif %}</td>
+          <td>{{ row.reason_text or "" }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}

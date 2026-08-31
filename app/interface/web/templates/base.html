@@ -117,19 +117,22 @@
     ul.leagues input { width: auto; }
     a { color: var(--accent); }
   </style>
+  {% block extra_head %}{% endblock %}
 </head>
 <body>
   <main>
     <header>
       <h1>Kickbase Auto-Manager</h1>
-      <p class="subtitle">Setup — {{ self.title() }}</p>
+      <p class="subtitle">{% block header_subtitle %}Setup — {{ self.title() }}{% endblock %}</p>
     </header>
 
-    {% include "_stepper.html" %}
+    {% block stepper %}{% include "_stepper.html" %}{% endblock %}
 
+    {% block body %}
     <section class="panel">
       {% block content %}{% endblock %}
     </section>
+    {% endblock %}
   </main>
 </body>
 </html>

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen{% endblock %}
+{% block header_subtitle %}Intervall &amp; Guardrails{% endblock %}
+{% block stepper %}{% endblock %}
+{% block body %}
+  <section class="panel">
+    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem">
+      <h2 style="margin:0">Auto-Manager-Einstellungen</h2>
+      <a href="/dashboard" class="hint">← zurück zum Dashboard</a>
+    </div>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    {% if success %}<div class="hint ok" style="margin-bottom:0.75rem">{{ success }}</div>{% endif %}
+    {% if info %}<div class="hint" style="margin-bottom:0.75rem">{{ info }}</div>{% endif %}
+
+    {% set f = form %}
+    <form method="post" action="/settings" hx-post="/settings" hx-target="closest .panel" hx-swap="outerHTML">
+      <fieldset>
+        <legend>Scheduler</legend>
+        <div class="row">
+          <label>
+            Intervall (Minuten)
+            <input name="interval_min" type="number"
+                   min="{{ interval_min_bound }}" max="{{ interval_max_bound }}"
+                   required value="{{ f.interval_min }}">
+            <span class="hint">Range: {{ interval_min_bound }}–{{ interval_max_bound }} min. Änderung wirkt sofort ohne Neustart.</span>
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:0.5rem;padding-top:1.5rem">
+            <input type="checkbox" name="dry_run" value="on"
+                   {% if f.dry_run %}checked{% endif %}>
+            Dry-Run (Trades nur simulieren, nicht senden)
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Guardrails</legend>
+        <div class="row">
+          <label>
+            max_trade_pct
+            <input name="max_trade_pct" type="number" step="0.01" min="0.01" max="1.0"
+                   required value="{{ '%.2f' % f.max_trade_pct }}">
+            <span class="hint">Max. Anteil des Budgets pro einzelnem Trade (0.01–1.0).</span>
+          </label>
+          <label>
+            min_cash_reserve
+            <input name="min_cash_reserve" type="number" min="0"
+                   required value="{{ f.min_cash_reserve }}">
+            <span class="hint">Untergrenze für den freien Cash-Bestand in €.</span>
+          </label>
+          <label>
+            min_action_score
+            <input name="min_action_score" type="number" step="0.01" min="0" max="10"
+                   required value="{{ '%.2f' % f.min_action_score }}">
+            <span class="hint">Schwellwert für Nicht-HOLD-Entscheidungen (0–10).</span>
+          </label>
+        </div>
+        <label>
+          Blacklist
+          <textarea name="blacklist" rows="4"
+                    style="background:#0f172a;color:var(--text);border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:0.55rem 0.75rem;font:inherit;resize:vertical"
+                    placeholder="Ein Player-Identifier pro Zeile">{{ f.blacklist_text }}</textarea>
+          <span class="hint">Diese Spieler werden weder gekauft noch angeboten. Leere Zeilen und Duplikate werden entfernt.</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>HOLD-Digest (F-9, geplant)</legend>
+        <div class="row">
+          <label style="flex-direction:row;align-items:center;gap:0.5rem">
+            <input type="checkbox" name="digest_enabled" value="on"
+                   {% if f.digest_enabled %}checked{% endif %}>
+            Täglichen Digest der HOLD-Ticks per E-Mail senden
+          </label>
+          <label>
+            Digest-Stunde (0–23, lokale Zeit)
+            <input name="digest_hour" type="number" min="0" max="23"
+                   required value="{{ f.digest_hour }}">
+          </label>
+        </div>
+      </fieldset>
+
+      <button type="submit">Speichern</button>
+    </form>
+  </section>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block header_subtitle %}Live-Status &amp; Historie{% endblock %}
+{% block stepper %}{% endblock %}
+{% block extra_head %}
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/ext/ws.js"></script>
+  <style>
+    main { max-width: 960px; }
+    .panel + .panel { margin-top: 1rem; }
+    .panel-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem; }
+    .panel-header h2 { margin: 0; font-size: 1.05rem; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+    .stat { background: #0f172a; border-radius: 8px; padding: 0.75rem 1rem; border: 1px solid rgba(148, 163, 184, 0.15); }
+    .stat .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 1.15rem; font-weight: 600; margin-top: 0.25rem; }
+    .stat .value.muted { color: var(--muted); font-weight: 500; }
+    .stat .value.ok { color: var(--ok); }
+    .stat .value.warn { color: var(--error); }
+    .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+    .controls button { padding: 0.45rem 0.85rem; font-size: 0.85rem; }
+    .controls button.secondary { background: rgba(148, 163, 184, 0.2); color: var(--text); }
+    .controls button.secondary:hover { background: rgba(148, 163, 184, 0.3); }
+    table.history { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    table.history th, table.history td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    table.history th { color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.04em; }
+    table.history td.action-BUY { color: var(--ok); }
+    table.history td.action-SELL { color: var(--accent); }
+    table.history td.action-HOLD { color: var(--muted); }
+    table.history td.action-ERROR { color: var(--error); }
+    .log-stream {
+      background: #020617;
+      border-radius: 8px;
+      padding: 0.75rem;
+      max-height: 320px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0;
+      white-space: pre-wrap;
+    }
+    .log-line { padding: 0.05rem 0; }
+    .log-line.level-WARNING { color: #fbbf24; }
+    .log-line.level-ERROR, .log-line.level-CRITICAL { color: var(--error); }
+    .log-line.level-INFO { color: var(--text); }
+    .log-line.level-DEBUG { color: var(--muted); }
+    .hint.ok { color: var(--ok); }
+    .hint.error { color: var(--error); }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .badge.dry { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge.live { background: rgba(74, 222, 128, 0.15); color: var(--ok); }
+    .badge.paused { background: rgba(248, 113, 113, 0.15); color: var(--error); }
+    .empty { color: var(--muted); font-style: italic; }
+  </style>
+{% endblock %}
+{% block body %}
+  <section class="panel"
+           id="status-panel"
+           hx-get="/dashboard/status"
+           hx-trigger="every 15s, refresh"
+           hx-swap="innerHTML">
+    {% include "_dashboard_status.html" %}
+  </section>
+
+  <section class="panel panel-log">
+    <div class="panel-header">
+      <h2>Live-Log</h2>
+      <span class="hint" id="ws-state">verbinde…</span>
+    </div>
+    <div id="log-stream" class="log-stream" aria-live="polite"></div>
+  </section>
+
+  <section class="panel"
+           id="history-panel"
+           hx-get="/dashboard/history"
+           hx-trigger="every 30s, refresh"
+           hx-swap="innerHTML">
+    {% include "_dashboard_history.html" %}
+  </section>
+
+  <script>
+    (function () {
+      var stream = document.getElementById("log-stream");
+      var stateEl = document.getElementById("ws-state");
+      var maxLines = 300;
+      var proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      var url = proto + "//" + window.location.host + "/ws/logs";
+      var reconnectDelay = 1000;
+
+      function connect() {
+        var ws = new WebSocket(url);
+        ws.onopen = function () {
+          stateEl.textContent = "verbunden";
+          stateEl.className = "hint ok";
+          reconnectDelay = 1000;
+        };
+        ws.onmessage = function (ev) {
+          var payload;
+          try { payload = JSON.parse(ev.data); }
+          catch (_) { return; }
+          if (payload.type === "ping") return;
+          var line = document.createElement("div");
+          line.className = "log-line level-" + (payload.level || "INFO");
+          var ts = payload.ts ? new Date(payload.ts).toLocaleTimeString("de-DE") : "";
+          line.textContent = "[" + ts + "] " + (payload.level || "") + " " + (payload.logger || "") + " — " + (payload.message || "");
+          stream.appendChild(line);
+          while (stream.childElementCount > maxLines) {
+            stream.removeChild(stream.firstChild);
+          }
+          stream.scrollTop = stream.scrollHeight;
+        };
+        ws.onclose = function () {
+          stateEl.textContent = "getrennt — verbinde neu…";
+          stateEl.className = "hint error";
+          setTimeout(connect, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 15000);
+        };
+        ws.onerror = function () { ws.close(); };
+      }
+      connect();
+    })();
+  </script>
+{% endblock %}

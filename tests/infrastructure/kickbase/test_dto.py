@@ -116,6 +116,29 @@ def test_market_v4_maps_prc_exs_and_no_offers() -> None:
     assert mp.offers == ()
 
 
+def test_market_v4_extracts_seller_id_from_user_object() -> None:
+    # Kickbase liefert `u` seit einem API-Update teils als User-Objekt statt String.
+    payload = {
+        "it": [
+            {
+                "i": "4320433",
+                "fn": "Leon",
+                "n": "Example",
+                "tid": "3",
+                "pos": 2,
+                "st": 0,
+                "mv": "1000000",
+                "prc": "1200000",
+                "exs": 3600,
+                "u": {"i": "999", "n": "Manager", "vft": 0, "st": 0},
+            }
+        ]
+    }
+    market = MarketResponseDTO.model_validate(payload)
+    mp = market.it[0].to_market_player()
+    assert mp.seller_id == "999"
+
+
 def test_matchdays_flattens_groups_and_marks_current() -> None:
     payload = {
         "day": 2,

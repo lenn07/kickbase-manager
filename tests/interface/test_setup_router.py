@@ -23,7 +23,7 @@ from tests.application.conftest import FakeKickbase, FakeLlm, FakeSmtp
 
 @pytest.fixture
 def client(tmp_path: Path) -> Iterator[TestClient]:
-    settings = Settings(data_dir=tmp_path)
+    settings = Settings(data_dir=tmp_path, scheduler_enabled=False)
     app = create_app(settings)
 
     kickbase = FakeKickbase()
@@ -103,10 +103,10 @@ def test_full_wizard_happy_path(client: TestClient) -> None:
     assert r.status_code == 200
     assert "Bundesliga Bros" in r.text
 
-    # /root leitet jetzt auf /setup/done statt zurück in den Wizard.
+    # /root leitet nach fertigem Setup auf das Dashboard.
     r = client.get("/", follow_redirects=False)
     assert r.status_code == 303
-    assert r.headers["location"] == "/setup/done"
+    assert r.headers["location"] == "/dashboard"
 
 
 def test_kickbase_form_shows_error_on_bad_password(client: TestClient) -> None:

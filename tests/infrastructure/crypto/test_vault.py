@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -48,3 +50,30 @@ def test_decrypt_with_wrong_key_raises(tmp_path: Path) -> None:
     token = v1.encrypt("only-a-can-read")
     with pytest.raises(CryptoError):
         v2.decrypt(token)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Permission-Bits nur auf POSIX aussagekräftig.")
+def test_load_warns_on_insecure_permissions(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    FernetVault.load_or_create(data_dir=tmp_path)
+    key_file = tmp_path / "secret.key"
+    key_file.chmod(0o644)
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="app.infrastructure.crypto.vault"):
+        FernetVault.load_or_create(data_dir=tmp_path)
+
+    assert any("unsichere Permissions" in rec.message for rec in caplog.records)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Permission-Bits nur auf POSIX aussagekräftig.")
+def test_load_stays_silent_on_600_permissions(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    FernetVault.load_or_create(data_dir=tmp_path)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="app.infrastructure.crypto.vault"):
+        FernetVault.load_or_create(data_dir=tmp_path)
+
+    assert not any("unsichere Permissions" in rec.message for rec in caplog.records)

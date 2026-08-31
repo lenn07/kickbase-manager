@@ -18,7 +18,7 @@ import json as _json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.models import (
     League,
@@ -198,7 +198,17 @@ class MarketPlayerDTO(BaseModel):
     price: Decimal = Field(default=Decimal(0), validation_alias="prc")
     # `exs` = Sekunden bis Ablauf. Wir konvertieren in absolute Zeit.
     expires_in_s: int | None = Field(default=None, validation_alias="exs")
+    # `u` war früher die Seller-ID als String; seit einem API-Update kann es
+    # auch ein User-Objekt sein (z. B. {"i": "...", "n": "...", "vft": 0, "st": 0}).
     seller_id: str | None = Field(default=None, validation_alias="u")
+
+    @field_validator("seller_id", mode="before")
+    @classmethod
+    def _extract_seller_id(cls, v: object) -> str | None:
+        if isinstance(v, dict):
+            raw = v.get("i") or v.get("id")
+            return str(raw) if raw is not None else None
+        return v  # type: ignore[return-value]
 
     def to_market_player(self) -> MarketPlayer:
         expires_at = (

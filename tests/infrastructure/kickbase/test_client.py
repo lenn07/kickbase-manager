@@ -12,6 +12,7 @@ from app.domain.exceptions import (
     ConflictError,
     NotFoundError,
     RateLimitError,
+    TransportError,
 )
 from app.domain.gateways import KickbaseGateway, SessionStore
 from app.domain.models import Session as KbSession
@@ -51,6 +52,7 @@ def _fast_config() -> KickbaseClientConfig:
         max_requests_per_minute=10_000,
         jitter_min_s=0.0,
         jitter_max_s=0.0,
+        backoff_base_s=0.0,
     )
 
 
@@ -173,6 +175,24 @@ async def test_place_bid_sends_price_and_returns_offer_id() -> None:
     assert offer_id == "offer-42"
 
 
+async def test_sell_player_posts_listing_and_returns_id() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        assert request.method == "POST"
+        assert request.url.path == "/v4/leagues/L1/market"
+        body = request.content
+        assert b'"playerId":"P7"' in body
+        assert b'"price":900000' in body
+        return httpx.Response(200, json={"i": "listing-77"})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        listing_id = await client.sell_player("L1", "P7", Decimal("900000"))
+
+    assert listing_id == "listing-77"
+
+
 async def test_authenticated_call_without_login_raises() -> None:
     async with _client(httpx.MockTransport(lambda _r: httpx.Response(200, json={}))) as client:
         with pytest.raises(AuthError):
@@ -272,6 +292,62 @@ async def test_no_cached_session_and_no_credentials_raises_auth_error() -> None:
     ) as client:
         with pytest.raises(AuthError):
             await client.list_leagues()
+
+
+async def test_5xx_is_retried_with_backoff_and_finally_succeeds() -> None:
+    state = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        state["count"] += 1
+        if state["count"] < 3:
+            return httpx.Response(503, json={"message": "upstream down"})
+        return httpx.Response(200, json={"it": []})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        result = await client.list_leagues()
+
+    assert result == []
+    assert state["count"] == 3  # 2 Retries + 1 finaler Erfolg
+
+
+async def test_persistent_5xx_raises_transport_error_after_retries() -> None:
+    state = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        state["count"] += 1
+        return httpx.Response(502, json={"message": "bad gateway"})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        with pytest.raises(TransportError):
+            await client.list_leagues()
+
+    # max_retries_5xx=2 → initial + 2 retries = 3 Aufrufe.
+    assert state["count"] == 3
+
+
+async def test_network_error_is_retried_before_giving_up() -> None:
+    state = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        state["count"] += 1
+        if state["count"] < 2:
+            raise httpx.ConnectError("temporär weg")
+        return httpx.Response(200, json={"it": []})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        result = await client.list_leagues()
+
+    assert result == []
+    assert state["count"] == 2
 
 
 async def test_login_saves_session_to_store() -> None:

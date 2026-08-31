@@ -19,7 +19,7 @@ dependencies = [
     "aiosmtplib>=3.0",
     "anthropic>=0.39",
     "python-multipart>=0.0.12",
-    "itsdangerous>=2.2",
+    "prometheus-client>=0.20",
 ]
 
 [project.optional-dependencies]
@@ -69,6 +69,7 @@ ignore = [
 "tests/*" = ["S", "PLR2004"]
 # FastAPI-Router binden Form-Felder als positional args — Signatur ist framework-vorgegeben.
 "app/interface/web/router.py" = ["PLR0917"]
+"app/interface/web/settings.py" = ["PLR0917"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path: Path) -> TestClient:
-    settings = Settings(data_dir=tmp_path)
+    settings = Settings(data_dir=tmp_path, scheduler_enabled=False)
     return TestClient(create_app(settings))
 
 

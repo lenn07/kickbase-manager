@@ -16,3 +16,7 @@ class KickbaseClientConfig:
     max_relogin_attempts: int = 1
     # Wie lange vor Ablauf ein gecachter Token als "abgelaufen" behandelt wird.
     session_expiry_margin_s: int = 300
+    # 5xx/Netzwerk-Retries: 0 = kein Retry. Backoff wächst exponentiell:
+    # sleep = backoff_base_s * (2 ** attempt) + Jitter aus rate_limit_jitter.
+    max_retries_5xx: int = 2
+    backoff_base_s: float = 0.5

@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     timezone: str = "Europe/Berlin"
 
+    # Scheduler-Loop (Phase 3) — im Test/CI-Kontext explizit deaktivierbar,
+    # damit TestClient-Lifespan-Runs keinen Hintergrund-Job starten.
+    scheduler_enabled: bool = True
+    default_interval_min: int = 120
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "kb.db"
