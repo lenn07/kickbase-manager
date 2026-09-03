@@ -6,12 +6,19 @@
 {% if not history %}
   <p class="empty">Noch keine Ticks — sobald der Scheduler läuft, erscheinen hier die Entscheidungen.</p>
 {% else %}
+  {% set intent_labels = {
+    "SQUAD_FILL": "Kader füllen",
+    "PROFIT": "Geld machen",
+    "POINTS": "Punkte sammeln",
+    "DEBT_RELIEF": "Schulden abbauen"
+  } %}
   <table class="history">
     <thead>
       <tr>
         <th>Zeit</th>
         <th>Aktion</th>
         <th>Spieler</th>
+        <th>Grund</th>
         <th>Preis</th>
         <th>Ausgeführt</th>
         <th>Begründung</th>
@@ -19,10 +26,18 @@
     </thead>
     <tbody>
       {% for row in history %}
+        {% set intent = row.context.get("intent") if row.context else None %}
         <tr>
           <td>{{ row.ts.strftime("%d.%m. %H:%M:%S") }}</td>
           <td class="action-{{ row.action }}">{{ row.action }}</td>
           <td>{{ row.player_name or "—" }}</td>
+          <td>
+            {% if intent %}
+              <span class="intent-badge intent-{{ intent }}">{{ intent_labels.get(intent, intent) }}</span>
+            {% else %}
+              <span class="hint">—</span>
+            {% endif %}
+          </td>
           <td>{% if row.price %}{{ "{:,.0f}".format(row.price).replace(",", ".") }} €{% else %}—{% endif %}</td>
           <td>{% if row.executed %}✓{% else %}·{% endif %}</td>
           <td>{{ row.reason_text or "" }}</td>

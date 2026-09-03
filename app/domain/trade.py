@@ -3,6 +3,11 @@
 `HOLD` ist eine gleichwertige Option (§ 7 Aggressivität): kein Kauf, kein
 Verkauf, kein Angebot. Der Scheduler-Tick landet immer mit einer Entscheidung
 im `trade_log`, damit Nachvollziehbarkeit gewahrt bleibt.
+
+`TradeIntent` klassifiziert die Motivation hinter einer Kauf-/Verkauf-Aktion
+(Kader füllen, Wertsteigerung realisieren, Punkte sammeln, Schuldenabbau).
+Wird im Dashboard als Badge angezeigt und beim SELL benutzt, um frühere
+PROFIT-Käufe gezielt zu realisieren.
 """
 
 from __future__ import annotations
@@ -20,6 +25,13 @@ class TradeAction(StrEnum):
     HOLD = "HOLD"
 
 
+class TradeIntent(StrEnum):
+    SQUAD_FILL = "SQUAD_FILL"
+    PROFIT = "PROFIT"
+    POINTS = "POINTS"
+    DEBT_RELIEF = "DEBT_RELIEF"
+
+
 @dataclass(frozen=True, slots=True)
 class TradeDecision:
     action: TradeAction
@@ -28,6 +40,7 @@ class TradeDecision:
     player_name: str | None = None
     price: Decimal | None = None
     offer_id: str | None = None
+    intent: TradeIntent | None = None
 
     @classmethod
     def hold(cls, reason: str) -> TradeDecision:

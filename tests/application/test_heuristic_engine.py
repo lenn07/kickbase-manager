@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from app.application.decision_engine import DecisionContext
+from app.application.decision_engine import BuyRecord, DecisionContext
 from app.application.heuristic_engine import HeuristicDecisionEngine
 from app.domain.exceptions import TransportError
 from app.domain.models import (
@@ -20,7 +20,7 @@ from app.domain.models import (
     Squad,
     SquadPlayer,
 )
-from app.domain.trade import TradeAction
+from app.domain.trade import TradeAction, TradeIntent
 
 LEAGUE_ID = "L1"
 MANAGER_ID = "M1"
@@ -111,6 +111,7 @@ def _context(
     min_cash_reserve: int = 0,
     blacklist: tuple[str, ...] = (),
     team_value: Decimal = Decimal("50000000"),
+    buy_history: dict[str, BuyRecord] | None = None,
 ) -> DecisionContext:
     squad = squad or _squad([])
     return DecisionContext(
@@ -124,6 +125,7 @@ def _context(
         min_cash_reserve=min_cash_reserve,
         blacklist=blacklist,
         team_value=team_value,
+        buy_history=buy_history or {},
     )
 
 
@@ -165,7 +167,11 @@ async def test_buy_best_market_candidate() -> None:
     decision = await engine.decide(_context(market=market, min_action_score=0.3))
     assert decision.action is TradeAction.BUY
     assert decision.player_id == "m1"
-    assert decision.price == Decimal("2000000")
+    # Overbid-Cap: höchstens +15 % über Marktwert (bei hoher Utility).
+    assert Decimal("2000000") <= decision.price <= Decimal("2300000")
+    # Bei leerem Squad ist "Kader füllen" der dominante Grund.
+    assert decision.intent is not None
+    assert decision.intent.value in {"SQUAD_FILL", "PROFIT", "POINTS"}
 
 
 async def test_blacklist_blocks_buy() -> None:
@@ -400,3 +406,119 @@ async def test_various_unfit_statuses_are_filtered(status: PlayerStatus) -> None
     engine = HeuristicDecisionEngine(FakeHistoryGateway())
     decision = await engine.decide(_context(market=market, min_action_score=0.3))
     assert decision.action is TradeAction.HOLD
+
+
+async def test_buy_intent_is_squad_fill_when_kader_klein() -> None:
+    strong = _player("m1", avg=12.0, market_value=Decimal("2000000"), name="Strong")
+    market = (_market(strong, price=Decimal("2000000")),)
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    # Squad leer → definitiv SQUAD_FILL
+    decision = await engine.decide(_context(market=market, min_action_score=0.3))
+    assert decision.action is TradeAction.BUY
+    assert decision.intent is TradeIntent.SQUAD_FILL
+
+
+async def test_buy_intent_is_profit_on_strong_uptrend_in_full_squad() -> None:
+    # Voller Kader (>= 13 Spieler) + starker Uptrend → PROFIT-Intent.
+    riser = _player("m1", avg=6.0, market_value=Decimal("2000000"), name="Riser")
+    market = (_market(riser, price=Decimal("2000000")),)
+    engine = HeuristicDecisionEngine(
+        FakeHistoryGateway(histories={"m1": _rising_history(2_000_000)})
+    )
+    squad = _padded_squad([], target_size=14)
+    decision = await engine.decide(_context(squad=squad, market=market, min_action_score=0.3))
+    assert decision.action is TradeAction.BUY
+    assert decision.intent is TradeIntent.PROFIT
+
+
+async def test_overbid_caps_at_15_percent_and_respects_spendable() -> None:
+    strong = _player("m1", avg=12.0, market_value=Decimal("2000000"), name="Strong")
+    market = (_market(strong, price=Decimal("2000000")),)
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    decision = await engine.decide(
+        _context(
+            market=market,
+            budget=Decimal("10000000"),
+            max_trade_pct=1.0,
+            min_action_score=0.3,
+        )
+    )
+    assert decision.action is TradeAction.BUY
+    # Marktpreis 2M, max Overbid +15 % → höchstens 2,3M.
+    assert decision.price <= Decimal("2300000")
+    assert decision.price >= Decimal("2000000")
+
+
+async def test_overbid_never_exceeds_spendable_budget() -> None:
+    strong = _player("m1", avg=12.0, market_value=Decimal("2000000"), name="Strong")
+    market = (_market(strong, price=Decimal("2000000")),)
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    # spendable = 2,1M — Overbid würde eigentlich 2,3M sein, muss aber gecappt werden.
+    decision = await engine.decide(
+        _context(
+            market=market,
+            budget=Decimal("2100000"),
+            max_trade_pct=1.0,
+            min_action_score=0.3,
+        )
+    )
+    assert decision.action is TradeAction.BUY
+    assert decision.price <= Decimal("2100000")
+
+
+async def test_profit_exit_wins_over_hold_when_gain_material() -> None:
+    # Squad-Spieler mit ordentlichem Score, gekauft für 4M, jetzt 6M wert → +50 %.
+    keeper = _player("k1", avg=8.0, market_value=Decimal("6000000"), name="Riser")
+    squad = _padded_squad([SquadPlayer(player=keeper)], target_size=13)
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    buy_history = {
+        "k1": BuyRecord(intent=TradeIntent.PROFIT, buy_price=Decimal("4000000")),
+    }
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            min_action_score=0.55,
+            buy_history=buy_history,
+        )
+    )
+    assert decision.action is TradeAction.SELL
+    assert decision.player_id == "k1"
+    assert decision.intent is TradeIntent.PROFIT
+    assert "PROFIT-Exit" in decision.reason
+
+
+async def test_profit_exit_ignored_when_gain_too_small() -> None:
+    keeper = _player("k1", avg=8.0, market_value=Decimal("4200000"), name="Slow")
+    squad = _padded_squad([SquadPlayer(player=keeper)], target_size=13)
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    buy_history = {
+        "k1": BuyRecord(intent=TradeIntent.PROFIT, buy_price=Decimal("4000000")),
+    }
+    # +5 % Gewinn ist unterhalb des 10 %-Trigger → kein PROFIT-Bonus, weniger als
+    # der ohnehin nötige Aktions-Score → HOLD.
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            min_action_score=0.6,
+            buy_history=buy_history,
+        )
+    )
+    # Kein PROFIT-Exit — Reason enthält "PROFIT-Exit" nicht.
+    assert "PROFIT-Exit" not in (decision.reason or "")
+
+
+async def test_debt_relief_sell_gets_debt_intent() -> None:
+    # Konto im Minus, Verkauf greift → Intent muss DEBT_RELIEF sein.
+    weak = _player("s1", avg=4.0, market_value=Decimal("8000000"), name="Weak")
+    squad = _padded_squad([SquadPlayer(player=weak)])
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            budget=Decimal("-5000000"),
+            team_value=Decimal("50000000"),
+            min_action_score=0.5,
+        )
+    )
+    assert decision.action is TradeAction.SELL
+    assert decision.intent is TradeIntent.DEBT_RELIEF

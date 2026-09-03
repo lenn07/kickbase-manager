@@ -231,6 +231,30 @@ class TradeLogRepository:
         rows = self.list_recent(user_id=user_id, limit=1)
         return rows[0] if rows else None
 
+    def last_executed_buys(self, user_id: int) -> dict[str, TradeLogRow]:
+        """Letzter ausgeführter BUY je player_id — Basis für PROFIT-Exit.
+
+        Wir liefern das gesamte `TradeLogRow`, damit der Aufrufer sowohl
+        `context["intent"]` als auch `price` (Kaufpreis) rausziehen kann.
+        Spieler, die inzwischen wieder verkauft wurden, filtern wir absichtlich
+        nicht raus — die Anwendungsschicht schneidet die Menge mit dem aktuellen
+        Squad, wodurch verkaufte Spieler ohnehin nicht mehr benutzt werden.
+        """
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .where(TradeLogRow.action == "BUY")
+            .where(TradeLogRow.executed.is_(True))  # type: ignore[union-attr]
+            .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
+        )
+        rows = self._session.exec(stmt)
+        out: dict[str, TradeLogRow] = {}
+        for row in rows:
+            if row.player_id is None:
+                continue
+            out.setdefault(row.player_id, row)
+        return out
+
     def list_pending_holds(self, user_id: int) -> list[TradeLogRow]:
         """HOLD-Ticks, die noch in keinem Digest gemeldet wurden (F-9).
 

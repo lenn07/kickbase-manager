@@ -8,7 +8,9 @@ Ablauf pro Tick:
    (Aggressivitäts-Regel § 7): der Kurator soll HOLD wählen dürfen, ohne die
    Heuristik nachbauen zu müssen.
 4. Der LLM bekommt Kontext + Kandidaten-Liste und **muss** über Tool-Use
-   genau eine `candidate_id` zurückliefern (JSON-Schema-erzwungen).
+   genau eine `candidate_id` zurückliefern; optional darf er den von der
+   Heuristik gesetzten `intent` (SQUAD_FILL / PROFIT / POINTS / DEBT_RELIEF)
+   überschreiben, wenn er einen anderen Motivations-Grund plausibler findet.
 5. Bei LLM-Ausfall oder ungültiger Wahl fällt der Kurator auf die
    Heuristik-Entscheidung zurück und markiert das im `reason` — ein
    temporärer Anthropic-Ausfall darf den Auto-Loop nicht anhalten.
@@ -23,14 +25,19 @@ from typing import Any
 from app.application.decision_engine import DecisionContext
 from app.application.heuristic_engine import HeuristicCandidate, HeuristicDecisionEngine
 from app.domain.kb_rules import action_threshold_scale
-from app.domain.trade import TradeAction, TradeDecision
+from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.llm.anthropic_client import LlmChatError, LlmChatGateway
 
 _log = logging.getLogger(__name__)
 
 _HOLD_CANDIDATE_ID = "HOLD:0"
 _TOOL_NAME = "select_action"
-_TOOL_DESCRIPTION = "Wähle exakt eine der im Prompt angebotenen candidate_ids und begründe kurz."
+_TOOL_DESCRIPTION = (
+    "Wähle exakt eine der im Prompt angebotenen candidate_ids und begründe kurz. "
+    "Optional: intent überschreiben, wenn der Motivations-Grund von der Heuristik "
+    "abweicht (nur für BUY/SELL sinnvoll)."
+)
+_INTENT_ENUM = [i.value for i in TradeIntent]
 _INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -45,6 +52,14 @@ _INPUT_SCHEMA: dict[str, Any] = {
             "description": "Kurze Begründung in ≤ 240 Zeichen.",
             "maxLength": 240,
         },
+        "intent": {
+            "type": "string",
+            "description": (
+                "Optionaler Motivations-Grund für BUY/SELL. "
+                "Wenn gesetzt, überschreibt er den Heuristik-Vorschlag."
+            ),
+            "enum": _INTENT_ENUM,
+        },
     },
     "required": ["candidate_id", "reason"],
 }
@@ -55,6 +70,13 @@ _SYSTEM_PROMPT = (
     "HOLD (nichts tun) ist eine vollwertige Option und die bessere Wahl, "
     "wenn keine andere Option klaren Mehrwert (> 5 % Utility-Vorsprung vor HOLD) bringt. "
     "Priorisiere hohe Utility, aber gewichte auch Preis-Effizienz, Form und Marktwert-Trend. "
+    "Ein Spieler kann bis zu +15 % über Marktwert geboten werden — nutze das, "
+    "wenn du einen Schlüsselkandidaten nicht verlieren willst. "
+    "Für jeden BUY/SELL liefert die Heuristik einen intent-Vorschlag "
+    "(SQUAD_FILL = Kader füllen, PROFIT = Wertsteigerung realisieren, "
+    "POINTS = Punkte sammeln, DEBT_RELIEF = Schulden abbauen). "
+    "Übernimm ihn normalerweise; setze `intent` nur, wenn du sicher bist, "
+    "dass ein anderer Grund besser passt. "
     "Antworte ausschließlich durch Aufruf des Tools `select_action` mit einer der "
     "angebotenen candidate_ids — keine Freitexte. Erfinde keine candidate_id."
 )
@@ -118,6 +140,7 @@ class LlmCurator:
 
         candidate_id = tool_input.get("candidate_id")
         llm_reason = str(tool_input.get("reason") or "").strip()
+        llm_intent = _parse_intent(tool_input.get("intent"))
         if not isinstance(candidate_id, str) or candidate_id not in by_id:
             _log.warning(
                 "LLM lieferte ungültige candidate_id=%r — Fallback auf Heuristik.", candidate_id
@@ -128,7 +151,7 @@ class LlmCurator:
             )
 
         chosen = by_id[candidate_id]
-        return _decorate_with_llm_reason(chosen.decision, llm_reason)
+        return _decorate_with_llm_reason(chosen.decision, llm_reason, llm_intent)
 
 
 def _make_hold_candidate(min_action_score: float) -> HeuristicCandidate:
@@ -149,18 +172,41 @@ def _build_user_message(
     lines = [
         "Ligastatus:",
         f"- Budget spendable: {int(context.budget)}",
-        f"- Kader-Größe: {len(context.squad.players)}",
+        f"- Kader-Größe: {len(context.squad.players)} / 15",
+        f"- Team-Wert: {int(context.team_value)}",
         f"- Schwelle min_action_score: {context.min_action_score:.2f}",
         f"- max_trade_pct: {context.max_trade_pct:.2f}",
         f"- min_cash_reserve: {context.min_cash_reserve}",
+        f"- Bekannte PROFIT-Käufe im Kader: {_profit_holding_count(context)}",
         "",
-        "Kandidaten (candidate_id | utility | summary):",
+        "Kandidaten (candidate_id | utility | intent | summary):",
     ]
     for c in candidates:
-        lines.append(f"- {c.id} | utility={c.utility:.2f} | {c.summary}")
+        intent_label = c.decision.intent.value if c.decision.intent is not None else "—"
+        lines.append(f"- {c.id} | utility={c.utility:.2f} | intent={intent_label} | {c.summary}")
     lines.append("")
-    lines.append("Wähle genau eine candidate_id über das Tool `select_action` und begründe kurz.")
+    lines.append(
+        "Wähle genau eine candidate_id über das Tool `select_action`, "
+        "begründe kurz und setze `intent` nur, wenn du den Heuristik-Vorschlag "
+        "überschreiben willst."
+    )
     return "\n".join(lines)
+
+
+def _profit_holding_count(context: DecisionContext) -> int:
+    if not context.buy_history:
+        return 0
+    return sum(1 for rec in context.buy_history.values() if rec.intent is TradeIntent.PROFIT)
+
+
+def _parse_intent(raw: object) -> TradeIntent | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        return TradeIntent(raw)
+    except ValueError:
+        _log.info("LLM lieferte unbekannten Intent %r — ignoriere.", raw)
+        return None
 
 
 def _fallback_from_heuristic(best: HeuristicCandidate, *, reason_prefix: str) -> TradeDecision:
@@ -175,13 +221,24 @@ def _fallback_from_heuristic(best: HeuristicCandidate, *, reason_prefix: str) ->
         player_name=original.player_name,
         price=original.price,
         offer_id=original.offer_id,
+        intent=original.intent,
     )
 
 
-def _decorate_with_llm_reason(decision: TradeDecision, llm_reason: str) -> TradeDecision:
-    if not llm_reason:
+def _decorate_with_llm_reason(
+    decision: TradeDecision, llm_reason: str, llm_intent: TradeIntent | None
+) -> TradeDecision:
+    if not llm_reason and llm_intent is None:
         return decision
-    combined = f"LLM: {llm_reason} | Heuristik: {decision.reason}"
+    intent = llm_intent or decision.intent
+    reason_parts: list[str] = []
+    if llm_reason:
+        reason_parts.append(f"LLM: {llm_reason}")
+    if llm_intent is not None and llm_intent is not decision.intent:
+        old = decision.intent.value if decision.intent is not None else "—"
+        reason_parts.append(f"Intent-Override: {old} → {llm_intent.value}")
+    reason_parts.append(f"Heuristik: {decision.reason}")
+    combined = " | ".join(reason_parts)
     if decision.action is TradeAction.HOLD:
         return TradeDecision.hold(combined)
     return TradeDecision(
@@ -191,6 +248,7 @@ def _decorate_with_llm_reason(decision: TradeDecision, llm_reason: str) -> Trade
         player_name=decision.player_name,
         price=decision.price,
         offer_id=decision.offer_id,
+        intent=intent,
     )
 
 

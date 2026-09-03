@@ -11,7 +11,7 @@ from app.application.decision_engine import DecisionContext
 from app.application.heuristic_engine import HeuristicCandidate
 from app.application.llm_curator import LlmCurator
 from app.domain.models import LeagueMe, Squad
-from app.domain.trade import TradeAction, TradeDecision
+from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.llm.anthropic_client import LlmChatError
 
 LEAGUE_ID = "L1"
@@ -86,13 +86,16 @@ def _context(
     )
 
 
-def _buy_candidate(utility: float = 0.9) -> HeuristicCandidate:
+def _buy_candidate(
+    utility: float = 0.9, intent: TradeIntent = TradeIntent.POINTS
+) -> HeuristicCandidate:
     decision = TradeDecision(
         action=TradeAction.BUY,
         reason="BUY Musterspieler: Score=0.90",
         player_id="m1",
         player_name="Musterspieler",
         price=Decimal("2000000"),
+        intent=intent,
     )
     return HeuristicCandidate(
         id="BUY:m1", utility=utility, decision=decision, summary=decision.reason
@@ -196,6 +199,61 @@ async def test_non_string_candidate_id_falls_back(bad: object) -> None:
 
     assert decision.action is TradeAction.BUY
     assert "Fallback" in decision.reason
+
+
+async def test_llm_keeps_heuristic_intent_when_not_overridden() -> None:
+    heuristic = FakeHeuristic(candidates=(_buy_candidate(intent=TradeIntent.SQUAD_FILL),))
+    llm = FakeLlmChat(response={"candidate_id": "BUY:m1", "reason": "passt."})
+    curator = LlmCurator(heuristic=heuristic, llm=llm, api_key="sk-ant-good")
+
+    decision = await curator.decide(_context())
+
+    assert decision.action is TradeAction.BUY
+    assert decision.intent is TradeIntent.SQUAD_FILL
+
+
+async def test_llm_can_override_intent() -> None:
+    heuristic = FakeHeuristic(candidates=(_buy_candidate(intent=TradeIntent.POINTS),))
+    llm = FakeLlmChat(
+        response={
+            "candidate_id": "BUY:m1",
+            "reason": "starke Steigung erwartet.",
+            "intent": "PROFIT",
+        }
+    )
+    curator = LlmCurator(heuristic=heuristic, llm=llm, api_key="sk-ant-good")
+
+    decision = await curator.decide(_context())
+
+    assert decision.intent is TradeIntent.PROFIT
+    assert "Intent-Override" in decision.reason
+
+
+async def test_llm_invalid_intent_falls_back_to_heuristic_intent() -> None:
+    heuristic = FakeHeuristic(candidates=(_buy_candidate(intent=TradeIntent.SQUAD_FILL),))
+    llm = FakeLlmChat(
+        response={
+            "candidate_id": "BUY:m1",
+            "reason": "ok",
+            "intent": "BOGUS",
+        }
+    )
+    curator = LlmCurator(heuristic=heuristic, llm=llm, api_key="sk-ant-good")
+
+    decision = await curator.decide(_context())
+
+    assert decision.intent is TradeIntent.SQUAD_FILL
+
+
+async def test_user_message_lists_intent_per_candidate() -> None:
+    heuristic = FakeHeuristic(candidates=(_buy_candidate(intent=TradeIntent.SQUAD_FILL),))
+    llm = FakeLlmChat(response={"candidate_id": "HOLD:0", "reason": "warten"})
+    curator = LlmCurator(heuristic=heuristic, llm=llm, api_key="sk-ant-good")
+
+    await curator.decide(_context())
+
+    prompt = llm.calls[0]["user_message"]
+    assert "intent=SQUAD_FILL" in prompt
 
 
 async def test_hold_from_heuristic_fallback_preserves_hold_action() -> None:

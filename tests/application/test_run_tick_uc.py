@@ -12,7 +12,7 @@ from app.application.run_tick_uc import RunTickUseCase
 from app.application.setup_service import SetupService, SmtpFormInput
 from app.domain.exceptions import TransportError
 from app.domain.models import LeagueMe, Squad
-from app.domain.trade import TradeAction, TradeDecision
+from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import FernetVault
 from app.infrastructure.persistence.models import TradeLogRow
 from app.infrastructure.persistence.repositories import (
@@ -236,6 +236,35 @@ async def test_tick_kickbase_error_is_logged_and_mailed(
     assert latest.action == "ERROR"
     assert "api hakelt" in latest.reason_text
     assert len(smtp.sent) == 1
+
+
+async def test_tick_persists_intent_in_trade_log_context(
+    db_session: Session, vault: FernetVault
+) -> None:
+    kb = FakeKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+    smtp.sent.clear()
+
+    engine = FixedDecisionEngine(
+        TradeDecision(
+            action=TradeAction.BUY,
+            reason="stub",
+            player_id="p1",
+            player_name="Test",
+            price=Decimal(1_000_000),
+            intent=TradeIntent.PROFIT,
+        )
+    )
+    uc = RunTickUseCase(session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp)
+    outcome = await uc.run()
+
+    assert outcome.log_id is not None
+    latest = TradeLogRepository(db_session).latest(
+        UserRepository(db_session).get_singleton().id  # type: ignore[union-attr,arg-type]
+    )
+    assert latest is not None
+    assert latest.context.get("intent") == "PROFIT"
 
 
 def _as_utc(value: datetime) -> datetime:

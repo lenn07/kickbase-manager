@@ -7,13 +7,22 @@ die Heuristik-Schicht, Phase 5 verdrahtet den LLM-Kurator obendrauf.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
 
 from app.domain.models import LeagueMe, MarketPlayer, Squad
-from app.domain.trade import TradeDecision
+from app.domain.trade import TradeDecision, TradeIntent
+
+
+@dataclass(frozen=True, slots=True)
+class BuyRecord:
+    """Historischer Kauf eines Spielers — Basis für die PROFIT-Exit-Logik."""
+
+    intent: TradeIntent
+    buy_price: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +47,9 @@ class DecisionContext:
     # Scheduler-Intervall in Minuten — für die Berechnung, wie viele Ticks
     # bis zum nächsten Spieltag noch reinpassen (dynamische Aktions-Schwelle).
     interval_min: int = 120
+    # Historische BUYs pro player_id (Intent + Kaufpreis) — steuert
+    # PROFIT-Exits und wird vom RunTickUseCase aus dem trade_log befüllt.
+    buy_history: Mapping[str, BuyRecord] = field(default_factory=dict)
 
 
 class DecisionEngine(Protocol):

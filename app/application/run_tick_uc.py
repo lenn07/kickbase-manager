@@ -15,15 +15,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlmodel import Session
 
-from app.application.decision_engine import DecisionContext, DecisionEngine
+from app.application.decision_engine import BuyRecord, DecisionContext, DecisionEngine
 from app.application.setup_state import read_setup_state
 from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
-from app.domain.trade import TradeDecision
+from app.domain.trade import TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.metrics import get_metrics
 from app.infrastructure.notifications.smtp_client import SmtpConfig, SmtpError, SmtpGateway
@@ -108,6 +109,9 @@ class RunTickUseCase:
             metrics.record_tick("error")
             return TickOutcome(executed=False, decision=None, log_id=row.id)
 
+        squad_ids = {sp.player.id for sp in squad.players}
+        buy_history = _load_buy_history(self._trades, user.id, squad_ids)
+
         context = DecisionContext(
             league_id=league_row.kb_league_id,
             league_me=league_me,
@@ -122,6 +126,7 @@ class RunTickUseCase:
             now=datetime.now(UTC),
             next_matchday_start=next_matchday_start,
             interval_min=settings.interval_min,
+            buy_history=buy_history,
         )
 
         decision = await self._engine.decide(context)
@@ -142,6 +147,7 @@ class RunTickUseCase:
                     "executor_note": result.reason,
                     "response_ref": result.response_ref,
                     "error": result.error,
+                    "intent": decision.intent.value if decision.intent is not None else None,
                 },
             )
         )
@@ -243,3 +249,30 @@ class RunTickUseCase:
             use_tls=row.use_tls,
             use_starttls=row.use_starttls,
         )
+
+
+def _load_buy_history(
+    trades: TradeLogRepository, user_id: int, squad_ids: set[str]
+) -> dict[str, BuyRecord]:
+    """Baut ein `BuyRecord`-Mapping für alle Spieler, die noch im Squad stehen.
+
+    Nur ausgeführte BUY-Ticks zählen (Dry-Run-Vormerkungen bleiben ohne Effekt).
+    Fehlt der Intent oder ist er ungültig, wird der Datensatz übersprungen —
+    ohne Intent kann die PROFIT-Exit-Logik nichts entscheiden.
+    """
+    if not squad_ids:
+        return {}
+    raw = trades.last_executed_buys(user_id)
+    out: dict[str, BuyRecord] = {}
+    for player_id, row in raw.items():
+        if player_id not in squad_ids or row.price is None:
+            continue
+        intent_raw = row.context.get("intent") if isinstance(row.context, dict) else None
+        try:
+            intent = TradeIntent(intent_raw) if intent_raw else None
+        except ValueError:
+            intent = None
+        if intent is None:
+            continue
+        out[player_id] = BuyRecord(intent=intent, buy_price=Decimal(row.price))
+    return out
