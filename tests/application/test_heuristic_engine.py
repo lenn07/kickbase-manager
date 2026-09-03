@@ -786,9 +786,9 @@ async def test_second_goalkeeper_buy_is_dampened_without_profit_signal() -> None
         _context(squad=_balanced_squad(), market=market, min_action_score=0.3)
     )
     if decision.action is TradeAction.BUY:
-        assert (
-            decision.player_id != "gk2"
-        ), "2. GK sollte durch Overstock-Malus hinter dem MID-Kandidaten landen."
+        assert decision.player_id != "gk2", (
+            "2. GK sollte durch Overstock-Malus hinter dem MID-Kandidaten landen."
+        )
 
 
 async def test_second_goalkeeper_gets_position_surplus_bonus() -> None:
