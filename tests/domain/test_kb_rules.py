@@ -13,6 +13,7 @@ from app.domain.kb_rules import (
     evaluate_sell,
     negative_budget_limit,
 )
+from app.domain.models import Position
 
 
 def test_negative_budget_limit_matches_official_example() -> None:
@@ -207,3 +208,92 @@ def test_apply_delta_clips_to_unit_interval() -> None:
     assert apply_delta(0.9, 0.3) == 1.0
     assert apply_delta(0.2, -0.5) == 0.0
     assert apply_delta(0.5, 0.1) == 0.6
+
+
+# -- Positions-Regeln ------------------------------------------------------
+
+
+_HEALTHY_SQUAD_POSITIONS = {
+    Position.GOALKEEPER: 2,
+    Position.DEFENDER: 5,
+    Position.MIDFIELDER: 5,
+    Position.FORWARD: 3,
+}
+
+
+def test_sell_last_goalkeeper_is_blocked_hard() -> None:
+    # Nur 1 GK im Kader — Verkauf würde eine unbesetzte GK-Position hinterlassen.
+    positions = {**_HEALTHY_SQUAD_POSITIONS, Position.GOALKEEPER: 1}
+    adj = evaluate_sell(
+        budget=Decimal("5000000"),
+        sell_price=Decimal("2000000"),
+        squad_size=14,
+        squad_positions=positions,
+        sold_position=Position.GOALKEEPER,
+    )
+    assert adj.delta == -1.0
+    assert any("Positions-Loch" in r and "GK" in r for r in adj.reasons)
+
+
+def test_sell_surplus_position_gets_small_bonus() -> None:
+    # 5 DEF — Verkauf lässt 4 DEF, weit über Mindest 3.
+    adj = evaluate_sell(
+        budget=Decimal("5000000"),
+        sell_price=Decimal("2000000"),
+        squad_size=14,
+        squad_positions=_HEALTHY_SQUAD_POSITIONS,
+        sold_position=Position.DEFENDER,
+    )
+    assert adj.delta > 0
+    assert any("Positions-Überschuss" in r for r in adj.reasons)
+
+
+def test_buy_second_goalkeeper_gets_overstock_malus() -> None:
+    # Schon 1 GK vorhanden — der zweite ist nur als PROFIT-Karte sinnvoll.
+    positions = {**_HEALTHY_SQUAD_POSITIONS, Position.GOALKEEPER: 1}
+    adj = evaluate_buy(
+        budget=Decimal("10000000"),
+        team_value=Decimal("50000000"),
+        open_bids_total=Decimal(0),
+        buy_price=Decimal("2000000"),
+        squad_size=14,
+        squad_positions=positions,
+        bought_position=Position.GOALKEEPER,
+    )
+    assert adj.delta < 0
+    assert any("GK-Overstock" in r for r in adj.reasons)
+
+
+def test_buy_filling_missing_position_gets_bedarf_bonus() -> None:
+    # Kader ohne einzigen GK — Kauf füllt Startelf-Pflicht.
+    positions = {**_HEALTHY_SQUAD_POSITIONS, Position.GOALKEEPER: 0}
+    adj = evaluate_buy(
+        budget=Decimal("10000000"),
+        team_value=Decimal("50000000"),
+        open_bids_total=Decimal(0),
+        buy_price=Decimal("2000000"),
+        squad_size=14,
+        squad_positions=positions,
+        bought_position=Position.GOALKEEPER,
+    )
+    assert adj.delta > 0
+    assert any("Positions-Bedarf" in r and "GK" in r for r in adj.reasons)
+
+
+def test_position_check_stays_neutral_without_context() -> None:
+    # Ältere Aufrufer (Tests, Legacy-Code) ohne Positions-Kontext dürfen keinen
+    # Effekt sehen — die Position-Regel greift nur mit vollständigen Params.
+    adj_buy = evaluate_buy(
+        budget=Decimal("5000000"),
+        team_value=Decimal("50000000"),
+        open_bids_total=Decimal(0),
+        buy_price=Decimal("2000000"),
+        squad_size=13,
+    )
+    adj_sell = evaluate_sell(
+        budget=Decimal("5000000"),
+        sell_price=Decimal("2000000"),
+        squad_size=13,
+    )
+    assert not any("Positions" in r or "GK-Overstock" in r for r in adj_buy.reasons)
+    assert not any("Positions" in r for r in adj_sell.reasons)

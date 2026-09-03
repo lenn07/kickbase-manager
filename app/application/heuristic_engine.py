@@ -41,6 +41,7 @@ from app.application.decision_engine import BuyRecord, DecisionContext, ListingR
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
 from app.domain.kb_rules import (
+    POSITION_MINIMUMS,
     RuleAdjustment,
     action_threshold_scale,
     apply_delta,
@@ -54,6 +55,7 @@ from app.domain.models import (
     MarketValuePoint,
     Player,
     PlayerStatus,
+    Position,
     SquadPlayer,
 )
 from app.domain.scoring import (
@@ -179,6 +181,12 @@ class HeuristicDecisionEngine:
         manager_id = context.squad.manager_id
         squad_ids = {sp.player.id for sp in context.squad.players}
         squad_size = len(context.squad.players)
+        squad_positions = _count_positions(context.squad.players)
+        # Positions-Kandidaten für den BUY-Kontext: bevorzugt untervertretene
+        # Positionen (GK-Overstock kriegt Malus, Bedarf einen kleinen Bonus).
+        position_by_player: dict[str, Position] = {
+            sp.player.id: sp.player.position for sp in context.squad.players
+        }
 
         buy_prefilter = self._prefilter_buy_market(
             context.market,
@@ -212,23 +220,29 @@ class HeuristicDecisionEngine:
 
         candidates: list[HeuristicCandidate] = []
         if spendable > 0:
-            buy = self._best_buy(buy_scored, spendable=spendable, squad_size=squad_size)
+            buy = self._best_buy(
+                buy_scored,
+                spendable=spendable,
+                squad_size=squad_size,
+                squad_positions=squad_positions,
+            )
             if buy is not None:
-                candidates.append(self._apply_buy_rules(buy, context))
+                candidates.append(self._apply_buy_rules(buy, context, squad_positions))
         # Pro Squad-Spieler beide Verkaufs-Varianten erzeugen, die Kickbase-
-        # Regeln (Debt-Relief, Startelf, Deadline) auf JEDE anwenden — und
-        # erst danach pro Spieler die stärkere Variante behalten. Debt-Relief
-        # ist z. B. für SELL voll wirksam, für LIST halbiert; die Reihenfolge
-        # sicherzustellen ist wichtig, damit die Rule-Adjustments die Wahl
-        # tatsächlich mitentscheiden.
+        # Regeln (Debt-Relief, Startelf, Positions-Loch, Deadline) auf JEDE
+        # anwenden — und erst danach pro Spieler die stärkere Variante
+        # behalten. Debt-Relief ist z. B. für SELL voll wirksam, für LIST
+        # halbiert; das Positions-Loch (letzter GK, zu wenige DEF/MID/ATT)
+        # muss vor der Wahl greifen, sonst würde der Bot in eine unvollständige
+        # Startelf verkaufen.
         raw_sell_pairs = self._sell_candidate_pairs(
             squad_scored,
             buy_history=context.buy_history,
             listed_ids=listed_ids,
         )
         for list_cand, sell_cand in raw_sell_pairs:
-            adjusted_list = self._apply_sell_rules(list_cand, context)
-            adjusted_sell = self._apply_sell_rules(sell_cand, context)
+            adjusted_list = self._apply_sell_rules(list_cand, context, squad_positions)
+            adjusted_sell = self._apply_sell_rules(sell_cand, context, squad_positions)
             best = (
                 adjusted_list if adjusted_list.utility >= adjusted_sell.utility else adjusted_sell
             )
@@ -236,7 +250,9 @@ class HeuristicDecisionEngine:
         stale = self._stale_listing_candidates(context)
         candidates.extend(stale)
         for candidate in self._collect_offer_candidates(offer_market_entries, squad_score_by_id):
-            candidates.append(self._apply_offer_rules(candidate, context))
+            candidates.append(
+                self._apply_offer_rules(candidate, context, squad_positions, position_by_player)
+            )
         candidates.sort(key=lambda c: c.utility, reverse=True)
         return tuple(candidates)
 
@@ -324,10 +340,22 @@ class HeuristicDecisionEngine:
         *,
         spendable: int,
         squad_size: int,
+        squad_positions: Mapping[Position, int],
     ) -> HeuristicCandidate | None:
         if not scored:
             return None
-        top = max(scored, key=lambda s: s.score)
+
+        # Positions-Priorisierung: Kandidaten, die einen echten Bedarf decken,
+        # dürfen einen leicht schwächeren Score haben. Wir addieren einen
+        # kleinen Bedarfs-Bonus zum Ranking-Score (kein Utility-Persist —
+        # `evaluate_buy` kümmert sich später um die harte Regel-Wirkung).
+        def _rank_key(entry: _ScoredMarket) -> float:
+            return entry.score + _position_ranking_bonus(
+                entry.market.player.position, squad_positions
+            )
+
+        ranked = sorted(scored, key=_rank_key, reverse=True)
+        top = ranked[0]
         intent = _derive_buy_intent(top.features, squad_size=squad_size)
         fill_bonus = _squad_fill_bonus(squad_size)
         base_utility = _clip01(top.score + fill_bonus)
@@ -481,9 +509,12 @@ class HeuristicDecisionEngine:
 
     @staticmethod
     def _apply_buy_rules(
-        candidate: HeuristicCandidate, context: DecisionContext
+        candidate: HeuristicCandidate,
+        context: DecisionContext,
+        squad_positions: Mapping[Position, int],
     ) -> HeuristicCandidate:
         assert candidate.decision.price is not None  # per Konstruktion im _best_buy
+        bought_position = _candidate_position(candidate, context)
         adjustment = evaluate_buy(
             budget=context.budget,
             team_value=context.team_value,
@@ -492,14 +523,19 @@ class HeuristicDecisionEngine:
             squad_size=len(context.squad.players),
             now=context.now,
             next_matchday_start=context.next_matchday_start,
+            squad_positions=squad_positions,
+            bought_position=bought_position,
         )
         return _adjust_candidate(candidate, adjustment)
 
     @staticmethod
     def _apply_sell_rules(
-        candidate: HeuristicCandidate, context: DecisionContext
+        candidate: HeuristicCandidate,
+        context: DecisionContext,
+        squad_positions: Mapping[Position, int],
     ) -> HeuristicCandidate:
         assert candidate.decision.price is not None
+        sold_position = _candidate_position(candidate, context)
         # LIST_ON_MARKET löst kein sofortiges Debt-Relief aus (Cash kommt
         # frühestens in 24 h), deshalb halbieren wir den Debt-Relief-Bonus
         # für Listings. Direktverkauf (SELL) profitiert voll.
@@ -509,6 +545,8 @@ class HeuristicDecisionEngine:
             squad_size=len(context.squad.players),
             now=context.now,
             next_matchday_start=context.next_matchday_start,
+            squad_positions=squad_positions,
+            sold_position=sold_position,
         )
         adjustment = (
             _dampen_debt_relief(raw_adjustment)
@@ -522,18 +560,25 @@ class HeuristicDecisionEngine:
 
     @staticmethod
     def _apply_offer_rules(
-        candidate: HeuristicCandidate, context: DecisionContext
+        candidate: HeuristicCandidate,
+        context: DecisionContext,
+        squad_positions: Mapping[Position, int],
+        position_by_player: Mapping[str, Position],
     ) -> HeuristicCandidate:
         if candidate.decision.action is not TradeAction.ACCEPT_OFFER:
             # DECLINE ändert Squad/Konto nicht — keine Regel-Anpassung nötig.
             return candidate
         assert candidate.decision.price is not None
+        pid = candidate.decision.player_id
+        sold_position = position_by_player.get(pid) if pid is not None else None
         adjustment = evaluate_accept_offer(
             budget=context.budget,
             offer_price=Decimal(candidate.decision.price),
             squad_size=len(context.squad.players),
             now=context.now,
             next_matchday_start=context.next_matchday_start,
+            squad_positions=squad_positions,
+            sold_position=sold_position,
         )
         return _adjust_candidate(candidate, adjustment)
 
@@ -809,6 +854,50 @@ def _lookup_squad_name(context: DecisionContext, player_id: str) -> str | None:
     for sp in context.squad.players:
         if sp.player.id == player_id:
             return _full_name(sp.player)
+    return None
+
+
+def _count_positions(players: tuple[SquadPlayer, ...]) -> dict[Position, int]:
+    counts: dict[Position, int] = dict.fromkeys(Position, 0)
+    for sp in players:
+        counts[sp.player.position] = counts.get(sp.player.position, 0) + 1
+    return counts
+
+
+def _position_ranking_bonus(position: Position, squad_positions: Mapping[Position, int]) -> float:
+    """Kleiner Ranking-Bonus im Prefilter für untervertretene Positionen.
+
+    Wirkt nur auf die Sortier-Reihenfolge in `_best_buy` — die harte
+    Utility-Anpassung macht `evaluate_buy` (Bedarf-Bonus, GK-Overstock).
+    """
+
+    current = squad_positions.get(position, 0)
+    minimum = POSITION_MINIMUMS.get(position, 0)
+    if current < minimum:
+        return 0.05
+    if position is Position.GOALKEEPER and current >= 1:
+        # 2. GK ist nur als PROFIT-Karte interessant — im Ranking leicht dämpfen.
+        return -0.05
+    return 0.0
+
+
+def _candidate_position(candidate: HeuristicCandidate, context: DecisionContext) -> Position | None:
+    """Findet die Position des Spielers im Squad oder auf dem Markt.
+
+    Squad-Kandidaten (SELL/LIST) matchen über den Kader; Markt-Kandidaten
+    (BUY) matchen über den Market-Response. Fällt beides fehlschlägt, gibt
+    die Funktion None zurück und die Regel bleibt inaktiv.
+    """
+
+    pid = candidate.decision.player_id
+    if pid is None:
+        return None
+    for sp in context.squad.players:
+        if sp.player.id == pid:
+            return sp.player.position
+    for mp in context.market:
+        if mp.player.id == pid:
+            return mp.player.position
     return None
 
 
