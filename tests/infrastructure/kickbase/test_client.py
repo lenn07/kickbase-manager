@@ -175,7 +175,7 @@ async def test_place_bid_sends_price_and_returns_offer_id() -> None:
     assert offer_id == "offer-42"
 
 
-async def test_sell_player_posts_listing_and_returns_id() -> None:
+async def test_list_on_market_posts_listing_and_returns_id() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v4/user/login":
             return httpx.Response(200, json=_LOGIN_OK)
@@ -188,9 +188,43 @@ async def test_sell_player_posts_listing_and_returns_id() -> None:
 
     async with _client(httpx.MockTransport(handler)) as client:
         await client.login("a@b.de", "pw")
-        listing_id = await client.sell_player("L1", "P7", Decimal("900000"))
+        listing_id = await client.list_on_market("L1", "P7", Decimal("900000"))
 
     assert listing_id == "listing-77"
+
+
+async def test_sell_to_kickbase_deletes_via_sell_endpoint() -> None:
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        return httpx.Response(200, json={})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        await client.sell_to_kickbase("L1", "P7")
+
+    assert seen == {"method": "DELETE", "path": "/v4/leagues/L1/market/P7/sell"}
+
+
+async def test_remove_from_market_deletes_listing() -> None:
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        return httpx.Response(200, json={})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        await client.remove_from_market("L1", "P7")
+
+    assert seen == {"method": "DELETE", "path": "/v4/leagues/L1/market/P7"}
 
 
 async def test_authenticated_call_without_login_raises() -> None:

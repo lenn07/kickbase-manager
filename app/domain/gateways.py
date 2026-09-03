@@ -52,7 +52,22 @@ class KickbaseGateway(Protocol):
 
     async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str: ...
 
-    async def sell_player(self, league_id: str, player_id: str, price: Decimal) -> str: ...
+    async def list_on_market(self, league_id: str, player_id: str, price: Decimal) -> str:
+        """Eigenen Spieler zum Wunschpreis auf den Transfermarkt setzen (Listing)."""
+        ...
+
+    async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
+        """Spieler direkt an Kickbase (die „Bank") zum aktuellen Marktwert verkaufen.
+
+        Setzt voraus, dass der Spieler bereits auf dem Markt liegt — Kickbase
+        gibt automatisch ein Angebot in Marktwert-Höhe ab, das dieser Endpunkt
+        annimmt.
+        """
+        ...
+
+    async def remove_from_market(self, league_id: str, player_id: str) -> None:
+        """Aktives eigenes Listing zurückziehen, ohne zu verkaufen."""
+        ...
 
     async def accept_offer(self, league_id: str, player_id: str, offer_id: str) -> None: ...
 

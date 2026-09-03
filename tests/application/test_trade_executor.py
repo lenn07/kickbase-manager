@@ -14,7 +14,8 @@ class RecordingKickbase(FakeKickbase):
     def __init__(self) -> None:
         super().__init__()
         self.bids: list[tuple[str, str, Decimal]] = []
-        self.sells: list[tuple[str, str, Decimal]] = []
+        self.listings: list[tuple[str, str, Decimal]] = []
+        self.direct_sells: list[tuple[str, str]] = []
         self.accepts: list[tuple[str, str, str]] = []
         self.declines: list[tuple[str, str, str]] = []
         self.raise_on_bid = False
@@ -25,9 +26,12 @@ class RecordingKickbase(FakeKickbase):
         self.bids.append((league_id, player_id, price))
         return "offer-42"
 
-    async def sell_player(self, league_id: str, player_id: str, price: Decimal) -> str:
-        self.sells.append((league_id, player_id, price))
+    async def list_on_market(self, league_id: str, player_id: str, price: Decimal) -> str:
+        self.listings.append((league_id, player_id, price))
         return "listing-99"
+
+    async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
+        self.direct_sells.append((league_id, player_id))
 
     async def accept_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         self.accepts.append((league_id, player_id, offer_id))
@@ -95,7 +99,22 @@ async def test_kickbase_error_becomes_non_executed_result() -> None:
     assert "zu niedrig" in result.error
 
 
-async def test_live_sell_dispatches_sell_player() -> None:
+async def test_live_list_on_market_dispatches_listing() -> None:
+    kb = RecordingKickbase()
+    executor = TradeExecutor(kb, dry_run=False)
+    decision = TradeDecision(
+        action=TradeAction.LIST_ON_MARKET,
+        reason="listing test",
+        player_id="p9",
+        price=Decimal(750_000),
+    )
+    result = await executor.execute("L1", decision)
+    assert result.executed is True
+    assert result.response_ref == "listing-99"
+    assert kb.listings == [("L1", "p9", Decimal(750_000))]
+
+
+async def test_live_sell_dispatches_direct_sell_to_kickbase() -> None:
     kb = RecordingKickbase()
     executor = TradeExecutor(kb, dry_run=False)
     decision = TradeDecision(
@@ -106,11 +125,11 @@ async def test_live_sell_dispatches_sell_player() -> None:
     )
     result = await executor.execute("L1", decision)
     assert result.executed is True
-    assert result.response_ref == "listing-99"
-    assert kb.sells == [("L1", "p9", Decimal(750_000))]
+    assert kb.direct_sells == [("L1", "p9")]
+    assert kb.listings == []
 
 
-async def test_dry_run_skips_sell() -> None:
+async def test_dry_run_skips_direct_sell() -> None:
     kb = RecordingKickbase()
     executor = TradeExecutor(kb, dry_run=True)
     decision = TradeDecision(
@@ -119,15 +138,23 @@ async def test_dry_run_skips_sell() -> None:
     result = await executor.execute("L1", decision)
     assert result.executed is False
     assert "Dry-Run" in result.reason
-    assert kb.sells == []
+    assert kb.direct_sells == []
 
 
-async def test_sell_without_price_raises() -> None:
+async def test_sell_without_player_raises() -> None:
     kb = RecordingKickbase()
     executor = TradeExecutor(kb, dry_run=False)
     with pytest.raises(ValueError, match="SELL"):
+        await executor.execute("L1", TradeDecision(action=TradeAction.SELL, reason="s"))
+
+
+async def test_list_without_price_raises() -> None:
+    kb = RecordingKickbase()
+    executor = TradeExecutor(kb, dry_run=False)
+    with pytest.raises(ValueError, match="LIST_ON_MARKET"):
         await executor.execute(
-            "L1", TradeDecision(action=TradeAction.SELL, reason="s", player_id="p1")
+            "L1",
+            TradeDecision(action=TradeAction.LIST_ON_MARKET, reason="s", player_id="p1"),
         )
 
 

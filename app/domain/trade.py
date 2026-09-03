@@ -4,6 +4,14 @@
 Verkauf, kein Angebot. Der Scheduler-Tick landet immer mit einer Entscheidung
 im `trade_log`, damit Nachvollziehbarkeit gewahrt bleibt.
 
+Verkaufs-Semantik ist zweigeteilt:
+- `LIST_ON_MARKET` legt ein Transfermarkt-Listing zum Wunschpreis an; andere
+  Manager können darauf bieten (24 h Laufzeit).
+- `SELL` ist der Direktverkauf an Kickbase zum aktuellen Marktwert. Setzt
+  voraus, dass der Spieler bereits gelistet ist — die Engine nutzt diese
+  Aktion sowohl proaktiv (wenn Direktverkauf klüger ist als Warten) als auch
+  als Fallback für Listings, die nach 24 h keinen Bieter gefunden haben.
+
 `TradeIntent` klassifiziert die Motivation hinter einer Kauf-/Verkauf-Aktion
 (Kader füllen, Wertsteigerung realisieren, Punkte sammeln, Schuldenabbau).
 Wird im Dashboard als Badge angezeigt und beim SELL benutzt, um frühere
@@ -19,6 +27,7 @@ from enum import StrEnum
 
 class TradeAction(StrEnum):
     BUY = "BUY"
+    LIST_ON_MARKET = "LIST_ON_MARKET"
     SELL = "SELL"
     ACCEPT_OFFER = "ACCEPT_OFFER"
     DECLINE_OFFER = "DECLINE_OFFER"

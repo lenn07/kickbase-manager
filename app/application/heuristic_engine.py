@@ -1,9 +1,16 @@
 """Heuristik-Kurator (ADR-5, Schicht 1) — ersetzt HoldOnlyDecisionEngine.
 
-Der Algorithmus wählt pro Tick höchstens eine Aktion aus fünf Kategorien
-(BUY, SELL, ACCEPT_OFFER, DECLINE_OFFER, HOLD). Jede Kategorie liefert eine
-Utility ∈ [0, 1]; die höchste Utility gewinnt, sofern sie `min_action_score`
-überschreitet — sonst HOLD.
+Der Algorithmus wählt pro Tick höchstens eine Aktion aus sechs Kategorien
+(BUY, LIST_ON_MARKET, SELL, ACCEPT_OFFER, DECLINE_OFFER, HOLD). Jede Kategorie
+liefert eine Utility ∈ [0, 1]; die höchste Utility gewinnt, sofern sie
+`min_action_score` überschreitet — sonst HOLD.
+
+Verkauf ist zweistufig modelliert: LIST_ON_MARKET (Wunschpreis = MW * 1.10,
+wartet 24 h auf Bieter) und SELL (Direktverkauf an Kickbase zum Marktwert).
+Pro Squad-Spieler entstehen beide Kandidaten; der mit der höheren Utility
+gewinnt. Ein bereits gelistetes Listing wird nicht erneut vorgeschlagen,
+außer der Stale-Fallback greift: läuft das Listing in < 2 h ab oder ist es
+seit ≥ 24 h ohne Angebot offen, erzwingt die Engine einen SELL mit Priorität.
 
 Marktwert-Historie wird nur für vorgefilterte Kandidaten geladen (Top-N Markt +
 gesamter Squad), damit die Extra-Requests klein bleiben und das Ban-Risiko
@@ -27,9 +34,10 @@ import asyncio
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from decimal import Decimal
 
-from app.application.decision_engine import BuyRecord, DecisionContext
+from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
 from app.domain.kb_rules import (
@@ -81,6 +89,20 @@ _POINTS_FORM_THRESHOLD = 0.55  # form > .55 → Spieler bringt aktuell Punkte
 _PROFIT_EXIT_MIN_GAIN = 0.10
 _PROFIT_EXIT_MAX_GAIN = 0.30
 _PROFIT_EXIT_MAX_BONUS = 0.35
+
+# Listing vs. Direktverkauf: +10 % Wunschpreis-Aufschlag, ~50 % Verkaufs-
+# wahrscheinlichkeit innerhalb der 24 h Listing-Dauer (Erfahrungswert für
+# Preise nahe Marktwert), abzüglich kleinem Cash-Delay-Malus für die
+# Warte­zeit gegenüber sofortigem Direktverkauf.
+_LISTING_UPLIFT_PCT = 0.10
+_LISTING_SELL_PROBABILITY = 0.5
+_LISTING_CASH_DELAY_MALUS = 0.03
+
+# Stale-Fallback-Schwellen: Listing zählt als "abgelaufen", wenn es entweder
+# in <2 h ausläuft oder seit >=24 h ohne Angebot offen ist.
+_STALE_LISTING_AGE = timedelta(hours=24)
+_STALE_LISTING_DEADLINE_WINDOW = timedelta(hours=2)
+_STALE_FALLBACK_UTILITY = 0.99
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,15 +208,33 @@ class HeuristicDecisionEngine:
         buy_scored = [
             self._score_market(mp, history_map.get(mp.player.id, [])) for mp in top_buy_prefilter
         ]
+        listed_ids = set(context.own_listings.keys())
 
         candidates: list[HeuristicCandidate] = []
         if spendable > 0:
             buy = self._best_buy(buy_scored, spendable=spendable, squad_size=squad_size)
             if buy is not None:
                 candidates.append(self._apply_buy_rules(buy, context))
-        sell = self._best_sell(squad_scored, buy_history=context.buy_history)
-        if sell is not None:
-            candidates.append(self._apply_sell_rules(sell, context))
+        # Pro Squad-Spieler beide Verkaufs-Varianten erzeugen, die Kickbase-
+        # Regeln (Debt-Relief, Startelf, Deadline) auf JEDE anwenden — und
+        # erst danach pro Spieler die stärkere Variante behalten. Debt-Relief
+        # ist z. B. für SELL voll wirksam, für LIST halbiert; die Reihenfolge
+        # sicherzustellen ist wichtig, damit die Rule-Adjustments die Wahl
+        # tatsächlich mitentscheiden.
+        raw_sell_pairs = self._sell_candidate_pairs(
+            squad_scored,
+            buy_history=context.buy_history,
+            listed_ids=listed_ids,
+        )
+        for list_cand, sell_cand in raw_sell_pairs:
+            adjusted_list = self._apply_sell_rules(list_cand, context)
+            adjusted_sell = self._apply_sell_rules(sell_cand, context)
+            best = (
+                adjusted_list if adjusted_list.utility >= adjusted_sell.utility else adjusted_sell
+            )
+            candidates.append(best)
+        stale = self._stale_listing_candidates(context)
+        candidates.extend(stale)
         for candidate in self._collect_offer_candidates(offer_market_entries, squad_score_by_id):
             candidates.append(self._apply_offer_rules(candidate, context))
         candidates.sort(key=lambda c: c.utility, reverse=True)
@@ -316,51 +356,126 @@ class HeuristicDecisionEngine:
         )
 
     @staticmethod
-    def _best_sell(
+    def _sell_candidate_pairs(
         scored: list[_ScoredSquad],
         *,
         buy_history: Mapping[str, BuyRecord],
-    ) -> HeuristicCandidate | None:
+        listed_ids: set[str],
+    ) -> list[tuple[HeuristicCandidate, HeuristicCandidate]]:
+        """Erzeugt pro Squad-Spieler das Paar (LIST_ON_MARKET, SELL).
+
+        Bereits gelistete Spieler werden übersprungen — für sie ist entweder
+        der Stale-Fallback zuständig oder ein bereits laufendes Listing.
+        """
         if not scored:
-            return None
+            return []
         history_map: dict[str, BuyRecord] = dict(buy_history) if buy_history else {}
 
-        best_candidate: HeuristicCandidate | None = None
+        out: list[tuple[HeuristicCandidate, HeuristicCandidate]] = []
         for entry in scored:
             player = entry.squad.player
+            if player.id in listed_ids:
+                continue
             base_utility = 1.0 - entry.score
             intent = TradeIntent.POINTS  # Default: schwacher Kader-Spieler weg
             profit_bonus = 0.0
-            note = ""
+            profit_note = ""
             record = history_map.get(player.id)
             if record is not None and record.intent is TradeIntent.PROFIT:
                 gain_ratio = _relative_gain(current=player.market_value, buy_price=record.buy_price)
                 if gain_ratio >= _PROFIT_EXIT_MIN_GAIN:
                     profit_bonus = _profit_exit_bonus(gain_ratio)
                     intent = TradeIntent.PROFIT
-                    note = (
+                    profit_note = (
                         f" | PROFIT-Exit: +{gain_ratio * 100:.1f} % über Kaufpreis "
                         f"({int(record.buy_price):,}), Bonus +{profit_bonus:.2f}."
                     )
-            utility = _clip01(base_utility + profit_bonus)
-            reason = _score_reason("SELL", player, entry.score, entry.features) + note
-            decision = TradeDecision(
+            sell_utility = _clip01(base_utility + profit_bonus)
+            list_utility = _clip01(
+                sell_utility + _listing_expected_bonus() - _LISTING_CASH_DELAY_MALUS
+            )
+            list_price = _listing_wish_price(player.market_value)
+
+            reason_core = _score_reason("SELL", player, entry.score, entry.features) + profit_note
+            sell_decision = TradeDecision(
                 action=TradeAction.SELL,
-                reason=reason,
+                reason=(
+                    f"SELL-DIREKT {player.last_name} zum Marktwert "
+                    f"({int(player.market_value):,}). {reason_core}"
+                ),
                 player_id=player.id,
                 player_name=_full_name(player),
                 price=player.market_value,
                 intent=intent,
             )
-            candidate = HeuristicCandidate(
-                id=f"SELL:{player.id}",
-                utility=utility,
-                decision=decision,
-                summary=decision.reason,
+            list_decision = TradeDecision(
+                action=TradeAction.LIST_ON_MARKET,
+                reason=(
+                    f"LIST {player.last_name} für {int(list_price):,} "
+                    f"(MW {int(player.market_value):,} +{int(_LISTING_UPLIFT_PCT * 100)} %). "
+                    f"{reason_core}"
+                ),
+                player_id=player.id,
+                player_name=_full_name(player),
+                price=list_price,
+                intent=intent,
             )
-            if best_candidate is None or candidate.utility > best_candidate.utility:
-                best_candidate = candidate
-        return best_candidate
+            list_cand = HeuristicCandidate(
+                id=f"LIST:{player.id}",
+                utility=list_utility,
+                decision=list_decision,
+                summary=list_decision.reason,
+            )
+            sell_cand = HeuristicCandidate(
+                id=f"SELL:{player.id}",
+                utility=sell_utility,
+                decision=sell_decision,
+                summary=sell_decision.reason,
+            )
+            out.append((list_cand, sell_cand))
+        return out
+
+    def _stale_listing_candidates(self, context: DecisionContext) -> list[HeuristicCandidate]:
+        """SELL mit Priorität für eigene Listings, die zu lange offen liegen.
+
+        Löst die Vorgabe „nach bestimmter Zeit direkt an Kickbase verkaufen,
+        wenn kein anderer Manager gekauft hat". Utility ist bewusst nahe 1.0,
+        damit der Fallback im Zweifel gewinnt — aber unterhalb einer echten
+        ACCEPT-Reaktion auf ein starkes Manager-Angebot, das der gleiche
+        Market-Tick liefert.
+        """
+        if not context.own_listings or context.now is None:
+            return []
+        out: list[HeuristicCandidate] = []
+        for player_id, record in context.own_listings.items():
+            if record.has_offers:
+                # Sobald ein Manager-Angebot vorliegt, entscheidet der
+                # ACCEPT/DECLINE-Pfad — Stale-Fallback wäre voreilig.
+                continue
+            reason = _stale_reason(context.now, record)
+            if reason is None:
+                continue
+            player_name = _lookup_squad_name(context, player_id) or player_id
+            decision = TradeDecision(
+                action=TradeAction.SELL,
+                reason=(
+                    f"Stale-Listing: {player_name} seit {reason} ohne Bieter → "
+                    f"Direktverkauf an Kickbase zum Marktwert."
+                ),
+                player_id=player_id,
+                player_name=player_name,
+                price=record.listing_price,
+                intent=TradeIntent.PROFIT,
+            )
+            out.append(
+                HeuristicCandidate(
+                    id=f"SELL:{player_id}",
+                    utility=_STALE_FALLBACK_UTILITY,
+                    decision=decision,
+                    summary=decision.reason,
+                )
+            )
+        return out
 
     # -- Kickbase-Regel-Modifikatoren ---------------------------------
 
@@ -385,16 +500,22 @@ class HeuristicDecisionEngine:
         candidate: HeuristicCandidate, context: DecisionContext
     ) -> HeuristicCandidate:
         assert candidate.decision.price is not None
-        adjustment = evaluate_sell(
+        # LIST_ON_MARKET löst kein sofortiges Debt-Relief aus (Cash kommt
+        # frühestens in 24 h), deshalb halbieren wir den Debt-Relief-Bonus
+        # für Listings. Direktverkauf (SELL) profitiert voll.
+        raw_adjustment = evaluate_sell(
             budget=context.budget,
             sell_price=Decimal(candidate.decision.price),
             squad_size=len(context.squad.players),
             now=context.now,
             next_matchday_start=context.next_matchday_start,
         )
+        adjustment = (
+            _dampen_debt_relief(raw_adjustment)
+            if candidate.decision.action is TradeAction.LIST_ON_MARKET
+            else raw_adjustment
+        )
         adjusted = _adjust_candidate(candidate, adjustment)
-        # Debt-Relief markieren, wenn die Regel-Reasons darauf hinweisen — die
-        # Motivation ist dann wichtiger als der ursprüngliche POINTS/PROFIT-Grund.
         if any("Debt-Relief" in r for r in adjustment.reasons):
             adjusted = _with_intent(adjusted, TradeIntent.DEBT_RELIEF)
         return adjusted
@@ -629,6 +750,66 @@ def _clip01(value: float) -> float:
     if value > 1.0:
         return 1.0
     return value
+
+
+def _listing_wish_price(market_value: Decimal) -> Decimal:
+    """Wunschpreis fürs Listing: Marktwert * (1 + Uplift), auf ganze Euro gerundet."""
+
+    uplift = Decimal(str(1.0 + _LISTING_UPLIFT_PCT))
+    return (market_value * uplift).quantize(Decimal("1"))
+
+
+def _listing_expected_bonus() -> float:
+    """Erwartungswert-Vorteil des Listings ggü. Direktverkauf zum Marktwert.
+
+    Modell: mit Wahrscheinlichkeit p verkauft ein Bieter zum Wunschpreis
+    (MW * 1.10), sonst greift der Stale-Fallback zum Marktwert. Erwarteter
+    Mehr­erlös = p * 10 %. Bei p=0.5 also +5 % → Bonus 0.05 auf die Utility.
+    """
+
+    return _LISTING_UPLIFT_PCT * _LISTING_SELL_PROBABILITY
+
+
+def _dampen_debt_relief(adjustment: RuleAdjustment) -> RuleAdjustment:
+    """Halbiert Debt-Relief-Anteile — für LIST_ON_MARKET, wo Cash erst später fließt."""
+
+    if adjustment.delta == 0.0 or not any("Debt-Relief" in r for r in adjustment.reasons):
+        return adjustment
+    return RuleAdjustment(
+        delta=adjustment.delta * 0.5,
+        reasons=tuple(
+            r + " (Listing: Cash-Effekt verzögert, halber Bonus)" if "Debt-Relief" in r else r
+            for r in adjustment.reasons
+        ),
+    )
+
+
+def _stale_reason(now: datetime, record: ListingRecord) -> str | None:
+    """Liefert einen menschenlesbaren Grund, wenn das Listing als stale gilt.
+
+    Kriterien (ODER):
+    1. Kickbase liefert `expires_at` und es sind <2 h bis Ablauf.
+    2. Der letzte LIST_ON_MARKET-Log-Eintrag ist ≥24 h alt.
+    """
+
+    if record.expires_at is not None:
+        remaining = record.expires_at - now
+        if remaining <= _STALE_LISTING_DEADLINE_WINDOW:
+            hours_left = max(0.0, remaining.total_seconds() / 3600)
+            return f"noch {hours_left:.1f} h bis Listing-Ablauf"
+    if record.listed_at is not None:
+        age = now - record.listed_at
+        if age >= _STALE_LISTING_AGE:
+            hours = age.total_seconds() / 3600
+            return f"{hours:.1f} h offen"
+    return None
+
+
+def _lookup_squad_name(context: DecisionContext, player_id: str) -> str | None:
+    for sp in context.squad.players:
+        if sp.player.id == player_id:
+            return _full_name(sp.player)
+    return None
 
 
 __all__ = ["HeuristicCandidate", "HeuristicDecisionEngine", "ScoreWeights"]

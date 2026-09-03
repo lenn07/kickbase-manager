@@ -70,8 +70,14 @@ class FakeKickbase:
     async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str:
         return "offer-x"
 
-    async def sell_player(self, league_id: str, player_id: str, price: Decimal) -> str:
+    async def list_on_market(self, league_id: str, player_id: str, price: Decimal) -> str:
         return "listing-x"
+
+    async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
+        return None
+
+    async def remove_from_market(self, league_id: str, player_id: str) -> None:
+        return None
 
     async def accept_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         return None

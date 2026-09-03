@@ -125,13 +125,26 @@ class HttpxKickbaseClient:
         data = await self._request("POST", path, json={"price": int(price)})
         return BidResponseDTO.model_validate(data).id
 
-    async def sell_player(self, league_id: str, player_id: str, price: Decimal) -> str:
+    async def list_on_market(self, league_id: str, player_id: str, price: Decimal) -> str:
         # v4 legt ein Verkaufs-Listing über POST /leagues/{lid}/market an
         # (playerId + price im Body). Rückgabe: Listing-ID im gleichen Format
         # wie BidResponseDTO ({"i": "..."}).
         path = f"/v4/leagues/{league_id}/market"
         data = await self._request("POST", path, json={"playerId": player_id, "price": int(price)})
         return BidResponseDTO.model_validate(data).id
+
+    async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
+        # v4: DELETE /leagues/{lid}/market/{pid}/sell nimmt das automatische
+        # Kickbase-Angebot in Marktwert-Höhe an. Voraussetzung: Spieler ist
+        # bereits gelistet.
+        path = f"/v4/leagues/{league_id}/market/{player_id}/sell"
+        await self._request("DELETE", path)
+
+    async def remove_from_market(self, league_id: str, player_id: str) -> None:
+        # v4: DELETE /leagues/{lid}/market/{pid} zieht ein laufendes Listing
+        # zurück, ohne den Spieler zu verkaufen.
+        path = f"/v4/leagues/{league_id}/market/{player_id}"
+        await self._request("DELETE", path)
 
     async def accept_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         path = f"/v4/leagues/{league_id}/market/{player_id}/offers/{offer_id}/accept"

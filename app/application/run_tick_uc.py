@@ -19,11 +19,17 @@ from decimal import Decimal
 
 from sqlmodel import Session
 
-from app.application.decision_engine import BuyRecord, DecisionContext, DecisionEngine
+from app.application.decision_engine import (
+    BuyRecord,
+    DecisionContext,
+    DecisionEngine,
+    ListingRecord,
+)
 from app.application.setup_state import read_setup_state
 from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
+from app.domain.models import MarketPlayer
 from app.domain.trade import TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.metrics import get_metrics
@@ -111,6 +117,12 @@ class RunTickUseCase:
 
         squad_ids = {sp.player.id for sp in squad.players}
         buy_history = _load_buy_history(self._trades, user.id, squad_ids)
+        own_listings = _load_own_listings(
+            trades=self._trades,
+            user_id=user.id,
+            market=market,
+            manager_id=user.kb_user_id,
+        )
 
         context = DecisionContext(
             league_id=league_row.kb_league_id,
@@ -127,6 +139,7 @@ class RunTickUseCase:
             next_matchday_start=next_matchday_start,
             interval_min=settings.interval_min,
             buy_history=buy_history,
+            own_listings=own_listings,
         )
 
         decision = await self._engine.decide(context)
@@ -249,6 +262,39 @@ class RunTickUseCase:
             use_tls=row.use_tls,
             use_starttls=row.use_starttls,
         )
+
+
+def _load_own_listings(
+    *,
+    trades: TradeLogRepository,
+    user_id: int,
+    market: list[MarketPlayer],
+    manager_id: str,
+) -> dict[str, ListingRecord]:
+    """Baut das ListingRecord-Mapping aus Market-Response + Trade-Log.
+
+    Nur Spieler, die aktuell tatsächlich als eigenes Listing im Markt liegen
+    (`seller_id == manager_id`), landen im Mapping — abgelaufene oder
+    zurückgezogene Listings bleiben draußen. `listed_at` kommt bevorzugt aus
+    dem letzten LIST_ON_MARKET-Log-Eintrag; ist keiner vorhanden (z. B. weil
+    das Listing über die Kickbase-App angelegt wurde), bleibt es None und
+    der Stale-Fallback stützt sich allein auf `expires_at`.
+    """
+    own = [mp for mp in market if mp.seller_id == manager_id]
+    if not own:
+        return {}
+    ts_by_player = trades.last_listing_ts_by_player(user_id)
+    out: dict[str, ListingRecord] = {}
+    for mp in own:
+        pid = mp.player.id
+        out[pid] = ListingRecord(
+            player_id=pid,
+            listing_price=mp.price,
+            listed_at=ts_by_player.get(pid),
+            expires_at=mp.expires_at,
+            has_offers=bool(mp.offers),
+        )
+    return out
 
 
 def _load_buy_history(

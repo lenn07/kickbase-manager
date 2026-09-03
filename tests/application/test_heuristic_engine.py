@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from app.application.decision_engine import BuyRecord, DecisionContext
+from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord
 from app.application.heuristic_engine import HeuristicDecisionEngine
 from app.domain.exceptions import TransportError
 from app.domain.models import (
@@ -112,6 +112,8 @@ def _context(
     blacklist: tuple[str, ...] = (),
     team_value: Decimal = Decimal("50000000"),
     buy_history: dict[str, BuyRecord] | None = None,
+    own_listings: dict[str, ListingRecord] | None = None,
+    now: datetime | None = None,
 ) -> DecisionContext:
     squad = squad or _squad([])
     return DecisionContext(
@@ -126,6 +128,8 @@ def _context(
         blacklist=blacklist,
         team_value=team_value,
         buy_history=buy_history or {},
+        own_listings=own_listings or {},
+        now=now,
     )
 
 
@@ -241,13 +245,17 @@ async def test_player_already_in_squad_not_bought_again() -> None:
     assert decision.action is not TradeAction.BUY
 
 
-async def test_sell_worst_squad_player() -> None:
+async def test_list_worst_squad_player_by_default() -> None:
+    # Ohne Debt-Relief oder Deadline gewinnt das Listing (+10 % Wunschpreis)
+    # gegenüber dem Direktverkauf, weil der Erwartungswert-Bonus positiv ist.
     weak = _player("s1", avg=1.0, market_value=Decimal("500000"), name="Weak")
     squad = _padded_squad([SquadPlayer(player=weak)])
     engine = HeuristicDecisionEngine(FakeHistoryGateway())
     decision = await engine.decide(_context(squad=squad, min_action_score=0.3))
-    assert decision.action is TradeAction.SELL
+    assert decision.action is TradeAction.LIST_ON_MARKET
     assert decision.player_id == "s1"
+    # Wunschpreis = Marktwert * 1.10 (auf ganze Euro gerundet).
+    assert decision.price == Decimal("550000")
 
 
 async def test_accept_offer_when_price_above_market_value() -> None:
@@ -468,6 +476,8 @@ async def test_overbid_never_exceeds_spendable_budget() -> None:
 
 async def test_profit_exit_wins_over_hold_when_gain_material() -> None:
     # Squad-Spieler mit ordentlichem Score, gekauft für 4M, jetzt 6M wert → +50 %.
+    # PROFIT-Exit realisiert der Bot standardmäßig via Listing zum Wunschpreis
+    # (bringt weitere +10 % vs. Direktverkauf).
     keeper = _player("k1", avg=8.0, market_value=Decimal("6000000"), name="Riser")
     squad = _padded_squad([SquadPlayer(player=keeper)], target_size=13)
     engine = HeuristicDecisionEngine(FakeHistoryGateway())
@@ -481,10 +491,12 @@ async def test_profit_exit_wins_over_hold_when_gain_material() -> None:
             buy_history=buy_history,
         )
     )
-    assert decision.action is TradeAction.SELL
+    assert decision.action is TradeAction.LIST_ON_MARKET
     assert decision.player_id == "k1"
     assert decision.intent is TradeIntent.PROFIT
     assert "PROFIT-Exit" in decision.reason
+    # Wunschpreis = 6M * 1.10 = 6,6M.
+    assert decision.price == Decimal("6600000")
 
 
 async def test_profit_exit_ignored_when_gain_too_small() -> None:
@@ -522,3 +534,116 @@ async def test_debt_relief_sell_gets_debt_intent() -> None:
     )
     assert decision.action is TradeAction.SELL
     assert decision.intent is TradeIntent.DEBT_RELIEF
+
+
+async def test_debt_relief_prefers_direct_sell_over_listing() -> None:
+    # Bei negativem Konto ist der Listing-Debt-Relief-Bonus halbiert (Cash
+    # kommt erst in 24 h), während der Direktverkauf sofort Liquidität bringt
+    # → SELL muss die LIST-Option schlagen.
+    weak = _player("s1", avg=4.0, market_value=Decimal("8000000"), name="Weak")
+    squad = _padded_squad([SquadPlayer(player=weak)])
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            budget=Decimal("-5000000"),
+            team_value=Decimal("50000000"),
+            min_action_score=0.5,
+        )
+    )
+    assert decision.action is TradeAction.SELL
+    # Reason muss den Cash-Delay-Malus für den nicht gewählten Listing-Weg
+    # nicht enthalten, aber Debt-Relief muss den Ausschlag geben.
+    assert "Debt-Relief" in decision.reason
+
+
+async def test_already_listed_player_gets_no_duplicate_sell_candidate() -> None:
+    # Ein Spieler, der bereits gelistet ist, darf nicht erneut als
+    # LIST/SELL-Kandidat auftauchen — der Bot würde sonst zwei Listings anlegen.
+    keeper = _player("k1", avg=1.0, market_value=Decimal("500000"), name="Weak")
+    squad = _padded_squad([SquadPlayer(player=keeper)])
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    now = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
+    listings = {
+        "k1": ListingRecord(
+            player_id="k1",
+            listing_price=Decimal("550000"),
+            listed_at=now - timedelta(hours=1),
+            expires_at=now + timedelta(hours=23),
+            has_offers=False,
+        )
+    }
+    context = _context(
+        squad=squad,
+        min_action_score=0.3,
+        own_listings=listings,
+        now=now,
+    )
+    candidates = await engine.propose(context)
+    for cand in candidates:
+        assert cand.decision.player_id != "k1", (
+            f"Spieler k1 ist bereits gelistet — es darf kein neuer "
+            f"{cand.decision.action.value}-Kandidat entstehen (Kandidat-ID {cand.id})."
+        )
+
+
+async def test_stale_listing_triggers_direct_sell_fallback() -> None:
+    # Listing seit ≥24 h offen und ohne Angebote → Priority-SELL an Kickbase.
+    keeper = _player("k1", avg=6.0, market_value=Decimal("500000"), name="Slow")
+    squad = _padded_squad([SquadPlayer(player=keeper)])
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    now = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
+    listings = {
+        "k1": ListingRecord(
+            player_id="k1",
+            listing_price=Decimal("550000"),
+            listed_at=now - timedelta(hours=25),
+            expires_at=None,
+            has_offers=False,
+        )
+    }
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            min_action_score=0.5,
+            own_listings=listings,
+            now=now,
+        )
+    )
+    assert decision.action is TradeAction.SELL
+    assert decision.player_id == "k1"
+    assert "Stale-Listing" in decision.reason
+
+
+async def test_stale_listing_with_open_offer_does_not_fallback() -> None:
+    # Solange ein Manager-Angebot offen ist, entscheidet ACCEPT/DECLINE —
+    # der Stale-Fallback darf nicht drüberbügeln.
+    keeper = _player("k1", avg=6.0, market_value=Decimal("4000000"), name="Slow")
+    squad = _padded_squad([SquadPlayer(player=keeper)])
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    now = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
+    listings = {
+        "k1": ListingRecord(
+            player_id="k1",
+            listing_price=Decimal("4400000"),
+            listed_at=now - timedelta(hours=25),
+            expires_at=now + timedelta(minutes=30),
+            has_offers=True,
+        )
+    }
+    high_offer = MarketOffer(
+        id="o1", user_id="u2", user_name="Rival", price=Decimal("5000000"), valid_until=None
+    )
+    market = (
+        _market(keeper, price=Decimal("4400000"), seller_id=MANAGER_ID, offers=(high_offer,)),
+    )
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            market=market,
+            min_action_score=0.4,
+            own_listings=listings,
+            now=now,
+        )
+    )
+    assert decision.action is TradeAction.ACCEPT_OFFER

@@ -63,11 +63,20 @@ class TradeExecutor:
             await self._kickbase.decline_offer(league_id, decision.player_id, decision.offer_id)
             return None
 
-        if decision.action is TradeAction.SELL:
+        if decision.action is TradeAction.LIST_ON_MARKET:
             if decision.player_id is None or decision.price is None:
-                raise ValueError("SELL braucht player_id und price.")
-            return await self._kickbase.sell_player(
+                raise ValueError("LIST_ON_MARKET braucht player_id und price.")
+            return await self._kickbase.list_on_market(
                 league_id, decision.player_id, Decimal(decision.price)
             )
+
+        if decision.action is TradeAction.SELL:
+            # Direktverkauf an Kickbase: der Preis ist der aktuelle Marktwert,
+            # den die Engine für den Log/Notify-Pfad bereits mitschickt — die
+            # API selbst braucht keinen Preis (DELETE /market/{pid}/sell).
+            if decision.player_id is None:
+                raise ValueError("SELL braucht player_id.")
+            await self._kickbase.sell_to_kickbase(league_id, decision.player_id)
+            return None
 
         raise ValueError(f"Unbekannte Trade-Aktion: {decision.action!r}")

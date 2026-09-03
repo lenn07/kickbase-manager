@@ -255,6 +255,28 @@ class TradeLogRepository:
             out.setdefault(row.player_id, row)
         return out
 
+    def last_listing_ts_by_player(self, user_id: int) -> dict[str, datetime]:
+        """Letzter ausgeführter LIST_ON_MARKET je player_id — Basis für Stale-Fallback.
+
+        Der Aufrufer schneidet die Menge mit den aktuell tatsächlich auf dem
+        Kickbase-Markt liegenden eigenen Spielern; alte Log-Einträge zu
+        Spielern, die längst wieder aus dem Markt sind, stören dabei nicht.
+        """
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .where(TradeLogRow.action == "LIST_ON_MARKET")
+            .where(TradeLogRow.executed.is_(True))  # type: ignore[union-attr]
+            .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
+        )
+        rows = self._session.exec(stmt)
+        out: dict[str, datetime] = {}
+        for row in rows:
+            if row.player_id is None:
+                continue
+            out.setdefault(row.player_id, row.ts)
+        return out
+
     def list_pending_holds(self, user_id: int) -> list[TradeLogRow]:
         """HOLD-Ticks, die noch in keinem Digest gemeldet wurden (F-9).
 

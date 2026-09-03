@@ -2,7 +2,7 @@
 
 Ablauf pro Tick:
 
-1. Heuristik liefert die geordneten Kandidaten (BUY / SELL / ACCEPT / DECLINE).
+1. Heuristik liefert die geordneten Kandidaten (BUY / LIST / SELL / ACCEPT / DECLINE).
 2. Fällt die Menge leer aus → sofortiges HOLD, kein LLM-Call (Kosten sparen).
 3. Ein synthetischer HOLD-Kandidat wird als gleichwertige Option ergänzt
    (Aggressivitäts-Regel § 7): der Kurator soll HOLD wählen dürfen, ohne die
@@ -72,7 +72,13 @@ _SYSTEM_PROMPT = (
     "Priorisiere hohe Utility, aber gewichte auch Preis-Effizienz, Form und Marktwert-Trend. "
     "Ein Spieler kann bis zu +15 % über Marktwert geboten werden — nutze das, "
     "wenn du einen Schlüsselkandidaten nicht verlieren willst. "
-    "Für jeden BUY/SELL liefert die Heuristik einen intent-Vorschlag "
+    "Für Verkäufe gibt es zwei Varianten: LIST_ON_MARKET setzt den Spieler zum "
+    "Wunschpreis (~+10 % über Marktwert) auf den Transfermarkt und wartet 24 h "
+    "auf Manager-Gebote; SELL verkauft sofort an Kickbase zum Marktwert. Bevorzuge "
+    "LIST_ON_MARKET, wenn Zeit da ist und der Aufschlag realistisch aussieht; "
+    "wähle SELL, wenn schnelle Liquidität wichtiger ist (Schulden abbauen, "
+    "kurz vor Deadline) oder ein Listing bereits abgelaufen ist. "
+    "Für jeden BUY/LIST_ON_MARKET/SELL liefert die Heuristik einen intent-Vorschlag "
     "(SQUAD_FILL = Kader füllen, PROFIT = Wertsteigerung realisieren, "
     "POINTS = Punkte sammeln, DEBT_RELIEF = Schulden abbauen). "
     "Übernimm ihn normalerweise; setze `intent` nur, wenn du sicher bist, "
