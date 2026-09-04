@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
@@ -78,5 +79,20 @@ class KickbaseGateway(Protocol):
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7
     ) -> list[MarketValuePoint]: ...
+
+    async def aclose(self) -> None: ...
+
+
+@runtime_checkable
+class ExternalDataGateway(Protocol):
+    """Externe Team-Kontext-Signale (Form, Restspielplan) für das Scoring.
+
+    Konkrete Implementierung (OpenLigaDB) liefert pro Kickbase-`team_id`
+    ein Signal in [0, 1] — höher = besserer aktueller Kontext. Fehlende oder
+    unbekannte Teams tauchen im Ergebnis nicht auf; der Aufrufer muss dann
+    neutral (0.5) annehmen.
+    """
+
+    async def get_team_signals(self, team_ids: Iterable[str]) -> Mapping[str, float]: ...
 
     async def aclose(self) -> None: ...

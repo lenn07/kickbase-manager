@@ -39,7 +39,7 @@ from decimal import Decimal
 
 from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord
 from app.domain.exceptions import KickbaseError
-from app.domain.gateways import KickbaseGateway
+from app.domain.gateways import ExternalDataGateway, KickbaseGateway
 from app.domain.kb_rules import (
     POSITION_MINIMUMS,
     RuleAdjustment,
@@ -73,6 +73,8 @@ _DECLINE_UTILITY_HALF_RANGE = 0.5
 _DEFAULT_MAX_MARKET_CANDIDATES = 10
 _DEFAULT_HISTORY_DAYS = 7
 _SQUAD_KEEP_THRESHOLD = 0.5
+# Fallback für Teams, für die kein externes Signal geliefert wurde.
+_NEUTRAL_EXTERNAL_SIGNAL = 0.5
 
 # Squad-Fill: unterhalb dieser Kader-Größe steigt der BUY-Bonus linear.
 _SQUAD_TARGET_SIZE = 15
@@ -144,11 +146,13 @@ class HeuristicDecisionEngine:
         *,
         max_market_candidates: int = _DEFAULT_MAX_MARKET_CANDIDATES,
         history_days: int = _DEFAULT_HISTORY_DAYS,
+        external: ExternalDataGateway | None = None,
     ) -> None:
         self._kickbase = kickbase
         self._weights = weights or ScoreWeights()
         self._max_market_candidates = max_market_candidates
         self._history_days = history_days
+        self._external = external
 
     async def decide(self, context: DecisionContext) -> TradeDecision:
         candidates = await self.propose(context)
@@ -208,13 +212,24 @@ class HeuristicDecisionEngine:
         history_map = await self._load_histories(
             league_id=context.league_id, players=tuple(history_targets)
         )
+        external_signals = await self._load_external_signals(history_targets)
 
         squad_scored = [
-            self._score_squad(sp, history_map.get(sp.player.id, [])) for sp in context.squad.players
+            self._score_squad(
+                sp,
+                history_map.get(sp.player.id, []),
+                external_signals.get(sp.player.team_id, _NEUTRAL_EXTERNAL_SIGNAL),
+            )
+            for sp in context.squad.players
         ]
         squad_score_by_id = {ss.squad.player.id: ss for ss in squad_scored}
         buy_scored = [
-            self._score_market(mp, history_map.get(mp.player.id, [])) for mp in top_buy_prefilter
+            self._score_market(
+                mp,
+                history_map.get(mp.player.id, []),
+                external_signals.get(mp.player.team_id, _NEUTRAL_EXTERNAL_SIGNAL),
+            )
+            for mp in top_buy_prefilter
         ]
         listed_ids = set(context.own_listings.keys())
 
@@ -243,9 +258,10 @@ class HeuristicDecisionEngine:
         for list_cand, sell_cand in raw_sell_pairs:
             adjusted_list = self._apply_sell_rules(list_cand, context, squad_positions)
             adjusted_sell = self._apply_sell_rules(sell_cand, context, squad_positions)
-            best = (
-                adjusted_list if adjusted_list.utility >= adjusted_sell.utility else adjusted_sell
-            )
+            # Bei Gleichstand gewinnt SELL: LIST bringt Cash erst in 24 h und
+            # trägt Ausfallrisiko (kein Käufer → Stale-Fallback nötig). Nur wenn
+            # LIST strikt besser ist, lohnt der Umweg.
+            best = adjusted_list if adjusted_list.utility > adjusted_sell.utility else adjusted_sell
             candidates.append(best)
         stale = self._stale_listing_candidates(context)
         candidates.extend(stale)
@@ -290,20 +306,35 @@ class HeuristicDecisionEngine:
     def _top_by_quick_score(self, market: list[MarketPlayer], *, limit: int) -> list[MarketPlayer]:
         if len(market) <= limit:
             return market
-        scored = [self._score_market(mp, history=[]) for mp in market]
+        # Quick-Score ohne externe Signale — der eigentliche Score wird für die
+        # Top-N später mit vollem Feature-Set neu berechnet.
+        scored = [
+            self._score_market(mp, history=[], external_signal=_NEUTRAL_EXTERNAL_SIGNAL)
+            for mp in market
+        ]
         scored.sort(key=lambda s: s.score, reverse=True)
         return [s.market for s in scored[:limit]]
 
     # -- Scoring ------------------------------------------------------
 
-    def _score_market(self, mp: MarketPlayer, history: list[MarketValuePoint]) -> _ScoredMarket:
-        features = compute_features(mp.player, mp.price, history)
+    def _score_market(
+        self,
+        mp: MarketPlayer,
+        history: list[MarketValuePoint],
+        external_signal: float = _NEUTRAL_EXTERNAL_SIGNAL,
+    ) -> _ScoredMarket:
+        features = compute_features(mp.player, mp.price, history, external_signal)
         return _ScoredMarket(
             market=mp, score=compose_score(features, self._weights), features=features
         )
 
-    def _score_squad(self, sp: SquadPlayer, history: list[MarketValuePoint]) -> _ScoredSquad:
-        features = compute_features(sp.player, sp.player.market_value, history)
+    def _score_squad(
+        self,
+        sp: SquadPlayer,
+        history: list[MarketValuePoint],
+        external_signal: float = _NEUTRAL_EXTERNAL_SIGNAL,
+    ) -> _ScoredSquad:
+        features = compute_features(sp.player, sp.player.market_value, history, external_signal)
         return _ScoredSquad(
             squad=sp, score=compose_score(features, self._weights), features=features
         )
@@ -331,6 +362,19 @@ class HeuristicDecisionEngine:
 
         results = await asyncio.gather(*(load(pid) for pid in unique_ids))
         return dict(results)
+
+    async def _load_external_signals(self, players: list[Player]) -> Mapping[str, float]:
+        """Holt pro Team-ID ein externes Signal (OpenLigaDB). Fehler → leeres Mapping."""
+        if self._external is None or not players:
+            return {}
+        team_ids = {p.team_id for p in players if p.team_id}
+        if not team_ids:
+            return {}
+        try:
+            return await self._external.get_team_signals(team_ids)
+        except Exception as exc:
+            _log.info("Externe Signale nicht verfügbar (%s) — Team-Signal=neutral.", exc)
+            return {}
 
     # -- Aktions-Kandidaten -------------------------------------------
 
@@ -418,9 +462,14 @@ class HeuristicDecisionEngine:
                         f" | PROFIT-Exit: +{gain_ratio * 100:.1f} % über Kaufpreis "
                         f"({int(record.buy_price):,}), Bonus +{profit_bonus:.2f}."
                     )
-            sell_utility = _clip01(base_utility + profit_bonus)
+            # PROFIT-Exit realisiert seinen Aufschlag NUR beim Listing (+10 %
+            # Wunschpreis). SELL bekommt darum keinen PROFIT-Bonus — dadurch
+            # bleibt LIST bei starkem Aufwärtstrend eindeutig vorne, während
+            # SELL bei Debt-Relief/Startelf-Panik durch die anderen Regel-
+            # Anpassungen weiterhin gewinnen kann.
+            sell_utility = _clip01(base_utility)
             list_utility = _clip01(
-                sell_utility + _listing_expected_bonus() - _LISTING_CASH_DELAY_MALUS
+                base_utility + profit_bonus + _listing_expected_bonus() - _LISTING_CASH_DELAY_MALUS
             )
             list_price = _listing_wish_price(player.market_value)
 
@@ -767,7 +816,7 @@ def _score_reason(action: str, player: Player, score: float, features: ScoreFeat
     return (
         f"{action} {player.last_name}: Score={score:.2f} "
         f"(Form={features.form:.2f}, Preis-Eff={features.price_efficiency:.2f}, "
-        f"Trend={features.market_trend:.2f})."
+        f"Trend={features.market_trend:.2f}, Ext={features.external_signal:.2f})."
     )
 
 
@@ -781,7 +830,8 @@ def _buy_reason(
     return (
         f"BUY {player.last_name} [{intent.value}] für {int(bid_price):,}: "
         f"Score={score:.2f} (Form={features.form:.2f}, "
-        f"Preis-Eff={features.price_efficiency:.2f}, Trend={features.market_trend:.2f})."
+        f"Preis-Eff={features.price_efficiency:.2f}, Trend={features.market_trend:.2f}, "
+        f"Ext={features.external_signal:.2f})."
     )
 
 

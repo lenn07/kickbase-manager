@@ -49,16 +49,24 @@ class TestFormScore:
     def test_zero_average_maps_to_zero(self) -> None:
         assert form_score(_player(avg=0.0)) == 0.0
 
-    def test_saturation_point_is_one(self) -> None:
-        # 12 avg Punkte ist unser Sättigungspunkt.
-        assert form_score(_player(avg=12.0)) == pytest.approx(1.0)
+    def test_half_saturation_point_hits_half(self) -> None:
+        # k = 80 → bei 80 Ø-Punkten liegt der Score bei 0.5.
+        assert form_score(_player(avg=80.0)) == pytest.approx(0.5)
 
-    def test_above_saturation_clips_to_one(self) -> None:
-        assert form_score(_player(avg=25.0)) == 1.0
+    def test_high_average_differentiates_no_clip(self) -> None:
+        # Kurve sättigt weich — 120 muss deutlich über 12 liegen.
+        low = form_score(_player(avg=12.0))
+        high = form_score(_player(avg=120.0))
+        assert high > low + 0.4
+        assert high < 1.0
 
-    def test_midrange_average_is_between(self) -> None:
-        s = form_score(_player(avg=6.0))
-        assert 0.4 < s < 0.6
+    def test_score_monotonic_in_average(self) -> None:
+        values = [form_score(_player(avg=x)) for x in (5, 30, 80, 150, 250)]
+        assert values == sorted(values)
+        assert len(set(values)) == len(values)
+
+    def test_negative_average_treated_as_zero(self) -> None:
+        assert form_score(_player(avg=-5.0)) == 0.0
 
 
 class TestPriceEfficiency:
@@ -112,21 +120,59 @@ class TestInjuryMultiplier:
         assert injury_multiplier(PlayerStatus.NOT_IN_TEAM) <= 0.1
 
 
+class TestExternalSignal:
+    def test_defaults_to_neutral(self) -> None:
+        features = compute_features(_player(avg=10.0), price=Decimal("2000000"), history=[])
+        assert features.external_signal == pytest.approx(0.5)
+
+    def test_explicit_signal_is_passed_through(self) -> None:
+        features = compute_features(
+            _player(avg=10.0),
+            price=Decimal("2000000"),
+            history=[],
+            external_signal=0.9,
+        )
+        assert features.external_signal == pytest.approx(0.9)
+
+    def test_out_of_range_signal_is_clipped(self) -> None:
+        features = compute_features(
+            _player(avg=10.0),
+            price=Decimal("2000000"),
+            history=[],
+            external_signal=1.7,
+        )
+        assert features.external_signal == pytest.approx(1.0)
+
+    def test_high_external_signal_increases_composed_score(self) -> None:
+        player = _player(avg=40.0, mv=Decimal("2000000"))
+        low = compose_score(
+            compute_features(player, Decimal("2000000"), [], external_signal=0.0),
+            ScoreWeights(),
+        )
+        high = compose_score(
+            compute_features(player, Decimal("2000000"), [], external_signal=1.0),
+            ScoreWeights(),
+        )
+        assert high > low
+
+
 class TestComposeScore:
     def test_all_zero_features_gives_zero(self) -> None:
         features = compute_features(
             _player(avg=0.0, mv=Decimal("50000")),
             price=Decimal("50000"),
             history=_history([1_000_000, 500_000]),
+            external_signal=0.0,
         )
         assert compose_score(features, ScoreWeights()) == 0.0
 
     def test_top_features_yield_near_one(self) -> None:
-        player = _player(avg=12.0, status=PlayerStatus.FIT, mv=Decimal("2000000"))
+        player = _player(avg=400.0, status=PlayerStatus.FIT, mv=Decimal("2000000"))
         features = compute_features(
             player,
             price=Decimal("2000000"),
             history=_history([1_000_000, 1_100_000]),
+            external_signal=1.0,
         )
         assert compose_score(features, ScoreWeights()) > 0.9
 
@@ -141,4 +187,4 @@ class TestComposeScore:
 
     def test_weights_all_zero_raises(self) -> None:
         with pytest.raises(ValueError):
-            ScoreWeights(form=0.0, price_efficiency=0.0, market_trend=0.0)
+            ScoreWeights(form=0.0, price_efficiency=0.0, market_trend=0.0, external_signal=0.0)

@@ -29,6 +29,7 @@ from app.infrastructure.logging import (
 from app.infrastructure.metrics import get_metrics
 from app.infrastructure.metrics.middleware import PrometheusMiddleware
 from app.infrastructure.notifications.smtp_client import AiosmtplibClient
+from app.infrastructure.openligadb.client import HttpxOpenLigaDBClient
 from app.infrastructure.persistence.db import init_db, make_engine
 from app.infrastructure.persistence.repositories import (
     CredentialRepository,
@@ -152,11 +153,12 @@ async def _run_tick(engine: Engine, vault: FernetVault) -> TickOutcome:
     """
     smtp = AiosmtplibClient()
     anthropic = AnthropicClient()
+    external = HttpxOpenLigaDBClient()
     with Session(engine) as db:
         store = DbSessionStore(db, vault)
         kickbase = HttpxKickbaseClient(session_store=store)
         try:
-            heuristic = HeuristicDecisionEngine(kickbase)
+            heuristic = HeuristicDecisionEngine(kickbase, external=external)
             decision_engine = _build_decision_engine(db, vault, heuristic, anthropic)
             uc = RunTickUseCase(
                 session=db,
@@ -168,6 +170,7 @@ async def _run_tick(engine: Engine, vault: FernetVault) -> TickOutcome:
             return await uc.run()
         finally:
             await kickbase.aclose()
+            await external.aclose()
 
 
 def _build_decision_engine(

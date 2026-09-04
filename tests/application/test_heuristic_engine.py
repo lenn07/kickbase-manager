@@ -88,14 +88,33 @@ def _squad(players: list[SquadPlayer]) -> Squad:
 
 
 def _padded_squad(players: list[SquadPlayer], *, target_size: int = 13) -> Squad:
-    """Ergänzt neutrale Reserve-Spieler, damit die Startelf-Regel nicht greift."""
+    """Ergänzt neutrale Reserve-Spieler, damit die Startelf-Regel nicht greift.
+
+    Die Filler sind bewusst stark (hoher Ø-Punktwert) UND auf mehrere Positionen
+    verteilt (GK/DEF/MID/ATT im Rotationsmuster). Dadurch entsteht auf keiner
+    Position ein extremer Überschuss, sodass die Filler nicht als SELL/LIST-
+    Kandidaten die Test-Aussagen der individuellen Spieler verfälschen.
+    """
     extras: list[SquadPlayer] = []
     needed = max(0, target_size - len(players))
+    rotation = (
+        Position.DEFENDER,
+        Position.MIDFIELDER,
+        Position.FORWARD,
+        Position.DEFENDER,
+        Position.MIDFIELDER,
+        Position.FORWARD,
+        Position.GOALKEEPER,
+    )
     for i in range(needed):
         extras.append(
             SquadPlayer(
                 player=_player(
-                    f"filler-{i}", avg=5.0, market_value=Decimal("1000000"), name=f"Filler{i}"
+                    f"filler-{i}",
+                    avg=150.0,
+                    market_value=Decimal("1000000"),
+                    name=f"Filler{i}",
+                    position=rotation[i % len(rotation)],
                 )
             )
         )
@@ -341,8 +360,9 @@ async def test_buy_over_33_percent_limit_falls_below_threshold() -> None:
 
 
 async def test_dynamic_threshold_lets_marginal_action_through_near_deadline() -> None:
-    # Mittelmäßiger Kandidat: Utility knapp unter der Basis-Schwelle.
-    ok_player = _player("m1", avg=6.0, market_value=Decimal("2000000"), name="Ok")
+    # Mittelmäßiger Kandidat: Utility knapp unter der Basis-Schwelle 0.65
+    # (avg=50 → form≈0.38, PE geclippt auf 1.0 → Score ~0.58).
+    ok_player = _player("m1", avg=50.0, market_value=Decimal("2000000"), name="Ok")
     market = (_market(ok_player, price=Decimal("2000000")),)
     engine = HeuristicDecisionEngine(FakeHistoryGateway())
     now = datetime(2026, 8, 28, 20, 0, tzinfo=UTC)
