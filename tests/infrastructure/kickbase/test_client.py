@@ -183,8 +183,9 @@ async def test_list_on_market_posts_listing_and_returns_id() -> None:
         # Trailing Slash ist Pflicht — ohne ihn antwortet Kickbase mit HTTP 500.
         assert request.url.path == "/v4/leagues/L1/market/"
         body = request.content
-        assert b'"playerId":"P7"' in body
-        assert b'"price":900000' in body
+        # Kurzformen `pi` und `prc` — lange Namen liefern Fehlercode 2 (500).
+        assert b'"pi":"P7"' in body
+        assert b'"prc":900000' in body
         return httpx.Response(200, json={})
 
     async with _client(httpx.MockTransport(handler)) as client:

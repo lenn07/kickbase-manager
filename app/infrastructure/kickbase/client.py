@@ -126,11 +126,11 @@ class HttpxKickbaseClient:
         return BidResponseDTO.model_validate(data).id
 
     async def list_on_market(self, league_id: str, player_id: str, price: Decimal) -> str:
-        # v4 legt ein Verkaufs-Listing über POST /leagues/{lid}/market/ an
-        # (playerId + price im Body). Der Trailing Slash ist Pflicht — sonst
-        # antwortet Kickbase mit HTTP 500. Response ist ein leeres Objekt {}.
+        # v4 legt ein Verkaufs-Listing über POST /leagues/{lid}/market/ an.
+        # Body-Feldnamen sind KURZFORMEN: `pi` (Player-ID) und `prc` (Preis).
+        # Die langen Namen playerId/price liefern Kickbase-Fehlercode 2 (HTTP 500).
         path = f"/v4/leagues/{league_id}/market/"
-        await self._request("POST", path, json={"playerId": player_id, "price": int(price)})
+        await self._request("POST", path, json={"pi": player_id, "prc": int(price)})
         return player_id
 
     async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
