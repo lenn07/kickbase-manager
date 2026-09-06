@@ -218,13 +218,15 @@ class HttpxKickbaseClient:
             HTTPStatus.INTERNAL_SERVER_ERROR <= response.status_code < _SERVER_ERROR_CEILING
             and _retry_5xx < self._config.max_retries_5xx
         ):
-            _log.info(
-                "5xx (%d) bei %s %s — Retry %d/%d",
+            _log.warning(
+                "5xx (%d) bei %s %s — Retry %d/%d | request-body=%s | response-body=%s",
                 response.status_code,
                 method,
                 path,
                 _retry_5xx + 1,
                 self._config.max_retries_5xx,
+                json,
+                _safe_error_message(response),
             )
             await self._backoff_sleep(_retry_5xx)
             return await self._request(
