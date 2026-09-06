@@ -180,17 +180,18 @@ async def test_list_on_market_posts_listing_and_returns_id() -> None:
         if request.url.path == "/v4/user/login":
             return httpx.Response(200, json=_LOGIN_OK)
         assert request.method == "POST"
-        assert request.url.path == "/v4/leagues/L1/market"
+        # Trailing Slash ist Pflicht — ohne ihn antwortet Kickbase mit HTTP 500.
+        assert request.url.path == "/v4/leagues/L1/market/"
         body = request.content
         assert b'"playerId":"P7"' in body
         assert b'"price":900000' in body
-        return httpx.Response(200, json={"i": "listing-77"})
+        return httpx.Response(200, json={})
 
     async with _client(httpx.MockTransport(handler)) as client:
         await client.login("a@b.de", "pw")
-        listing_id = await client.list_on_market("L1", "P7", Decimal("900000"))
+        listing_ref = await client.list_on_market("L1", "P7", Decimal("900000"))
 
-    assert listing_id == "listing-77"
+    assert listing_ref == "P7"
 
 
 async def test_sell_to_kickbase_deletes_via_sell_endpoint() -> None:
