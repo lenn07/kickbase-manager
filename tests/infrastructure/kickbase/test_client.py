@@ -195,7 +195,7 @@ async def test_list_on_market_posts_listing_and_returns_id() -> None:
     assert listing_ref == "P7"
 
 
-async def test_sell_to_kickbase_deletes_via_sell_endpoint() -> None:
+async def test_sell_to_kickbase_posts_to_sell_endpoint() -> None:
     seen: dict[str, str] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -209,7 +209,7 @@ async def test_sell_to_kickbase_deletes_via_sell_endpoint() -> None:
         await client.login("a@b.de", "pw")
         await client.sell_to_kickbase("L1", "P7")
 
-    assert seen == {"method": "DELETE", "path": "/v4/leagues/L1/market/P7/sell"}
+    assert seen == {"method": "POST", "path": "/v4/leagues/L1/market/P7/sell"}
 
 
 async def test_remove_from_market_deletes_listing() -> None:

@@ -134,11 +134,13 @@ class HttpxKickbaseClient:
         return player_id
 
     async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
-        # v4: DELETE /leagues/{lid}/market/{pid}/sell nimmt das automatische
+        # v4: POST /leagues/{lid}/market/{pid}/sell nimmt das automatische
         # Kickbase-Angebot in Marktwert-Höhe an. Voraussetzung: Spieler ist
-        # bereits gelistet.
+        # bereits gelistet. Die archivierte simonsagstetter-Doku sagt DELETE,
+        # aber Kickbase antwortet darauf HTTP 405 — analog zu accept/decline,
+        # die ebenfalls entgegen der Doku POST verlangen.
         path = f"/v4/leagues/{league_id}/market/{player_id}/sell"
-        await self._request("DELETE", path)
+        await self._request("POST", path)
 
     async def remove_from_market(self, league_id: str, player_id: str) -> None:
         # v4: DELETE /leagues/{lid}/market/{pid} zieht ein laufendes Listing
@@ -289,6 +291,18 @@ class HttpxKickbaseClient:
             return
         detail = _safe_error_message(response)
         msg = f"{method} {path} → {code}: {detail}"
+        if code == HTTPStatus.METHOD_NOT_ALLOWED:
+            # Bei einem 405 gibt Kickbase per RFC den `Allow`-Header mit den
+            # erlaubten Methoden zurück — ohne den ist Debugging fast unmöglich.
+            allowed = response.headers.get("allow", "?")
+            _log.warning(
+                "405 bei %s %s — erlaubte Methoden: %s | body=%s",
+                method,
+                path,
+                allowed,
+                detail,
+            )
+            msg = f"{msg} | erlaubt: {allowed}"
         if code in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
             raise AuthError(msg)
         if code == HTTPStatus.NOT_FOUND:
