@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.kickbase.config import KickbaseClientConfig
 
@@ -20,6 +21,22 @@ from tests.infrastructure.kickbase.vcr_config import (
     FAKE_USER_ID,
     make_vcr,
 )
+
+
+@pytest.fixture(autouse=True)
+def _pretend_session_is_fresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cassettes tragen ein fixes Ablaufdatum vom Aufnahmezeitpunkt.
+
+    Sobald die Wall-Clock den Cassette-Ablauf überholt, würde `_ensure_session`
+    einen Relogin auslösen und nach einer nicht existierenden Login-Cassette
+    suchen. Für Wire-Format-Regressionstests ist das Session-Ablaufverhalten
+    irrelevant — das lebt in test_client.py mit synthetischen Sessions.
+    """
+    monkeypatch.setattr(
+        HttpxKickbaseClient,
+        "_is_session_expired",
+        lambda self, session: False,
+    )
 
 
 def _fast_config() -> KickbaseClientConfig:
