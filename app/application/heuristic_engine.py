@@ -34,7 +34,7 @@ import asyncio
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord
@@ -887,17 +887,27 @@ def _stale_reason(now: datetime, record: ListingRecord) -> str | None:
     2. Der letzte LIST_ON_MARKET-Log-Eintrag ist ≥24 h alt.
     """
 
+    now_aware = _as_utc(now)
     if record.expires_at is not None:
-        remaining = record.expires_at - now
+        expires_at = _as_utc(record.expires_at)
+        remaining = expires_at - now_aware
         if remaining <= _STALE_LISTING_DEADLINE_WINDOW:
             hours_left = max(0.0, remaining.total_seconds() / 3600)
             return f"noch {hours_left:.1f} h bis Listing-Ablauf"
     if record.listed_at is not None:
-        age = now - record.listed_at
+        listed_at = _as_utc(record.listed_at)
+        age = now_aware - listed_at
         if age >= _STALE_LISTING_AGE:
             hours = age.total_seconds() / 3600
             return f"{hours:.1f} h offen"
     return None
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite gibt datetime naiv zurück; wir treaten naive Werte als UTC."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
 
 
 def _lookup_squad_name(context: DecisionContext, player_id: str) -> str | None:

@@ -639,6 +639,35 @@ async def test_stale_listing_triggers_direct_sell_fallback() -> None:
     assert "Stale-Listing" in decision.reason
 
 
+async def test_stale_listing_survives_naive_listed_at_from_sqlite() -> None:
+    # SQLite gibt gespeicherte Timestamps ohne TZ-Info zurück (naive).
+    # `_stale_reason` muss das gegen den aware `context.now` normalisieren,
+    # sonst crasht die Subtraktion mit TypeError.
+    keeper = _player("k1", avg=6.0, market_value=Decimal("500000"), name="Slow")
+    squad = _padded_squad([SquadPlayer(player=keeper)])
+    engine = HeuristicDecisionEngine(FakeHistoryGateway())
+    now = datetime(2026, 3, 5, 12, 0, tzinfo=UTC)
+    naive_listed_at = (now - timedelta(hours=25)).replace(tzinfo=None)
+    listings = {
+        "k1": ListingRecord(
+            player_id="k1",
+            listing_price=Decimal("550000"),
+            listed_at=naive_listed_at,
+            expires_at=None,
+            has_offers=False,
+        )
+    }
+    decision = await engine.decide(
+        _context(
+            squad=squad,
+            min_action_score=0.5,
+            own_listings=listings,
+            now=now,
+        )
+    )
+    assert decision.action is TradeAction.SELL
+
+
 async def test_stale_listing_with_open_offer_does_not_fallback() -> None:
     # Solange ein Manager-Angebot offen ist, entscheidet ACCEPT/DECLINE —
     # der Stale-Fallback darf nicht drüberbügeln.
