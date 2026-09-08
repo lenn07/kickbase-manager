@@ -78,6 +78,7 @@ class RunTickUseCase:
     async def run(self) -> TickOutcome:
         metrics = get_metrics()
         metrics.last_tick_ts.set_to_current_time()
+        _log.info("Tick gestartet.")
 
         state = read_setup_state(self._session)
         if not state.is_complete:
@@ -166,6 +167,13 @@ class RunTickUseCase:
         )
 
         await self._notify_outcome(user.id, decision, result)
+
+        _log.info(
+            "Tick abgeschlossen: %s (%s) — %s",
+            decision.action.value,
+            _tick_status(decision, result, settings.dry_run),
+            _tick_summary(decision, result),
+        )
 
         if decision.is_hold:
             metrics.record_tick("hold")
@@ -262,6 +270,31 @@ class RunTickUseCase:
             use_tls=row.use_tls,
             use_starttls=row.use_starttls,
         )
+
+
+def _tick_status(decision: TradeDecision, result: ExecutionResult, dry_run: bool) -> str:
+    if decision.is_hold:
+        return "HOLD"
+    if result.executed:
+        return "ausgeführt"
+    if result.error:
+        return "Fehler"
+    if dry_run:
+        return "Dry-Run"
+    return "nicht ausgeführt"
+
+
+def _tick_summary(decision: TradeDecision, result: ExecutionResult) -> str:
+    parts: list[str] = []
+    if decision.player_name:
+        parts.append(decision.player_name)
+    if decision.price is not None:
+        parts.append(f"{int(decision.price):,}".replace(",", ".") + " €")
+    if result.error:
+        parts.append(f"Fehler: {result.error}")
+    else:
+        parts.append(decision.reason)
+    return " | ".join(parts)
 
 
 def _load_own_listings(

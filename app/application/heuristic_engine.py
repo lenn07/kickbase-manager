@@ -449,7 +449,7 @@ class HeuristicDecisionEngine:
             if player.id in listed_ids:
                 continue
             base_utility = 1.0 - entry.score
-            intent = TradeIntent.POINTS  # Default: schwacher Kader-Spieler weg
+            intent = TradeIntent.SQUAD_TRIM  # Default: schwacher Kader-Spieler weg
             profit_bonus = 0.0
             profit_note = ""
             record = history_map.get(player.id)

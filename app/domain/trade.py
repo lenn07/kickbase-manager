@@ -38,6 +38,7 @@ class TradeIntent(StrEnum):
     SQUAD_FILL = "SQUAD_FILL"
     PROFIT = "PROFIT"
     POINTS = "POINTS"
+    SQUAD_TRIM = "SQUAD_TRIM"
     DEBT_RELIEF = "DEBT_RELIEF"
 
 
