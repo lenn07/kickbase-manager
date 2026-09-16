@@ -38,6 +38,10 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 COPY --chown=kb:kb app ./app
+# Master-Prompt-Text ist statischer Bestandteil des AI-Only-Modus (wird vom
+# master_prompt_loader zur Laufzeit gelesen). Muss ins Image, sonst fällt
+# jeder Tick auf HOLD zurück.
+COPY --chown=kb:kb docs/master_prompt.md ./docs/master_prompt.md
 
 USER kb
 VOLUME ["/data"]

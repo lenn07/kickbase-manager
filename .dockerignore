@@ -13,6 +13,7 @@ htmlcov
 tests
 *.md
 !README.md
+!docs/master_prompt.md
 .env
 .env.*
 .pre-commit-config.yaml
