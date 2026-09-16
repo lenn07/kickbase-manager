@@ -12,10 +12,10 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
 from app import __version__
-from app.application.decision_engine import DecisionEngine
+from app.application.ai_decision_engine import AiDecisionEngine
+from app.application.decision_engine import DecisionEngine, HoldOnlyDecisionEngine
 from app.application.digest_scheduling import apply_digest_settings
-from app.application.heuristic_engine import HeuristicDecisionEngine
-from app.application.llm_curator import LlmCurator
+from app.application.player_enrichment import PlayerEnricher
 from app.application.run_tick_uc import RunTickUseCase, TickOutcome
 from app.config import Settings, get_settings
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
@@ -29,7 +29,6 @@ from app.infrastructure.logging import (
 from app.infrastructure.metrics import get_metrics
 from app.infrastructure.metrics.middleware import PrometheusMiddleware
 from app.infrastructure.notifications.smtp_client import AiosmtplibClient
-from app.infrastructure.openligadb.client import HttpxOpenLigaDBClient
 from app.infrastructure.persistence.db import init_db, make_engine
 from app.infrastructure.persistence.repositories import (
     CredentialRepository,
@@ -143,52 +142,58 @@ def _resolve_initial_interval(engine: Engine, settings: Settings) -> int:
 
 
 async def _run_tick(engine: Engine, vault: FernetVault) -> TickOutcome:
-    """Ein Tick = frische DB-Session + frischer Kickbase-Client + LLM-Kurator.
+    """Ein Tick = frische DB-Session + frischer Kickbase-Client + AI-Only-Engine.
 
     Der Kickbase-Client hält keinen Cross-Tick-State, damit ein 401 im nächsten
-    Tick sauber via Relogin repariert werden kann. Der LLM-Kurator (Phase 5)
-    legt Claude Sonnet über die Heuristik; fehlt der Anthropic-Key (Setup
-    unvollständig oder Row korrupt), wird auf die reine Heuristik zurückgefallen
-    — der Setup-Check im UseCase skippt den Tick dann sowieso.
+    Tick sauber via Relogin repariert werden kann. Der Master-Prompt-Modus
+    verlangt einen entschlüsselbaren Anthropic-Key — ohne Key fällt der Tick
+    auf `HoldOnlyDecisionEngine` zurück, der Setup-Check im UseCase blockt
+    den Auto-Loop ohnehin, bis der Nutzer das Setup abschließt.
     """
     smtp = AiosmtplibClient()
     anthropic = AnthropicClient()
-    external = HttpxOpenLigaDBClient()
     with Session(engine) as db:
         store = DbSessionStore(db, vault)
         kickbase = HttpxKickbaseClient(session_store=store)
         try:
-            heuristic = HeuristicDecisionEngine(kickbase, external=external)
-            decision_engine = _build_decision_engine(db, vault, heuristic, anthropic)
+            decision_engine = _build_decision_engine(db, vault, anthropic)
+            enricher = PlayerEnricher(kickbase)
             uc = RunTickUseCase(
                 session=db,
                 vault=vault,
                 kickbase=kickbase,
                 engine=decision_engine,
                 smtp=smtp,
+                enricher=enricher,
             )
             return await uc.run()
         finally:
             await kickbase.aclose()
-            await external.aclose()
 
 
 def _build_decision_engine(
     db: Session,
     vault: FernetVault,
-    heuristic: HeuristicDecisionEngine,
     anthropic: AnthropicClient,
 ) -> DecisionEngine:
-    """Setzt LlmCurator obendrauf, wenn ein entschlüsselbarer Anthropic-Key vorliegt."""
+    """Baut die AI-Only-Engine, wenn ein entschlüsselbarer Anthropic-Key vorliegt.
+
+    Fällt auf `HoldOnlyDecisionEngine` zurück, wenn (a) noch kein User existiert
+    (Pre-Setup-Phase), (b) kein Anthropic-Credential hinterlegt ist oder (c) der
+    Vault den Key nicht mehr entschlüsseln kann. In allen drei Fällen greift
+    ohnehin der Setup-Check im RunTickUseCase, sodass keine echte Aktion läuft.
+    """
     user = UserRepository(db).get_singleton()
     if user is None or user.id is None:
-        return heuristic
+        return HoldOnlyDecisionEngine()
     credential = CredentialRepository(db).get(user_id=user.id, kind="anthropic")
     if credential is None:
-        return heuristic
+        return HoldOnlyDecisionEngine()
     try:
         api_key = vault.decrypt(credential.encrypted_value)
     except CryptoError:
-        _log.warning("Anthropic-Key konnte nicht entschlüsselt werden — nur Heuristik aktiv.")
-        return heuristic
-    return LlmCurator(heuristic=heuristic, llm=anthropic, api_key=api_key)
+        _log.warning(
+            "Anthropic-Key konnte nicht entschlüsselt werden — Auto-Loop pausiert auf HOLD."
+        )
+        return HoldOnlyDecisionEngine()
+    return AiDecisionEngine(llm=anthropic, api_key=api_key)

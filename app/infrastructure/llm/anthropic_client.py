@@ -49,9 +49,29 @@ class LlmChatGateway(Protocol):
         max_tokens: int = 512,
     ) -> dict[str, Any]: ...
 
+    async def submit_decision(
+        self,
+        *,
+        api_key: str,
+        system_prompt: str,
+        user_message: str,
+        tool_name: str,
+        tool_description: str,
+        input_schema: dict[str, Any],
+        max_tokens: int = 1024,
+    ) -> dict[str, Any]:
+        """AI-Only-Variante: system_prompt wird als Cache-Prefix markiert.
+
+        Anthropic-Prompt-Caching schneidet die statischen Master-Prompt-Tokens
+        (ca. 2 kTokens) pro Tick auf ~10 % Kosten. Payload-Struktur:
+        `system=[{type:"text", text:..., cache_control:{type:"ephemeral"}}]`.
+        """
+        ...
+
 
 DEFAULT_VERIFY_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_CURATOR_MODEL = "claude-sonnet-4-6"
+DEFAULT_DECISION_MODEL = "claude-sonnet-4-6"
 DEFAULT_ENDPOINT = "https://api.anthropic.com/v1/messages"
 _API_VERSION = "2023-06-01"
 
@@ -63,18 +83,23 @@ class AnthropicClient:
         endpoint: str = DEFAULT_ENDPOINT,
         verify_model: str = DEFAULT_VERIFY_MODEL,
         curator_model: str = DEFAULT_CURATOR_MODEL,
+        decision_model: str = DEFAULT_DECISION_MODEL,
         timeout_s: float = 15.0,
         curator_timeout_s: float = 60.0,
+        decision_timeout_s: float = 90.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._endpoint = endpoint
         self._verify_model = verify_model
         self._curator_model = curator_model
+        self._decision_model = decision_model
         self._timeout_s = timeout_s
         # Kurator-Antworten (Sonnet, bis 512 Tokens) brauchen mehr Zeit als der
         # Ping — mit dem 15-s-Verify-Timeout würden bereits normale Latenzen
         # den Tick abbrechen.
         self._curator_timeout_s = curator_timeout_s
+        # AI-Only-Modus liefert längere reason_long-Blöcke → mehr Latenz.
+        self._decision_timeout_s = decision_timeout_s
         self._transport = transport
 
     async def verify_key(self, api_key: str) -> None:
@@ -129,6 +154,61 @@ class AnthropicClient:
         except httpx.TimeoutException as exc:
             raise LlmChatError(
                 f"Anthropic-Call Timeout nach {self._curator_timeout_s:.0f}s: {exc}"
+            ) from exc
+        except httpx.RequestError as exc:
+            raise LlmChatError(f"Netzwerkfehler beim Anthropic-Call: {exc}") from exc
+
+        if response.status_code != HTTPStatus.OK:
+            raise LlmChatError(_format_error(response))
+
+        return _extract_tool_input(response, tool_name)
+
+    async def submit_decision(
+        self,
+        *,
+        api_key: str,
+        system_prompt: str,
+        user_message: str,
+        tool_name: str,
+        tool_description: str,
+        input_schema: dict[str, Any],
+        max_tokens: int = 1024,
+    ) -> dict[str, Any]:
+        """AI-Only-Modus: system_prompt wird als Cache-Prefix markiert.
+
+        Sonst identisch zu `select_action` — Tool-Use erzwingt strukturierten
+        Output über `tool_choice`. Das Modell erhält den (großen, statischen)
+        Master-Prompt als System-Block mit `cache_control: ephemeral`, sodass
+        Anthropic die Tokens bis zu 5 Minuten wiederverwenden kann.
+        """
+        if not api_key or not api_key.strip():
+            raise LlmChatError("API-Key ist leer.")
+
+        payload: dict[str, Any] = {
+            "model": self._decision_model,
+            "max_tokens": max_tokens,
+            "system": [
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            "messages": [{"role": "user", "content": user_message}],
+            "tools": [
+                {
+                    "name": tool_name,
+                    "description": tool_description,
+                    "input_schema": input_schema,
+                }
+            ],
+            "tool_choice": {"type": "tool", "name": tool_name},
+        }
+        try:
+            response = await self._post(api_key, payload, timeout_s=self._decision_timeout_s)
+        except httpx.TimeoutException as exc:
+            raise LlmChatError(
+                f"Anthropic-Call Timeout nach {self._decision_timeout_s:.0f}s: {exc}"
             ) from exc
         except httpx.RequestError as exc:
             raise LlmChatError(f"Netzwerkfehler beim Anthropic-Call: {exc}") from exc

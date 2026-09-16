@@ -40,6 +40,9 @@ class TradeIntent(StrEnum):
     POINTS = "POINTS"
     SQUAD_TRIM = "SQUAD_TRIM"
     DEBT_RELIEF = "DEBT_RELIEF"
+    # NONE = kein sinnvoller Motivations-Grund (v. a. für HOLD und DECLINE);
+    # entspricht der Enum-Ausprägung im AI-Only-Modus-Prompt.
+    NONE = "NONE"
 
 
 @dataclass(frozen=True, slots=True)

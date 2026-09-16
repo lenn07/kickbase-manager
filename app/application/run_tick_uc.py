@@ -24,13 +24,15 @@ from app.application.decision_engine import (
     DecisionContext,
     DecisionEngine,
     ListingRecord,
+    RecentAction,
 )
+from app.application.player_enrichment import PlayerEnricher, PlayerEnrichment
 from app.application.setup_state import read_setup_state
 from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
-from app.domain.models import MarketPlayer
-from app.domain.trade import TradeDecision, TradeIntent
+from app.domain.models import MarketPlayer, Squad
+from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.metrics import get_metrics
 from app.infrastructure.notifications.smtp_client import SmtpConfig, SmtpError, SmtpGateway
@@ -54,6 +56,10 @@ class TickOutcome:
     skipped_reason: str | None = None
 
 
+_MAX_RECENT_ACTIONS = 20
+_KICKBASE_DEBT_ALLOWANCE_PCT = Decimal("0.33")
+
+
 class RunTickUseCase:
     def __init__(
         self,
@@ -63,12 +69,14 @@ class RunTickUseCase:
         kickbase: KickbaseGateway,
         engine: DecisionEngine,
         smtp: SmtpGateway,
+        enricher: PlayerEnricher | None = None,
     ) -> None:
         self._session = session
         self._vault = vault
         self._kickbase = kickbase
         self._engine = engine
         self._smtp = smtp
+        self._enricher = enricher
         self._users = UserRepository(session)
         self._leagues = LeagueRepository(session)
         self._settings = SettingsRepository(session)
@@ -124,6 +132,12 @@ class RunTickUseCase:
             market=market,
             manager_id=user.kb_user_id,
         )
+        recent_actions = _load_recent_actions(self._trades, user.id)
+        enrichment = await self._enrich_players(league_row.kb_league_id, squad, market)
+
+        open_bids_total = _open_bids_total(market=market, manager_id=user.kb_user_id)
+        max_negative = _max_negative_allowed(team_value=squad.team_value, cash=league_me.budget)
+        current_balance_after_open_bids = league_me.budget - open_bids_total
 
         context = DecisionContext(
             league_id=league_row.kb_league_id,
@@ -136,11 +150,16 @@ class RunTickUseCase:
             min_cash_reserve=settings.min_cash_reserve,
             blacklist=tuple(settings.blacklist),
             team_value=squad.team_value,
+            open_bids_total=open_bids_total,
             now=datetime.now(UTC),
             next_matchday_start=next_matchday_start,
             interval_min=settings.interval_min,
             buy_history=buy_history,
             own_listings=own_listings,
+            enrichment=enrichment,
+            recent_actions=recent_actions,
+            max_negative_allowed=max_negative,
+            current_balance_after_open_bids=current_balance_after_open_bids,
         )
 
         decision = await self._engine.decide(context)
@@ -185,6 +204,20 @@ class RunTickUseCase:
             metrics.record_tick("blocked")
 
         return TickOutcome(executed=result.executed, decision=decision, log_id=row.id)
+
+    async def _enrich_players(
+        self,
+        league_id: str,
+        squad: Squad,
+        market: list[MarketPlayer],
+    ) -> dict[str, PlayerEnrichment]:
+        if self._enricher is None:
+            return {}
+        try:
+            return await self._enricher.enrich(league_id, squad, market)
+        except KickbaseError as exc:
+            _log.info("Enrichment fehlgeschlagen (%s) — Prompt läuft ohne Zusatzsignale.", exc)
+            return {}
 
     async def _next_matchday_start(self) -> datetime | None:
         """Frühester zukünftiger Spieltagsstart — für die Deadline-Regel.
@@ -328,6 +361,71 @@ def _load_own_listings(
             has_offers=bool(mp.offers),
         )
     return out
+
+
+def _load_recent_actions(trades: TradeLogRepository, user_id: int) -> tuple[RecentAction, ...]:
+    """Letzte N trade_log-Zeilen (aufsteigend nach ts) für den Master-Prompt.
+
+    `list_recent` liefert absteigend — wir drehen um, damit der Prompt die
+    Historie chronologisch (älteste zuerst) sieht, was leichter zu lesen ist.
+    Fehlende Intents/Actions werden übersprungen (Konsistenz > Vollständigkeit).
+    """
+    rows = trades.list_recent(user_id=user_id, limit=_MAX_RECENT_ACTIONS)
+    out: list[RecentAction] = []
+    for row in reversed(rows):
+        try:
+            action = TradeAction(row.action)
+        except ValueError:
+            continue
+        intent_raw = row.context.get("intent") if isinstance(row.context, dict) else None
+        try:
+            intent = TradeIntent(intent_raw) if intent_raw else None
+        except ValueError:
+            intent = None
+        out.append(
+            RecentAction(
+                ts=row.ts,
+                action=action,
+                player_id=row.player_id,
+                price=Decimal(row.price) if row.price is not None else None,
+                intent=intent,
+                executed=row.executed,
+            )
+        )
+    return tuple(out)
+
+
+def _open_bids_total(*, market: list[MarketPlayer], manager_id: str) -> Decimal:
+    """Summe aller offenen Gebote, die WIR auf fremde Spieler abgegeben haben.
+
+    Kickbase liefert unsere abgegebenen Gebote in v4 nicht als eigenständiges
+    Feld — sie erscheinen als `offers`-Einträge auf fremden Listings mit
+    `offer.user_id == manager_id`. Für das 33 %-Regel-Budget müssen wir sie
+    aufsummieren.
+    """
+    total = Decimal(0)
+    for mp in market:
+        if mp.seller_id == manager_id:
+            continue  # eigenes Listing → keine Verpflichtung
+        for offer in mp.offers:
+            if offer.user_id == manager_id:
+                total += offer.price
+    return total
+
+
+def _max_negative_allowed(*, team_value: Decimal, cash: Decimal) -> Decimal:
+    """Kickbase-33 %-Regel: `max_negative = -0.33 * (team_value + min(0, cash))`.
+
+    Bei positivem Cash-Bestand zählt nur der Mannschaftswert; ein bereits
+    bestehendes Kontominus reduziert die Basis (der Bot darf nicht endlos
+    Schulden anhäufen). Rückgabe ist bereits negativ, damit der Vergleich
+    `balance >= max_negative_allowed` intuitiv bleibt.
+    """
+    negative_component = min(cash, Decimal(0))
+    basis = team_value + negative_component
+    if basis <= 0:
+        return Decimal(0)
+    return -(basis * _KICKBASE_DEBT_ALLOWANCE_PCT).quantize(Decimal(1))
 
 
 def _load_buy_history(

@@ -2,19 +2,21 @@
 
 Phase 3 liefert einen Stub, der immer `HOLD` zurückgibt — damit der
 Scheduler-Pfad End-to-End getestet werden kann. Phase 4 ersetzt die Impl durch
-die Heuristik-Schicht, Phase 5 verdrahtet den LLM-Kurator obendrauf.
+die Heuristik-Schicht, Phase 5 verdrahtet den LLM-Kurator obendrauf, Phase 6
+den AI-Only-Modus (Master-Prompt).
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
 
+from app.application.player_enrichment import PlayerEnrichment
 from app.domain.models import LeagueMe, MarketPlayer, Squad
-from app.domain.trade import TradeDecision, TradeIntent
+from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +42,18 @@ class ListingRecord:
     listed_at: datetime | None
     expires_at: datetime | None
     has_offers: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RecentAction:
+    """Kompakte trade_log-Zeile für den AI-Only-Prompt (`recent_actions`)."""
+
+    ts: datetime
+    action: TradeAction
+    player_id: str | None
+    price: Decimal | None
+    intent: TradeIntent | None
+    executed: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +86,19 @@ class DecisionContext:
     # `seller_id == manager_id`-Einträge aus dem Market-Response und mischt
     # sie mit dem letzten LIST_ON_MARKET-Timestamp aus dem trade_log.
     own_listings: Mapping[str, ListingRecord] = field(default_factory=dict)
+    # AI-Only-Modus: pro Spieler angereicherte Signale (Trend, Startelf,
+    # Injury-Label, avg_points_last5). Für den Heuristik-Pfad ohne Bedeutung.
+    enrichment: Mapping[str, PlayerEnrichment] = field(default_factory=dict)
+    # Letzte N Tick-Aktionen für den `recent_actions`-Block im Master-Prompt —
+    # aufsteigend sortiert (älteste zuerst). Standard leer, damit Legacy-Tests
+    # ohne Trade-Log-Setup unverändert laufen.
+    recent_actions: Sequence[RecentAction] = ()
+    # Maximaler zulässiger Kontostand-Minusbetrag (33 %-Regel). Bereits negativ
+    # ausgedrückt, z. B. Decimal(-42_372_000). Bei Legacy-Aufrufen 0 → wirkt
+    # de facto als „kein Minus erlaubt" (konservativ).
+    max_negative_allowed: Decimal = Decimal(0)
+    # Kontostand nach Abzug aller offenen Gebote (Worst-Case-Bedeckung).
+    current_balance_after_open_bids: Decimal = Decimal(0)
 
 
 class DecisionEngine(Protocol):
