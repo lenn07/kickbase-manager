@@ -303,6 +303,7 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
     next_start = context.next_matchday_start
     ticks_until, minutes_until = _time_until(now, next_start, context.interval_min)
 
+    starting_xi_count = sum(1 for sp in context.squad.players if _is_starting_xi(sp))
     payload: dict[str, Any] = {
         "now_iso": _to_iso(now),
         "next_matchday_start_iso": _to_iso(next_start) if next_start else None,
@@ -312,7 +313,7 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         "budget": _budget_block(context),
         "squad": [_squad_entry(sp, context) for sp in context.squad.players],
         "squad_size": len(context.squad.players),
-        "starting_xi_count": None,
+        "starting_xi_count": starting_xi_count,
         "market": [_market_entry(mp, context) for mp in context.market],
         "incoming_offers": _incoming_offers(context),
         "recent_actions": [_recent_action(a) for a in context.recent_actions],
@@ -349,8 +350,14 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         "market_value": _int(player.market_value),
         "average_points_season": round(player.average_points, 2),
         "total_points_season": player.total_points,
+        "lineup_order": sp.lineup_order,
+        "in_starting_xi": _is_starting_xi(sp),
         "injury_status": enrichment.injury_status if enrichment else "unknown",
+        "market_trend_1d_pct": enrichment.market_trend_1d_pct if enrichment else None,
+        "market_trend_3d_pct": enrichment.market_trend_3d_pct if enrichment else None,
         "market_trend_7d_pct": enrichment.market_trend_7d_pct if enrichment else None,
+        "market_trend_30d_pct": enrichment.market_trend_30d_pct if enrichment else None,
+        "mv_max_30d": enrichment.mv_max_30d if enrichment else None,
         "avg_points_last5": enrichment.avg_points_last5 if enrichment else None,
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
         "listing": _own_listing(listing) if listing else None,
@@ -361,6 +368,14 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
     if enrichment:
         entry["missing_data_flags"] = list(enrichment.missing_data_flags)
     return entry
+
+
+_STARTING_XI_MAX_LO = 10  # Kickbase-`lo` 0..10 = die 11 Startelf-Slots.
+
+
+def _is_starting_xi(sp: SquadPlayer) -> bool:
+    # Bank/Reserve bekommt entweder einen höheren `lo`-Wert oder None.
+    return sp.lineup_order is not None and 0 <= sp.lineup_order <= _STARTING_XI_MAX_LO
 
 
 def _own_listing(listing: Any) -> dict[str, Any]:
@@ -386,7 +401,11 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext) -> dict[str, Any]:
         "listed_by": _listed_by(mp, context),
         "seller_id": mp.seller_id,
         "injury_status": enrichment.injury_status if enrichment else "unknown",
+        "market_trend_1d_pct": enrichment.market_trend_1d_pct if enrichment else None,
+        "market_trend_3d_pct": enrichment.market_trend_3d_pct if enrichment else None,
         "market_trend_7d_pct": enrichment.market_trend_7d_pct if enrichment else None,
+        "market_trend_30d_pct": enrichment.market_trend_30d_pct if enrichment else None,
+        "mv_max_30d": enrichment.mv_max_30d if enrichment else None,
         "avg_points_last5": enrichment.avg_points_last5 if enrichment else None,
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
     }

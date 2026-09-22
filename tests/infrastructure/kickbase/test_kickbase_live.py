@@ -105,7 +105,7 @@ async def test_list_matchdays_replays_full_season() -> None:
     assert len(current) == 1
 
 
-async def test_get_market_value_history_replays_empty_series() -> None:
+async def test_get_market_value_history_replays_seven_points() -> None:
     async with HttpxKickbaseClient(config=_fast_config()) as client:
         with make_vcr("login").use_cassette("login.yaml"):
             await client.login("redacted@example.com", "REDACTED_PASSWORD")
@@ -114,10 +114,13 @@ async def test_get_market_value_history_replays_empty_series() -> None:
                 FAKE_LEAGUE_ID, player_id="1991", days=7
             )
 
-    # Bei diesem Spieler war die Response leer — bestätigt korrektes Parsing
-    # eines leeren `it`-Arrays ohne Crash.
-    assert history == []
-    assert isinstance(history, list)
+    # Kickbase gibt am /marketvalue/{n}-Endpoint faktisch nur die 365-Tage-Serie
+    # zurück; der Client schneidet auf `days=7` und liefert die letzten Punkte.
+    assert len(history) == 7
+    assert all(p.value > 0 for p in history)
+    # Chronologisch aufsteigend (ältester zuerst)
+    days = [p.day for p in history]
+    assert days == sorted(days)
 
 
 async def test_get_squad_returns_zero_budget_since_not_in_response() -> None:

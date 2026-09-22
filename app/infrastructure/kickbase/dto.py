@@ -150,6 +150,8 @@ class SquadPlayerDTO(BaseModel):
     market_value: Decimal = Field(default=Decimal(0), validation_alias="mv")
     average_points: float = Field(default=0.0, validation_alias="ap")
     total_points: int = Field(default=0, validation_alias="p")
+    # `lo` = Lineup-Order (0..10 = Startelf-Slot laut Kickbase-App).
+    lineup_order: int | None = Field(default=None, validation_alias="lo")
 
     def to_squad_player(self) -> SquadPlayer:
         player = Player(
@@ -163,7 +165,7 @@ class SquadPlayerDTO(BaseModel):
             average_points=self.average_points,
             total_points=self.total_points,
         )
-        return SquadPlayer(player=player)
+        return SquadPlayer(player=player, lineup_order=self.lineup_order)
 
 
 class SquadResponseDTO(BaseModel):
@@ -295,6 +297,17 @@ class MarketValuePointDTO(BaseModel):
 
     day: datetime = Field(validation_alias=AliasChoices("dt", "d"))
     value: Decimal = Field(validation_alias=AliasChoices("mv", "v"))
+
+    @field_validator("day", mode="before")
+    @classmethod
+    def _coerce_day(cls, v: object) -> object:
+        # Kickbase liefert `dt` als Tage-seit-Epoch (int), z. B. 20717 = 2026-09-22.
+        # Pydantic würde einen int sonst als Unix-Sekunden interpretieren.
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, int):
+            return datetime.fromtimestamp(v * 86400, tz=UTC)
+        return v
 
     def to_domain(self) -> MarketValuePoint:
         return MarketValuePoint(day=self.day, value=self.value)

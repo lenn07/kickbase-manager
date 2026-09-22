@@ -165,9 +165,15 @@ class HttpxKickbaseClient:
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7
     ) -> list[MarketValuePoint]:
-        path = f"/v4/leagues/{league_id}/players/{player_id}/marketvalue/{days}"
+        # Kickbase v4 akzeptiert am `/marketvalue/{n}`-Endpoint faktisch nur
+        # `n=365` mit gefüllter Zeitreihe; kleinere Presets (7/30/90) liefern
+        # `it=[]` zurück. Wir holen die 365-Tage-Serie und schneiden lokal.
+        path = f"/v4/leagues/{league_id}/players/{player_id}/marketvalue/365"
         data = await self._request("GET", path)
-        return [p.to_domain() for p in MarketValueResponseDTO.model_validate(data).it]
+        points = [p.to_domain() for p in MarketValueResponseDTO.model_validate(data).it]
+        if days <= 0 or len(points) <= days:
+            return points
+        return points[-days:]
 
     # -- Interner Request-Kern -----------------------------------------
 

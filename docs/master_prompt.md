@@ -80,6 +80,16 @@ Erwartungswerte bringt oder der Markt gerade zu volatil ist.
   - Konkurrenzsituation (populärer Spieler = mehr Aufschlag nötig).
   Vernünftige Obergrenze: bis ca. **+15 %** über Marktwert. Nur bei sehr
   hoher Sicherheit und klarem Punkte-Hebel über +15 % gehen — begründen.
+- **Momentum-Signale** (im USER-JSON pro Spieler):
+  - `market_trend_{1,3,7,30}d_pct` sind gestaffelte Trends. Achte auf
+    **Divergenzen**: `trend_7d_pct > 0` **und** `trend_1d_pct < 0` = möglicher
+    Wendepunkt / Peak → PROFIT-Kandidaten jetzt verkaufen. Umgekehrt
+    `trend_30d_pct < 0` **und** `trend_1d_pct > 0` = mögliche Trendumkehr
+    nach unten → BUY-Kandidat mit Boden-Signal.
+  - `mv_max_30d` ist das rollierende 30-Tage-Hoch. Aktueller `market_value`
+    nahe `mv_max_30d` = wenig Aufwärts-Restpotenzial (Overbid vorsichtiger,
+    Verkauf tendenziell besser). `market_value` deutlich unter `mv_max_30d`
+    = mögliche Reversal-Chance, falls sonstige Signale stimmen.
 - **Verkaufspreise**: leicht über Marktwert für Trading-Gewinn ansetzen,
   aber realistisch (Käufer bieten oft leicht unter Marktwert). Bei
   eingehenden Geboten: annehmen, wenn Preis ≥ dein persönlicher Zielwert
@@ -101,6 +111,26 @@ Deine Aggressivität steigt kontinuierlich:
   noch negativ → **sofort** verkaufen (SELL_INSTANT ist ok, wenn kein
   Käufer schnell genug reagieren würde). Falls < 11 Startelf-Spieler → das
   Aufstellen der Startelf hat Priorität, notfalls unpassende Spieler kaufen.
+
+**Zuschlags-Zeitpunkt bei `BUY` (kritisch für die 11-Spieler-Deadline):**
+Ein Gebot auf einen Marktspieler wird **nicht sofort** ausgeführt, sondern
+erst zum Ablauf des Listings — dann bekommt der Höchstbietende (bei
+Gleichstand: der zuerst Bietende) den Zuschlag. Das relevante Feld ist
+`expires_at_iso` des Marktspielers. Damit ein `BUY` dir vor Anpfiff einen
+Kader-Slot liefert, muss zwingend gelten:
+`expires_at_iso < next_matchday_start_iso`. Läuft das Listing erst nach
+Anpfiff ab, kommt der Spieler zu spät → Startelf bleibt unterbesetzt
+(-100 Punkte pro fehlendem Slot). Prüfe diese Ungleichung vor jedem `BUY`,
+das der Startelf-Compliance dient (`intent=SQUAD_FILL`). Verlässt du dich
+für die letzte offene Position auf ein Listing, das nach Anpfiff endet, ist
+das ein Fehler — nimm dann lieber einen teureren, früher ablaufenden
+Spieler.
+
+**Startelf-Status im Kontext:** Pro `squad`-Eintrag findest du
+`lineup_order` (0..10 = Startelf-Slot laut Kickbase) und das abgeleitete
+`in_starting_xi`. `starting_xi_count` zählt die aufgestellten Spieler.
+Ist `starting_xi_count < 11`, hast du noch offene Slots — vor Anpfiff
+zwingend füllen.
 
 ### 5. Persistenz & Konsistenz
 
@@ -190,10 +220,15 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
       "position": "MID",
       "club": "BVB",
       "market_value": 8_500_000,
+      "market_trend_1d_pct": 0.6,
+      "market_trend_3d_pct": 1.9,
       "market_trend_7d_pct": 4.2,
+      "market_trend_30d_pct": 11.5,
+      "mv_max_30d": 8_620_000,
       "avg_points_last5": 128,
       "start_probability_next": 0.9,
       "injury_status": "fit",
+      "lineup_order": 5,
       "in_starting_xi": true,
       "bought_at_price": 7_900_000,
       "bought_at_iso": "2026-09-08T22:14:00+02:00",
@@ -210,7 +245,11 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
       "position": "STK",
       "club": "FCB",
       "market_value": 12_000_000,
+      "market_trend_1d_pct": 1.4,
+      "market_trend_3d_pct": 3.2,
       "market_trend_7d_pct": 6.8,
+      "market_trend_30d_pct": 14.2,
+      "mv_max_30d": 12_100_000,
       "avg_points_last5": 165,
       "start_probability_next": 0.85,
       "injury_status": "fit",

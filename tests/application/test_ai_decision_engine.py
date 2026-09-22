@@ -362,7 +362,11 @@ async def test_user_payload_contains_squad_market_recent_actions(
     enrichment = {
         "s1": PlayerEnrichment(
             player_id="s1",
+            market_trend_1d_pct=0.4,
+            market_trend_3d_pct=1.1,
             market_trend_7d_pct=2.5,
+            market_trend_30d_pct=8.3,
+            mv_max_30d=5_100_000,
             avg_points_last5=140.0,
             start_probability_next=0.9,
             injury_status="fit",
@@ -394,8 +398,39 @@ async def test_user_payload_contains_squad_market_recent_actions(
     payload = json.loads(llm.calls[0]["user_message"])
     assert payload["squad"][0]["player_id"] == "s1"
     assert payload["squad"][0]["market_trend_7d_pct"] == 2.5
+    assert payload["squad"][0]["market_trend_1d_pct"] == 0.4
+    assert payload["squad"][0]["market_trend_30d_pct"] == 8.3
+    assert payload["squad"][0]["mv_max_30d"] == 5_100_000
     assert payload["market"][0]["player_id"] == "m1"
     assert payload["recent_actions"][0]["action"] == "BUY"
     assert payload["incoming_offers"][0]["offer_id"] == "off-2"
     assert payload["budget"]["max_negative_allowed"] == -42_000_000
     assert payload["ticks_until_matchday_start"] is not None
+
+
+async def test_starting_xi_count_reflects_lineup_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt",
+        lambda: "SYS",
+    )
+    starters = tuple(SquadPlayer(player=_player(f"s{i}"), lineup_order=i) for i in range(10))
+    bench = (
+        SquadPlayer(player=_player("b1"), lineup_order=15),
+        SquadPlayer(player=_player("b2"), lineup_order=None),
+    )
+    llm = FakeLlm(response={"action": "HOLD", "price": 0, "intent": "NONE"})
+    engine = AiDecisionEngine(llm=llm, api_key="sk-ant-x")
+
+    await engine.decide(_context(squad_players=starters + bench))
+
+    payload = json.loads(llm.calls[0]["user_message"])
+    assert payload["squad_size"] == 12
+    assert payload["starting_xi_count"] == 10  # unbesetzter Slot → Startelf-Loch
+    starters_in_payload = [e for e in payload["squad"] if e["in_starting_xi"]]
+    bench_in_payload = [e for e in payload["squad"] if not e["in_starting_xi"]]
+    assert len(starters_in_payload) == 10
+    assert len(bench_in_payload) == 2
+    assert bench_in_payload[0]["lineup_order"] == 15
+    assert bench_in_payload[1]["lineup_order"] is None

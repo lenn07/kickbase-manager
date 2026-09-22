@@ -60,6 +60,9 @@ class SquadPlayer:
     player: Player
     # Kickbase v4 Squad-Response enthält keinen Kaufpreis mehr — bleibt 0.
     buy_price: Decimal = Decimal(0)
+    # Startelf-Slot laut Kickbase (`lo`-Feld im Squad-Response). 0..10 =
+    # aufgestellt (11 Slots), None/andere Werte = Bank/Reserve/unbekannt.
+    lineup_order: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
