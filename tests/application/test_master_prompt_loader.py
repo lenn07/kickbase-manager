@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from app.application.master_prompt_loader import (
+    RULES_LAST_VERIFIED,
     MasterPromptError,
     load_system_prompt,
 )
@@ -66,3 +67,55 @@ def test_repo_master_prompt_is_loadable() -> None:
     text = load_system_prompt()
     assert "Zielhierarchie" in text
     assert "Ausgabeformat" in text
+
+
+# -- P0-5: Der Prompt muss zum Payload passen -----------------------------
+
+
+def test_corrected_claims_are_gone_from_the_prompt() -> None:
+    """Die Falschaussagen aus dem Defekt-Register §4.1 dürfen nicht zurückkehren.
+
+    Jede einzelne hätte das Modell aktiv fehlgeleitet: eine erfundene
+    Kaderquote, ein erfundener Abschlag beim Sofortverkauf, ein willkürlicher
+    Overbid-Deckel.
+    """
+    prompt = load_system_prompt()
+    for wrong in (
+        "max. 3 Spieler pro Bundesliga-Club",  # ist eine Liga-Einstellung 1-11
+        "2 TW / 5 DEF / 5 MID / 3 STK",  # frei erfunden
+        "meist unter Marktwert",  # SELL_INSTANT bringt den vollen Marktwert
+        "bis ca. **+15 %**",  # willkürlicher Deckel statt Herleitung
+    ):
+        assert wrong not in prompt, f"Korrigierte Falschaussage wieder im Prompt: {wrong!r}"
+
+
+def test_prompt_covers_the_rules_that_came_with_phase_one() -> None:
+    """Regeln ohne Prompt-Erwähnung sind Daten, die niemand liest."""
+    prompt = load_system_prompt()
+    for expected in (
+        "SET_LINEUP",  # P0-4
+        "mv_update_at_iso",  # P0-1, die zweite Uhr
+        "start_probability_source",  # P0-3, Herkunft der Prognose
+        "offer_count",  # P0-2, Konkurrenz beim Overbid
+        "allowed_formations",
+        "Head-to-Head",  # Wertungsmodus
+        "Unterbieten deaktivieren",  # Underpay-Block
+    ):
+        assert expected in prompt, f"Der Prompt erwähnt {expected!r} nicht"
+
+
+def test_prompt_does_not_promise_data_the_payload_lacks() -> None:
+    """Der alte Prompt verlangte Restspielplan und Gegnerstärke — beides fehlt.
+
+    Ein Modell, das nach nicht vorhandenen Feldern greift, erfindet sie. Seit
+    P0-5 steht ausdrücklich im Prompt, dass sie fehlen (P2-11 liefert sie).
+    """
+    prompt = load_system_prompt()
+    assert "derzeit *nicht* im Kontext" in prompt
+    assert "erfinde sie nicht" in prompt
+
+
+def test_rules_last_verified_matches_the_prompt_file() -> None:
+    """Sonst meldet das Modell `rules_may_be_stale` für einen frischen Prompt."""
+    raw = (Path(__file__).resolve().parents[2] / "docs" / "master_prompt.md").read_text()
+    assert f"Fixiert am {RULES_LAST_VERIFIED.isoformat()}" in raw

@@ -23,12 +23,36 @@ def test_every_scenario_builds_a_valid_payload() -> None:
 
 
 def test_scenarios_have_eleven_players_in_the_starting_xi() -> None:
-    """Sonst prüft die Eval nebenbei die -100-Regel statt der gemeinten Regel."""
+    """Sonst prüft die Eval nebenbei die -100-Regel statt der gemeinten Regel.
+
+    Ausnahme: Szenarien, in denen die Aufstellung *der Gegenstand* ist. Die
+    müssen das über `expects_full_lineup=False` erklären — und dann auch
+    `SET_LINEUP` erlauben, sonst haben sie keine gültige Antwort.
+    """
     for scenario in SCENARIOS:
         payload = _build_user_payload(scenario.context)
+        if not scenario.expects_full_lineup:
+            assert TradeAction.SET_LINEUP in scenario.allowed, (
+                f"{scenario.name}: unvollständige Elf, aber SET_LINEUP nicht erlaubt"
+            )
+            assert payload["lineup"]["empty_slots"] > 0, (
+                f"{scenario.name}: als unvollständig deklariert, ist es aber nicht"
+            )
+            continue
         assert payload["starting_xi_count"] == 11, (
             f"{scenario.name}: {payload['starting_xi_count']} Spieler aufgestellt"
         )
+        assert payload["lineup"]["empty_slots"] == 0, (
+            f"{scenario.name}: {payload['lineup']['empty_slots']} leere Slots im lineup-Block"
+        )
+
+
+def test_every_scenario_carries_a_usable_lineup_block() -> None:
+    """Ohne Formation kann das Modell keine gültige `SET_LINEUP`-Aktion bauen."""
+    for scenario in SCENARIOS:
+        block = _build_user_payload(scenario.context)["lineup"]
+        assert block["formation"] in block["allowed_formations"], scenario.name
+        assert block["deadline_iso"], scenario.name
 
 
 def test_allowed_and_forbidden_do_not_overlap() -> None:

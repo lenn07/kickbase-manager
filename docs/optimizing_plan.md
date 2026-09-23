@@ -55,12 +55,12 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-0.6** Eval-Gerüst + `eval`-Marker  ⟵ *[Plan-Ergänzung, siehe §6]*
 - [x] **P0-0.7** Verifikation gegen echte Calls + Korrekturen  ⟵ *[Plan-Ergänzung, siehe §6]*
 
-### Phase 1 — P0: Bot handlungsfähig machen · Status: **in Arbeit**
+### Phase 1 — P0: Bot handlungsfähig machen · Status: **Code abgeschlossen** (2026-09-23), Shadow-Lauf offen
 - [x] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
 - [x] **P0-2** Gebote parsen (Offers-Array) — `ofc`-Teil umgesetzt, Array-Teil belegt entkoppelt
 - [x] **P0-3** Marktspieler-Leistungsdaten + `prob`
 - [x] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`) — Code fertig, DoD-Shadow läuft
-- [ ] **P0-5** Master-Prompt korrigieren
+- [x] **P0-5** Master-Prompt korrigieren — Edits + 5 neue Eval-Szenarien, Eval 17/17 grün
 
 ### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **offen**
 - [ ] **P1-6** Kaufpreis & G/V aus Kickbase (`prc`, `mvgl`)
@@ -800,6 +800,29 @@ Zusätzlich:
 
 **DoD:** Eval grün · 7 Tage Shadow ohne Executor-Fehler.
 
+**Eval-Lauf 2026-09-23 (nach dem Prompt-Merge): 17/17 grün, 32 Modell-Calls, 8:00 min.**
+Aktionsverteilung je Szenario, jeweils 3/3 einstimmig:
+`debt_before_kickoff` → SELL · `healthy_and_quiet` → HOLD · `injured_starter` → SELL_LIST ·
+`open_lineup_slots` → **SET_LINEUP** · `instant_sale_before_deadline` → SELL ·
+`bench_player_is_no_bargain` → HOLD (kein Kauf trotz 140 Punkten Schnitt) ·
+`profit_peak` → SELL_LIST · `no_offers_means_no_accept` → HOLD.
+Der aussagekräftigste Befund steht in der Begründung des Lineup-Szenarios: das Modell zitiert
+`empty_slots: 1` und `points_at_risk: 100` wörtlich — die Felder aus P0-4 werden gelesen und
+nicht nur mitgeschickt. Ebenso `profit_peak`: die Divergenz zwischen `trend_1d_pct` und
+`trend_7d_pct` wird als Peak-Signal benannt, also genau nach §2.6 des Regelwerks.
+
+> **[Plan-Ergänzung 2026-09-23, fünfte] Die Eval maß den falschen Pfad.**
+> `temperature` stand nur im Eval-Wrapper `_DeterministicLlm`, nicht im Produktivpfad — der
+> lief am API-Default. Doppelter Schaden: der Bot traf seine **echten** Entscheidungen weiter
+> mit Sampling (bei gleicher Lage konnte eine andere Aktion herauskommen, ohne dass sich etwas
+> geändert hatte), und die Eval hätte den Verlust der Einstellung nie gemeldet, weil sie sie
+> selbst herstellte. P0-5 verlangt „`temperature=0` im Decision-Call sicherstellen" — das war
+> über den Wrapper eben *nicht* sichergestellt.
+> **Umgesetzt:** `AiDecisionConfig.temperature = 0.0` im Produktivpfad, Wrapper ersatzlos
+> entfernt (die Eval fährt jetzt denselben Pfad wie die Produktion), plus
+> `test_eval_measures_a_deterministic_path` als Wächter **vor** dem ersten bezahlten Szenario —
+> ein Lauf, der nur Rauschen misst, ist das Geld nicht wert.
+
 ---
 
 ### PHASE 2 — P1: Von „funktioniert" auf „gut"
@@ -1039,6 +1062,8 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-2 | **Ergaenzung:** `ofc` als `offer_count` im Payload, Kontext-Validierung der LLM-IDs, Diagnose-Hook fuer das ungeklaerte Gebots-Array | `has_offers` haing am `offers`-Tupel, das bis F1 immer leer ist — ein Listing mit vier Bietern galt als „keine Gebote" und waere in den Sofortverkauf gelaufen. Jetzt aus `ofc`. **Der Plan verliess sich an zwei Stellen auf Disziplin:** „nicht scharf schalten" war ein Merkzettel (jede `offer_id` des Modells ist zwangslaeufig erfunden, der Executor haette sie abgesetzt — einziger Schutz war `dry_run`, das am 23.09. auf `0` stand), und das Rest-Verfahren fuer F1 haing an einem manuell getimten Skriptlauf waehrend eines offenen Gebots. Beides jetzt als Code. Zweiter `ofc`-Call ueber `/leagues/{l}/squad` ist ueberfluessig: eigene Listings stehen mit `ofc` im `/market`-Payload. |
 | 2026-09-23 | P0-3 | **Ergaenzung:** Leistungsdaten durchgereicht, Startelf-Quellenkette mit Herkunftsangabe, `PlayerStatus.UNKNOWN`, `_avg_points_proxy` korrigiert (D13) | **Beide Gap-Assertions waren nicht erfuellbar** — Gap 4 verlangt Werte fuer 4 Spieler, fuer die Kickbase keine liefert; Gap 3 misst Streuung in einer Cassette ohne `prob`. Mit `xfail(strict=True)` waeren beide dauerhaft „gruen" geblieben und das Phase-1-DoD haette nie zugeschlagen. Neu gefasst: Gap 4 rechnet die Erwartung aus der Cassette, Gap 3 laeuft gegen die Archiv-Stichprobe mit `prob`. **Neuer Defekt D13:** `_avg_points_proxy` filterte `> 0` — die beiden Spieler mit negativem Saison-Ø (−4, −60) galten als datenlos. **Kostendeckel:** `sl` haette ~29 Requests/Tick gekostet (§9 Ban-Risiko); jetzt nur fuer die Auswahl, die ohnehin Historien bekommt, und nur wo `prob` fehlt — in der Spieltagswoche null Zusatz-Calls. Payload-Effekt: `avg_points_last5` 1/21 -> 17/21 gefuellt, `start_probability_next` 3 -> 4 distinkte Werte mit ausgewiesener Quelle (10x `lineup_prediction`, 11x `injury_status_heuristic`). |
 | 2026-09-23 | P0-4 | **Ergaenzung:** `app/domain/lineup.py`, Startelf-Guard, `SET_LINEUP`, Executor-Vorvalidierung, Kill-Switch `KB_LINEUP_WRITES_ENABLED` | **„Genau 11 IDs" haette den Guard unwirksam gemacht:** der echte Kader hat 8 Spieler, also gibt es keine vollstaendige Formation — ausgerechnet bei 3 leeren Slots (-300 Punkte) waere jede Aktion abgelehnt worden. Jetzt „hoechstens 11, Formation nicht ueberschritten". **Zweiter Befund:** `best_lineup` haette gesperrte Spieler aufgestellt, sobald die Anreicherung ausfaellt (`_enrich_players` liefert dann `{}`) — der Status ist jetzt Untergrenze im Score. Payload zeigt neu `lineup` mit `empty_slots: 3`, `points_at_risk: 300`, `allowed_formations`. Von den 10 Formationen ist nur `3-5-2` gegen die API verifiziert; der Guard behaelt die gemeldete bei, solange keine andere mehr Slots besetzt. |
+| 2026-09-23 | P0-5 | Master-Prompt gegen §4.1 korrigiert, `SET_LINEUP` + zweite Uhr aufgenommen, USER-JSON-Beispiel auf den echten Payload gezogen, `temperature=0` im Produktivpfad, 5 neue Eval-Szenarien | Alle 10 Falschaussagen aus §4.1 sind raus (durch Test abgesichert: `test_corrected_claims_are_gone_from_the_prompt`). `temperature` war nur in der Eval gesetzt — der Produktivpfad lief am API-Default, damit war jede Entscheidung unreproduzierbar und ein Prompt-Merge nicht belegbar; jetzt `AiDecisionConfig.temperature = 0.0`. Der Waechter `test_scenarios_have_eleven_players_in_the_starting_xi` haette das SET_LINEUP-Szenario blockiert (es braucht per definitionem eine unvollstaendige Elf) — geloest ueber `Scenario.expects_full_lineup`, das gleichzeitig erzwingt, dass ein solches Szenario `SET_LINEUP` auch erlaubt. Prompt-Umfang: ~3.900 Tokens Cache-Prefix. **Offen:** der bezahlte Eval-Lauf (8 Szenarien x 4 = 32 Calls). |
+| 2026-09-23 | P0-5 | Eval-Suite gegen den korrigierten Prompt ausgefuehrt | **17/17 gruen, 32 calls, 8:00 min**, alle acht szenarien 3/3 einstimmig. `open_lineup_slots` liefert SET_LINEUP und begruendet es mit `empty_slots: 1` / `points_at_risk: 100` — die P0-4-felder werden gelesen, nicht nur mitgeschickt. `bench_player_is_no_bargain` kauft den 140-punkte-mann mit 5 % startelf-chance nicht. **Befund beim start:** der wrapper `_DeterministicLlm` und die neue produktiv-`temperature` kollidierten — die eval mass bis dahin einen pfad, den es in produktion nicht gab. Wrapper entfernt, waechter-test davor. |
 
 ---
 
