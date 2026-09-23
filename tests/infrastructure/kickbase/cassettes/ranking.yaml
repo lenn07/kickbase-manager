@@ -1,0 +1,62 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/ranking
+  response:
+    body:
+      string: '{"ti": "Noob_League", "cpi": "1", "ish": false, "us": [{"iapl": false,
+        "i": "8898876", "n": "Redacted", "adm": false, "sp": 4091, "mdp": 1200, "shp":
+        0, "tv": 206311718.0, "spl": 1, "mdpl": 2, "pa": true, "lp": [1580, 49, 2383,
+        7282, 11570, 11006, 4335, 2939, 3304, 9698, 2646], "lipc": 0, "ppc": 0, "uim":
+        "redacted/image.png", "hhsp": 0, "hhmp": 0, "hll": false}, {"iapl": false,
+        "i": "8238929", "n": "Redacted", "adm": false, "sp": 3497, "mdp": 1448, "shp":
+        0, "tv": 191751776.0, "spl": 2, "mdpl": 1, "pa": true, "lp": [3019, 3759,
+        9642, 11665, 7242, 859, 8329, 12367, 15478, 11959, 6172], "lipc": 0, "ppc":
+        0, "uim": "redacted/image.png", "hhsp": 0, "hhmp": 0, "hll": false}, {"iapl":
+        false, "i": "8775699", "n": "Redacted", "adm": true, "sp": 2628, "mdp": 670,
+        "shp": 0, "tv": 145320340.0, "spl": 4, "mdpl": 3, "pa": true, "lp": [2279,
+        8355, 2762, 9598, 8252, 8307, 1645, 3209, 13438, 2491, 2255], "lipc": 0, "ppc":
+        0, "uim": "redacted/image.png", "hhsp": 0, "hhmp": 0, "hll": false}, {"iapl":
+        false, "i": "9999999", "n": "Redacted", "adm": false, "sp": 3311, "mdp": 589,
+        "shp": 0, "tv": 148592138.0, "spl": 3, "mdpl": 4, "pa": true, "lp": [2977,
+        12321, 1991, 6668, 6081, 2302, 11956, 3176, 1809, 493, 12317], "lipc": 0,
+        "ppc": 0, "uim": "redacted/image.png", "hhsp": 0, "hhmp": 0, "hll": false}],
+        "day": 4, "shmdn": 17, "sn": "26/27", "il": false, "nd": 34, "lfmd": 1, "ia":
+        true, "gpm": 1, "clpc": 11}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '1286'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:01 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

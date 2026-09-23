@@ -5,7 +5,18 @@ Sorgt dafür, dass niemals sensitive Daten auf die Disk geschrieben werden:
 - Authorization-Header          → REDACTED_TOKEN
 - Set-Cookie-Header             → komplett entfernt (enthält JWT mit Nutzerdaten)
 - JWT-Token in Login-Response   → REDACTED_JWT
-- User-Email + User-ID          → generische Platzhalter
+- User-Email + eigene User-ID   → generische Platzhalter
+- Klarnamen, Profilbilder und IDs **fremder Manager** → Pseudonyme
+
+Der letzte Punkt kam mit P0-0.3 dazu: `/ranking` (`us[]`), `/market` (`u`) und
+`/managers/{m}/transfer` (`othnm`) tragen personenbezogene Daten anderer
+Mitspieler, und diese Cassettes liegen im Repo. Die alte Heuristik erkannte
+solche Objekte nicht — sie suchte nach `id`, Kickbase schreibt aber `i`.
+
+Die Unterscheidung User- vs. Spieler-Objekt läuft über Marker: ein Dict mit
+`uim`/`unm`/`profile`/`em` ist ein Manager, eines mit `pos`/`mv`/`pi`/`pn` ein
+Spieler. Spielernamen bleiben im Klartext — sie sind öffentlich und die
+Contract-Tests prüfen darauf.
 
 Response-Bodies werden vor der Persistierung dekomprimiert (VCR-Option
 `decode_compressed_response=True`), damit die Redaktion im Klartext greift.
@@ -15,6 +26,7 @@ Cassettes laufen offline (`record_mode='none'` in CI).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -34,6 +46,7 @@ _ID_SUBSTITUTIONS: dict[str, str] = {
     REAL_USER_ID: FAKE_USER_ID,
     REAL_LEAGUE_ID: FAKE_LEAGUE_ID,
 }
+_FAKE_IDS = frozenset(_ID_SUBSTITUTIONS.values())
 
 
 def _rewrite_ids(text: str) -> str:
@@ -103,22 +116,34 @@ def _redact_response(response: dict[str, Any]) -> dict[str, Any]:
     return response
 
 
+# Marker, an denen ein Dict als *Manager*-Objekt erkannt wird …
+_USER_MARKERS = frozenset({"em", "email", "vemail", "uim", "unm", "profile"})
+# … und als *Spieler*-Objekt. Spieler-Marker gewinnen: Spielernamen sind öffentlich.
+_PLAYER_MARKERS = frozenset({"pos", "mv", "pi", "pn", "mvt", "prc"})
+
+_TOKEN_KEYS = frozenset({"tkn", "token", "chttkn"})
+_EMAIL_KEYS = frozenset({"em", "email", "vemail", "emve"})
+# Bild-URLs tragen identifizierende Hashes.
+_IMAGE_KEYS = frozenset({"profile", "uim", "sfb", "efb", "pim", "prfu", "ua"})
+# Namensfelder, die unabhängig vom Kontext immer eine Person meinen.
+_NAME_KEYS = frozenset({"unm", "creator", "othnm"})
+_ID_KEYS = frozenset({"i", "id", "u"})
+
+
 def _redact_dict(node: Any) -> None:
     if isinstance(node, dict):
+        is_user = bool(_USER_MARKERS & node.keys()) and not (_PLAYER_MARKERS & node.keys())
         for key, value in list(node.items()):
-            if key in {"tkn", "token", "chttkn"} and isinstance(value, str):
+            if key in _TOKEN_KEYS and isinstance(value, str):
                 node[key] = "REDACTED_JWT"
-            elif key in {"em", "email", "vemail", "emve"} and isinstance(value, str):
+            elif key in _EMAIL_KEYS and isinstance(value, str):
                 node[key] = "redacted@example.com"
-            elif (
-                key in {"name", "n", "unm", "creator"}
-                and isinstance(value, str)
-                and (key == "creator" or _looks_like_user_context(node))
-            ):
-                node[key] = "Redacted"
-            elif key in {"profile", "uim", "sfb", "efb", "pim"} and isinstance(value, str):
-                # Profilbild-URLs enthalten teils identifizierende Hashes
+            elif key in _IMAGE_KEYS and isinstance(value, str):
                 node[key] = "redacted/image.png"
+            elif isinstance(value, str) and _is_person_name(key, is_user=is_user):
+                node[key] = "Redacted"
+            elif is_user and key in _ID_KEYS and isinstance(value, str):
+                node[key] = _pseudonymous_id(value)
             elif isinstance(value, dict | list):
                 _redact_dict(value)
     elif isinstance(node, list):
@@ -126,10 +151,28 @@ def _redact_dict(node: Any) -> None:
             _redact_dict(item)
 
 
-def _looks_like_user_context(node: dict[str, Any]) -> bool:
-    """Bewusst konservativ: nur wenn User-Marker im selben Dict — sonst würden
-    wir Team- oder Liga-Namen auch redakten."""
-    return bool({"email", "em", "vemail", "id", "profile", "unm", "uim"} & node.keys())
+def _is_person_name(key: str, *, is_user: bool) -> bool:
+    """`n` ist je nach Objekt Spieler-, Team- oder Managername — nur im
+    Manager-Kontext redigieren, sonst gingen Team- und Liganamen verloren."""
+    return key in _NAME_KEYS or (is_user and key in {"name", "n"})
+
+
+def _pseudonymous_id(value: str) -> str:
+    """Stabile Ersatz-ID für fremde Manager.
+
+    Deterministisch, damit dieselbe Person über alle Cassettes hinweg dieselbe
+    ID behält (Tests dürfen darauf verweisen), aber nicht zurückrechenbar. Die
+    eigene ID läuft weiter über `_ID_SUBSTITUTIONS`, damit bestehende Tests mit
+    `FAKE_USER_ID` unverändert bleiben.
+    """
+    if value in _ID_SUBSTITUTIONS:
+        return _ID_SUBSTITUTIONS[value]
+    # `_rewrite_ids` läuft vorher über den ganzen Body — eigene IDs stehen hier
+    # also bereits als Platzhalter da und dürfen nicht nochmal ersetzt werden.
+    if value in _FAKE_IDS or not value.isdigit():
+        return value
+    digest = hashlib.sha256(f"kb-manager:{value}".encode()).hexdigest()
+    return str(8_000_000 + int(digest[:8], 16) % 1_000_000)
 
 
 def make_vcr(cassette_name: str, record_mode: str = "none") -> vcr.VCR:

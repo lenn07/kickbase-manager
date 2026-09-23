@@ -20,8 +20,8 @@ interactions:
     uri: https://api.kickbase.com/v4/leagues/selection
   response:
     body:
-      string: '{"it": [{"i": "1111111", "n": "Noob_League", "cpi": "1", "b": 9373464,
-        "un": 24, "lpc": 9, "bs": 1, "vr": 4, "adm": false, "pl": 1, "tv": 135562602,
+      string: '{"it": [{"i": "1111111", "n": "Noob_League", "cpi": "1", "b": -380069,
+        "un": 81, "lpc": 8, "bs": 3, "vr": 4, "adm": false, "pl": 3, "tv": 148767974,
         "idf": true, "cpim": "content/file/a9eb2919122b4e248349ba91db351901.png",
         "gpm": 1, "rnkm": 1, "isvf": false, "vft": 0, "hum": false, "isp": false}],
         "anol": 12, "anopl": 12, "anoprl": 12}'
@@ -37,7 +37,7 @@ interactions:
       content-type:
       - application/json; charset=utf-8
       date:
-      - Mon, 31 Aug 2026 11:01:22 GMT
+      - Wed, 23 Sep 2026 16:22:58 GMT
       server:
       - cloudflare
       transfer-encoding:

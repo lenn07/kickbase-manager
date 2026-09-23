@@ -21,17 +21,16 @@ interactions:
   response:
     body:
       string: '{"emve": "redacted@example.com", "u": {"email": "redacted@example.com",
-        "notifications": 1023, "flags": 8209, "proExpiry": "2026-09-08T14:18:11Z",
-        "vemail": "redacted@example.com", "perms": [1, 1000, 2, 500, 1001, 1002, 3001,
-        4, 5, 501, 501, 8, 9, 10, 12, 14, 3, 7, 11, 13, 3000, 16], "id": "9999999",
-        "name": "Redacted", "profile": "redacted/image.png", "trialExpiry": "2026-09-08T14:18:11Z",
-        "trd": 2, "sfb": "redacted/image.png", "efb": "redacted/image.png", "mfacp":
-        [], "emv": true, "emvr": false, "uim": "redacted/image.png"}, "srvl": [{"id":
+        "notifications": 1023, "flags": 17, "proExpiry": "2026-10-11T20:15:14Z", "vemail":
+        "redacted@example.com", "perms": [1, 1000, 3001, 3, 7, 11, 13, 3000, 15, 16],
+        "id": "9999999", "name": "Redacted", "profile": "redacted/image.png", "trd":
+        2, "sfb": "redacted/image.png", "efb": "redacted/image.png", "mfacp": [],
+        "emv": true, "emvr": false, "uim": "redacted/image.png"}, "srvl": [{"id":
         "1111111", "cpi": "1", "name": "Redacted", "creator": "Redacted", "creatorId":
-        "4320349", "creation": "2026-08-25T12:14:58Z", "ai": 1.0, "t": 45, "au": 4,
-        "mu": 18, "ap": 600, "pub": false, "gm": 1, "mpl": true, "pl": 16, "amd":
+        "4320427", "creation": "2026-08-25T12:14:58Z", "ai": 1.0, "t": 190, "au":
+        4, "mu": 18, "ap": 3381, "pub": false, "gm": 1, "mpl": true, "pl": 16, "amd":
         false, "vr": 4, "adm": false, "uim": "redacted/image.png"}], "tkn": "REDACTED_JWT",
-        "tknex": "2026-09-07T11:01:21Z", "chttkn": "REDACTED_JWT", "chtknex": "2026-08-31T12:01:21Z",
+        "tknex": "2026-09-30T16:22:57Z", "chttkn": "REDACTED_JWT", "chtknex": "2026-09-23T17:22:57Z",
         "isnu": false, "isnr": false, "emv": true, "emvr": false}'
     headers:
       cache-control:
@@ -41,11 +40,11 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '2310'
+      - '2226'
       content-type:
       - application/json; charset=utf-8
       date:
-      - Mon, 31 Aug 2026 11:01:21 GMT
+      - Wed, 23 Sep 2026 16:22:57 GMT
       server:
       - cloudflare
       transfer-encoding:

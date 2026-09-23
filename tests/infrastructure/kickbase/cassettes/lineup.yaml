@@ -1,0 +1,73 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/lineup
+  response:
+    body:
+      string: '{"it": [{"i": "1991", "n": "Upamecano", "ap": 178, "lo": 2, "st": 0,
+        "lst": 1, "mdst": 0, "tid": "2", "pos": 2, "os": "FCA", "ph": [{"hp": true,
+        "p": 97}, {"hp": true, "p": 126}, {"hp": true, "p": 217}, {"hp": true, "p":
+        272}], "ht": false, "pim": "redacted/image.png", "ictp": false}, {"i": "12321",
+        "n": "Simpson-Pusey", "ap": 76, "lo": 1, "st": 0, "lst": 1, "mdst": 0, "tid":
+        "28", "pos": 2, "os": "BMG", "ph": [{"hp": true, "p": 76}, {"hp": true, "p":
+        85}, {"hp": true, "p": 79}, {"hp": true, "p": 62}], "ht": true, "pim": "redacted/image.png",
+        "ictp": false}, {"i": "2977", "n": "Noll", "ap": 126, "lo": 0, "st": 0, "lst":
+        1, "mdst": 0, "tid": "29", "pos": 1, "os": "VFB", "ph": [{"hp": true, "p":
+        122}, {"hp": true, "p": 158}, {"hp": true, "p": 113}, {"hp": true, "p": 111}],
+        "ht": true, "pim": "redacted/image.png", "ictp": false}, {"i": "6081", "n":
+        "Uzun", "ap": 119, "lo": 4, "st": 0, "lst": 1, "mdst": 0, "tid": "4", "pos":
+        3, "os": "RBL", "ph": [{"hp": true, "p": 73}, {"hp": true, "p": 279}, {"hp":
+        true, "p": 59}, {"hp": true, "p": 65}], "ht": false, "pim": "redacted/image.png",
+        "ictp": false}, {"i": "11956", "n": "Fern\u00e1ndez", "ap": 123, "lo": 6,
+        "st": 0, "lst": 1, "mdst": 0, "tid": "7", "pos": 3, "os": "M05", "ph": [{"hp":
+        true, "p": 125}, {"hp": true, "p": 98}, {"hp": true, "p": 228}, {"hp": true,
+        "p": 39}], "ht": false, "pim": "redacted/image.png", "ictp": false}, {"i":
+        "493", "n": "Gregoritsch", "ap": 137, "lo": 9, "st": 0, "lst": 1, "mdst":
+        0, "tid": "13", "pos": 4, "os": "FCB", "ph": [{"hp": true, "p": 16}, {"hp":
+        true, "p": 257}, {"hp": true, "p": 81}, {"hp": true, "p": 195}], "ht": true,
+        "pim": "redacted/image.png", "ictp": false}, {"i": "1809", "n": "Wolf", "ap":
+        111, "lo": 8, "st": 0, "lst": 1, "mdst": 0, "tid": "13", "pos": 3, "os": "FCB",
+        "ph": [{"hp": true, "p": 8}, {"hp": true, "p": 36}, {"hp": true, "p": 162},
+        {"hp": true, "p": 238}], "ht": true, "pim": "redacted/image.png", "ictp":
+        false}, {"i": "14251", "n": "Saibari", "ap": 145, "lo": 10, "st": 0, "lst":
+        1, "mdst": 0, "tid": "2", "pos": 4, "os": "FCA", "ph": [{"hp": true, "p":
+        182}, {"hp": true, "p": 180}, {"hp": true, "p": 39}, {"hp": true, "p": 180}],
+        "ht": false, "pim": "redacted/image.png", "ictp": false}], "ua": "redacted/image.png",
+        "prfu": "redacted/image.png", "cpte": true}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '2248'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:00 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

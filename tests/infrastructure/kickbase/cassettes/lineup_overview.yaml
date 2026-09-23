@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/lineup/overview
+  response:
+    body:
+      string: '{"mdln": "5 Match Day", "lis": "2026-10-09T18:30:00Z", "b": -98767974,
+        "lp": [{"pi": "2977", "n": "Noll", "st": 0, "lst": 1, "mdst": 0, "pos": 1,
+        "lo": 0, "tid": "29", "ap": 126, "mv": 13491277, "t1": "29", "t2": "9", "pim":
+        "redacted/image.png", "t1im": "content/file/ce455adfd794457f9ab90f7bab522812.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg", "ictp": false},
+        {"pi": "12321", "n": "Simpson-Pusey", "st": 0, "lst": 1, "mdst": 0, "pos":
+        2, "lo": 1, "tid": "28", "ap": 76, "mv": 10827018, "t1": "28", "t2": "15",
+        "pim": "redacted/image.png", "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg", "ictp": false},
+        {"pi": "1991", "n": "Upamecano", "st": 0, "lst": 1, "mdst": 0, "pos": 2, "lo":
+        2, "tid": "2", "ap": 178, "mv": 33697577, "t1": "13", "t2": "2", "pim": "redacted/image.png",
+        "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg", "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "ictp": false}, {"pi": "6081", "n": "Uzun", "st": 0, "lst": 1, "mdst": 0,
+        "pos": 3, "lo": 4, "tid": "4", "ap": 119, "mv": 25816501, "t1": "43", "t2":
+        "4", "pim": "redacted/image.png", "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg", "ictp": false},
+        {"pi": "11956", "n": "Fern\u00e1ndez", "st": 0, "lst": 1, "mdst": 0, "pos":
+        3, "lo": 6, "tid": "7", "ap": 123, "mv": 13140589, "t1": "18", "t2": "7",
+        "pim": "redacted/image.png", "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg", "ictp": false},
+        {"pi": "1809", "n": "Wolf", "st": 0, "lst": 1, "mdst": 0, "pos": 3, "lo":
+        8, "tid": "13", "ap": 111, "mv": 8811078, "t1": "13", "t2": "2", "pim": "redacted/image.png",
+        "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg", "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "ictp": false}, {"pi": "493", "n": "Gregoritsch", "st": 0, "lst": 1, "mdst":
+        0, "pos": 4, "lo": 9, "tid": "13", "ap": 137, "mv": 15347905, "t1": "13",
+        "t2": "2", "pim": "redacted/image.png", "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg", "ictp": false},
+        {"pi": "14251", "n": "Saibari", "st": 0, "lst": 1, "mdst": 0, "pos": 4, "lo":
+        10, "tid": "2", "ap": 145, "mv": 27636029, "t1": "13", "t2": "2", "pim": "redacted/image.png",
+        "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg", "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "ictp": false}], "lt": [], "t": "3-5-2", "lpc": 8, "clpc": 0, "ua": "redacted/image.png",
+        "prfu": "redacted/image.png", "cpte": true}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '2713'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:00 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1
