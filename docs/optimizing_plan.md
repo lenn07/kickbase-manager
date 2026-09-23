@@ -50,7 +50,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-0.1** Endpoint-Discovery erweitern (`scripts/inspect_endpoints.py`)
 - [x] **P0-0.2** Die 5 offenen Fragen beantworten (-> §8) — F4/F5 geklärt, F1–F3 eingegrenzt
 - [x] **P0-0.3** Cassettes neu aufnehmen — 15 Cassettes, **aktives eigenes Listing dabei**, Gebots-Fall fehlt noch (braucht ein echtes Gebot, §8/F1)
-- [ ] **P0-0.4** Payload-Snapshot-Test bauen
+- [x] **P0-0.4** Payload-Snapshot-Test bauen — Snapshot + 4 einzeln messbare Gap-Tests
 - [ ] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`)
 
 ### Phase 1 — P0: Bot handlungsfähig machen · Status: **offen**
@@ -429,14 +429,43 @@ Baut aus den Cassette-Daten einen realistischen `DecisionContext` und vergleicht
 
 Dazu die **Gap-Assertions**, die heute rot sind und das DoD von Phase 1 definieren:
 ```python
-def test_known_gaps_are_closed(payload):
-    assert payload["budget"]["team_value"] > 0  # P0-1
-    assert payload["budget"]["max_negative_allowed"] < 0  # P0-1
-    assert all(p["start_probability_next"] is not None for p in payload["market"])  # P0-3
-    assert all(p["avg_points_last5"] is not None for p in payload["market"])  # P0-3
+assert payload["budget"]["team_value"] > 0  # P0-1
+assert payload["budget"]["max_negative_allowed"] < 0  # P0-1
+# P0-3: siehe Ergänzung unten - `is not None` misst den Defekt nicht
+assert all(p["avg_points_last5"] is not None for p in payload["market"])  # P0-3
 ```
-Bis P0-1/P0-3 gemerged sind: `@pytest.mark.xfail(strict=True)`.
-**DoD:** Snapshot-Test läuft, Gap-Test ist als xfail grün.
+**DoD:** Snapshot-Test läuft, Gap-Tests sind als xfail grün.
+Snapshot neu schreiben: `UPDATE_SNAPSHOTS=1 pytest tests/application/test_user_payload_snapshot.py`.
+
+> **[Plan-Ergänzung 2026-09-23] Drei Dinge hätten das Paket wirkungslos gemacht.**
+>
+> **1. Der Payload war nicht reproduzierbar.** `MarketPlayerDTO.to_market_player()` rechnet `exs`
+> (Sekunden bis Ablauf) gegen `datetime.now(UTC)` in eine absolute Zeit um, `_offer_entry()`
+> greift ebenfalls auf die Wall-Clock zu. Ein Snapshot gegen eine JSON-Datei wäre bei **jedem
+> Lauf** rot gewesen. Umgesetzt: fixes `NOW` im Test, `expires_at` wird aus dem Roh-`exs`
+> nachgereicht, `expires_in_min` wird gerundet. Zusätzlich wacht
+> `test_payload_is_deterministic` darüber, dass niemand neue `datetime.now()`-Aufrufe in den
+> Builder einbaut. → **Für P0-1 vormerken:** die Zeitquelle gehört in den Context, nicht in die
+> DTO-Schicht.
+>
+> **2. Gap-Assertion 3 war schon vor dem Paket grün.** `start_probability_next` ist **nie**
+> `None` — `PlayerEnricher` setzt für jeden Spieler einen Wert aus dem Verletzungsstatus.
+> `assert all(... is not None)` hätte D5 also nie gemessen, und das Phase-1-DoD
+> („die 4 Gap-Assertions sind grün") wäre zu einem Viertel bedeutungslos gewesen. Der Defekt ist
+> nicht „fehlt", sondern „alle bekommen denselben Wert": im Snapshot haben alle 21 Marktspieler
+> genau 3 verschiedene Werte (0.15 / 0.55 / 0.85), und die sind 1:1 der Verletzungsstatus.
+> Ersetzt durch eine Assertion auf die **Streuung innerhalb der fitten Spieler** plus das
+> Verschwinden des `missing_data:start_probability_next_heuristic`-Flags. Die
+> `is not None`-Prüfung bleibt als normaler Invarianten-Test erhalten.
+>
+> **3. Ein gebündelter xfail-Test hätte den Merge von P0-1 verschluckt.** Mit allen vier
+> Assertions in einer Funktion bleibt `xfail(strict=True)` „grün", solange *irgendeine* fällt —
+> P0-1 könnte fertig sein, ohne dass der Test es meldet. Jetzt hat jede Lücke einen eigenen
+> Test; `strict` schlägt beim richtigen Merge mit XPASS an und erzwingt, den Marker zu entfernen.
+
+**Snapshot-Stand 2026-09-23 (das sieht das LLM heute):** 8 Kaderspieler, 21 Marktspieler,
+`team_value: 0`, `max_negative_allowed: 0`, `avg_points_last5` bei 20 von 21 Marktspielern `null`,
+`start_probability_next` mit 3 distinkten Werten für 21 Spieler.
 
 #### P0-0.5 — Contract-Drift-Checker
 `scripts/check_contract.py`: läuft live, vergleicht Key-Sets gegen eine erwartete Liste,
@@ -781,6 +810,7 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 | 2026-09-23 | P0-0.1 | Discovery auf 16 Endpunkte erweitert, `scripts/dump_keys.py` neu | `/v4/leagues/{l}/settings` **existiert nicht** (HTTP 500 `NotFound`) — die Liga-Settings stehen in `/me` + `/leagues/{l}/squad`. GET auf `/market/{pid}/offers` → 405 (nur POST), GET `/market/{pid}` → 405 (nur DELETE) ⇒ das Gebots-Array kann nur im `/market`-Payload stecken. |
 | 2026-09-23 | P0-0.2 | F1-F5 gegen echte Payloads ausgewertet, `scripts/answer_open_questions.py` + `docs/api_notes.md` neu | **F4 beantwortet:** `mvud` ist der *nächste* Update-Zeitpunkt. **F5:** eigene Listings tragen kein `exs` - sie laufen nicht ab. **F2:** `prob=1` = sicherste Startelf, aber `prob` fehlt außerhalb der Spieltagswoche komplett -> P0-3 braucht eine Quellen-Kette. **F3:** nur st 0/2/4 real gesehen, kein 128 - nicht abschließbar, D6 unabhängig lösen. **F1:** kein Lese-Endpunkt für Gebote (405), braucht ein echtes Gebot. |
 | 2026-09-23 | P0-0.3 | 15 Cassettes neu aufgenommen, Redaktion gehärtet, Contract-Tests entzahlt | Die alte Redaktion erkannte Manager-Objekte nicht (`id` statt `i`) - Klarnamen und IDs fremder Mitspieler wären ins Repo gewandert. Neuer Privacy-Test sichert das ab. Cassette enthält ein aktives eigenes Listing, aber noch kein Gebot. |
+| 2026-09-23 | P0-0.4 | Snapshot-Test + 4 einzelne Gap-Tests | Der Payload war wegen `datetime.now()` in der DTO-Schicht nicht reproduzierbar - ohne Fix waere der Snapshot bei jedem Lauf rot. Gap-Assertion 3 (`start_probability_next is not None`) war bereits gruen und haette D5 nie gemessen; ersetzt durch eine Streuungs-Assertion. |
 
 ---
 
