@@ -16,13 +16,17 @@ ersten Prompt-Feinschliff rot, ohne dass etwas kaputt wäre.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
 import pytest
 from app.application.ai_decision_engine import AiDecisionEngine
 from app.domain.trade import TradeAction, TradeDecision
-from app.infrastructure.llm.anthropic_client import AnthropicClient
+from app.infrastructure.llm.anthropic_client import (
+    AnthropicClient,
+    LlmVerificationError,
+)
 
 from tests.eval.scenarios import SCENARIOS, Scenario
 
@@ -47,12 +51,45 @@ class _DeterministicLlm:
         return await self._inner.submit_decision(temperature=0.0, **kwargs)
 
 
+# `AiDecisionEngine` fängt jeden LLM-Fehler ab und liefert ein HOLD mit diesem
+# Präfix. Für die Produktion ist das richtig — ein Tick darf nicht crashen. Für
+# die Eval ist es fatal: ein Szenario, das HOLD erlaubt, wäre grün, obwohl nie
+# ein Modell gefragt wurde.
+_FALLBACK_MARKER = "AI-Only-Fallback"
+
+
 @pytest.fixture(scope="module")
 def api_key() -> str:
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not key:
         pytest.skip("ANTHROPIC_API_KEY fehlt — Eval übersprungen.")
+
+    # Preflight: ohne gültigen Key ist jedes Szenario-Ergebnis wertlos. Ein
+    # abgelaufener Key hat in einem echten Lauf 5 von 6 Tests grün gemeldet,
+    # weil die Engine still auf HOLD zurückfiel.
+    try:
+        asyncio.run(AnthropicClient().verify_key(key))
+    except LlmVerificationError as exc:
+        pytest.fail(
+            f"ANTHROPIC_API_KEY ist gesetzt, aber nicht nutzbar: {exc}\n"
+            "Die Eval wird abgebrochen — mit ungültigem Key misst sie nichts."
+        )
     return key
+
+
+def _reject_fallbacks(scenario: Scenario, decisions: list[TradeDecision]) -> None:
+    """Bricht ab, wenn die Engine gar nicht beim Modell war.
+
+    Muss **vor** jeder inhaltlichen Assertion laufen: sonst wird ein 401 oder
+    Timeout als Regelverstoß gemeldet und jemand sucht den Fehler im Prompt.
+    """
+    fallbacks = [d for d in decisions if _FALLBACK_MARKER in d.reason]
+    if fallbacks:
+        pytest.fail(
+            f"[{scenario.name}] {len(fallbacks)} von {len(decisions)} Läufen kamen nicht beim "
+            f"Modell an — kein Prompt-Befund, sondern ein Infrastrukturfehler:\n"
+            + "\n".join(f"  - {d.reason}" for d in fallbacks)
+        )
 
 
 @pytest.fixture(scope="module")
@@ -67,6 +104,7 @@ def _describe(decisions: list[TradeDecision]) -> str:
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
 async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Scenario) -> None:
     decisions = [await engine.decide(scenario.context) for _ in range(RUNS_PER_SCENARIO)]
+    _reject_fallbacks(scenario, decisions)
     actions = [d.action for d in decisions]
 
     forbidden_hits = [a for a in actions if a in scenario.forbidden]
@@ -94,6 +132,7 @@ async def test_scenario_produces_a_usable_decision(
     """Formfehler sind teurer als Fehlentscheidungen: eine BUY-Aktion ohne
     Spieler-ID oder Preis wird vom Executor verworfen — der Tick ist verloren."""
     decision = await engine.decide(scenario.context)
+    _reject_fallbacks(scenario, [decision])
 
     assert decision.reason.strip(), "Entscheidung ohne Begründung"
     if decision.action is TradeAction.HOLD:

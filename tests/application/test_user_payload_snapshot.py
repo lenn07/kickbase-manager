@@ -216,8 +216,10 @@ def test_payload_matches_snapshot(payload: dict[str, Any]) -> None:
     )
     expected = json.loads(SNAPSHOT_PATH.read_text())
     assert payload == expected, (
-        "Der USER-JSON hat sich geändert. Diff lesen: Sieht das LLM jetzt mehr oder weniger? "
-        f"Wenn gewollt: UPDATE_SNAPSHOTS=1 pytest {SNAPSHOT_PATH.parent.parent.name}"
+        "Der USER-JSON hat sich geändert. Diff lesen: Sieht das LLM jetzt mehr oder weniger?\n"
+        "Häufigster Grund: die Cassettes wurden neu aufgenommen, der Markt hat sich also "
+        "bewegt — dann ist der Diff Rauschen und der Snapshot wird nachgezogen.\n"
+        "Wenn gewollt: UPDATE_SNAPSHOTS=1 pytest tests/application/test_user_payload_snapshot.py"
     )
 
 
