@@ -565,6 +565,14 @@ setzt) — der Snapshot ist also repräsentativ. Alle vier Gap-Befunde reproduzi
 
 #### P0-1 — Team-Value & Markt-Metadaten  *(höchster Hebel, kleinster Aufwand)*
 **Behebt:** D1
+
+> **Empirischer Beleg (Tick vom 2026-09-23 16:59, echter Modell-Call):** Das LLM hat die Lücke
+> selbst erkannt und daraus die falsche Schlussfolgerung gezogen —
+> *„team_value=0 bedeutet max_negative_allowed=0, Konto darf nicht weiter ins Minus. Ein
+> weiterer Kauf ohne neues Cash ist daher regelwidrig."*
+> Tatsächlich erlaubt die 33 %-Regel bei `tv` = 148.767.974 rund **−49 Mio**. Der Bot hält sich
+> also für handlungsunfähig, obwohl er 49 Mio Spielraum hat, und entscheidet strukturell zu
+> konservativ. D1 ist damit kein theoretischer Defekt: er verzerrt jede einzelne Entscheidung.
 1. `MarketResponseDTO` um Root-Felder `tv, mvud, dt, day, nps, sn` erweitern.
 2. Neues Domain-Objekt:
    ```python
@@ -892,13 +900,16 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 Beim echten Tick (P0-0.7) gegen eine DB-Kopie sind zwei Zustände aufgefallen, die nichts mit den
 Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 
-1. **`dry_run = 0`** — der Bot ist scharf geschaltet, obwohl Phase 1 nicht begonnen hat. §9 sieht
-   `dry_run=true` bis zum Ende des Shadow-Laufs vor.
-2. **Der hinterlegte Anthropic-Key ist ungültig** (`HTTP 401: API key is invalid`). Jeder Tick
-   endet damit im Fallback-HOLD — der Bot entscheidet seit unbekannter Zeit gar nichts. Im
-   `trade_log` steht das als gewöhnliches HOLD, ohne Alarm.
-   → **Kandidat für ein eigenes Paket:** ein dauerhafter LLM-Fehler muss sichtbar werden
-   (Dashboard-Warnung oder Mail), nicht als HOLD durchgehen.
+1. **`dry_run = 0`** — der Bot war scharf geschaltet, obwohl Phase 1 nicht begonnen hat. §9 sieht
+   `dry_run=true` bis zum Ende des Shadow-Laufs vor. ✅ *Am 23.09. auf `1` gestellt — der
+   7-Tage-Shadow-Lauf kann damit ab jetzt mitlaufen.*
+2. **Der hinterlegte Anthropic-Key war ungültig** (`HTTP 401: API key is invalid`). Jeder Tick
+   endete im Fallback-HOLD — der Bot entschied gar nichts. Im `trade_log` steht das als
+   gewöhnliches HOLD, ohne Alarm. ✅ *Behoben am 23.09. 16:57 über `/setup/anthropic`;
+   Kontroll-Tick um 16:59 lieferte eine echte, begründete Entscheidung.*
+   → **Kandidat für ein eigenes Paket bleibt:** ein dauerhafter LLM-Fehler muss sichtbar werden
+   (Dashboard-Warnung oder Mail), nicht als HOLD durchgehen. Genau dieser Zustand lief
+   unbemerkt.
 3. Nebenbefund aus dem Payload: **Kader hat 8 Spieler, `starting_xi_count: 8`.** Drei leere
    Positionen = −300 Punkte am nächsten Spieltag (P0-4).
 
@@ -917,6 +928,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-0.5 | Contract-Checker + Baseline ueber 14 Endpunkte | Baseline muss erzeugbar sein (`--update`), sonst Henne-Ei. `optional`-Ausnahmen mit Begruendung noetig, sonst meldet der Checker das saisonale `prob` monatlich als Drift und wird ignoriert. |
 | 2026-09-23 | P0-0.6 | **Ergaenzung:** Eval-Geruest + `eval`-Marker + `temperature`-Parameter | §7 und das Phase-1-DoD setzen eine Eval-Suite voraus, es gab aber kein Paket dafuer. Ohne registrierten Marker scheitert jeder Eval-Test an `--strict-markers`; ohne `temperature=0` sind 3 Laeufe je Szenario eine Rauschmessung. |
 | 2026-09-23 | P0-0.7 | **Ergaenzung:** alles gegen echte Calls verifiziert | Eval meldete mit ungueltigem Key 5 von 6 Tests gruen (Preflight + Fallback-Guard ergaenzt). F2-Belegdaten waren durch die Cassette-Neuaufnahme zerstoert (Archiv-Stichprobe angelegt). `temperature=0` war ungeprueft. Live-Payload ist strukturgleich mit dem Snapshot. Betriebsbefunde in §9.1. |
+| 2026-09-23 | — | Kontroll-Tick nach Key-Erneuerung (`POST /api/scheduler/trigger`, dry_run=1) | Voller pfad gruen: echter modell-call in ~20 s, HOLD mit schluessiger begruendung, trade_log id 5 mit `dry_run: true`. **D1 empirisch belegt:** das LLM nennt `max_negative_allowed=0` selbst als kaufblocker, obwohl real ~49 Mio minus erlaubt waeren. |
 
 ---
 
