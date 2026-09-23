@@ -63,21 +63,28 @@ async def test_list_leagues_replays_users_league() -> None:
 
     assert len(leagues) == 1
     assert leagues[0].id == FAKE_LEAGUE_ID
-    assert leagues[0].budget is not None and leagues[0].budget > 0
+    assert leagues[0].name
+    # `b` darf negativ sein — ein Konto im Minus ist in Kickbase der Normalfall.
+    # Geprüft wird nur, dass das Feld ankommt und als Decimal geparst wird.
+    assert leagues[0].budget is not None
 
 
-async def test_get_squad_replays_nine_players() -> None:
+async def test_get_squad_replays_all_players() -> None:
     async with HttpxKickbaseClient(config=_fast_config()) as client:
         with make_vcr("login").use_cassette("login.yaml"):
             await client.login("redacted@example.com", "REDACTED_PASSWORD")
         with make_vcr("squad").use_cassette("squad.yaml"):
             squad = await client.get_squad(FAKE_LEAGUE_ID, FAKE_USER_ID)
 
-    assert len(squad.players) == 9
-    # Alle Spieler haben eine sinnvolle ID + market_value > 0
+    # Bewusst keine feste Kadergröße: die ändert sich mit jedem Transfer und
+    # sagt nichts über das Wire-Format. Geprüft wird die Struktur.
+    assert squad.players
+    assert squad.manager_id == FAKE_USER_ID
     for sp in squad.players:
         assert sp.player.id != ""
+        assert sp.player.last_name != ""
         assert sp.player.market_value > 0
+        assert sp.player.total_points >= 0
 
 
 async def test_get_market_replays_all_offers() -> None:
@@ -87,10 +94,14 @@ async def test_get_market_replays_all_offers() -> None:
         with make_vcr("market").use_cassette("market.yaml"):
             market = await client.get_market(FAKE_LEAGUE_ID)
 
-    assert len(market) == 22
+    # Die Anzahl der Angebote schwankt stündlich — geprüft wird das Wire-Format.
+    assert market
     for mp in market:
         assert mp.price >= 0
         assert mp.player.id != ""
+        assert mp.player.market_value > 0
+    # Kickbase-eigene Listings haben keinen Verkäufer, eigene/fremde schon.
+    assert any(mp.seller_id is None for mp in market)
 
 
 async def test_list_matchdays_replays_full_season() -> None:

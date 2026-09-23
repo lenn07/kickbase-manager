@@ -1,0 +1,1322 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/players/1991/performance
+  response:
+    body:
+      string: '{"it": [{"sid": "9", "ti": "2016/2017", "n": "Bundesliga", "ph": [{"mi":
+        "1683", "day": 17, "p": 0, "mp": "0''", "md": "2017-01-21T17:30:00Z", "t1":
+        "43", "t2": "4", "t1g": 3, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "1692",
+        "day": 18, "p": 0, "mp": "0''", "md": "2017-01-28T14:30:00Z", "t1": "43",
+        "t2": "14", "t1g": 2, "t2g": 1, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "1694",
+        "day": 19, "p": 7, "mp": "24''", "md": "2017-02-04T17:30:00Z", "t1": "3",
+        "t2": "43", "t1g": 1, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1710",
+        "day": 20, "p": 13, "mp": "31''", "md": "2017-02-11T14:30:00Z", "t1": "43",
+        "t2": "6", "t1g": 0, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg"}, {"mi": "1712",
+        "day": 21, "p": 40, "mp": "7''", "md": "2017-02-19T14:30:00Z", "t1": "15",
+        "t2": "43", "t1g": 1, "t2g": 2, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1728",
+        "day": 22, "p": 0, "mp": "0''", "md": "2017-02-25T14:30:00Z", "t1": "43",
+        "t2": "28", "t1g": 3, "t2g": 1, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "1734",
+        "day": 23, "p": 0, "mp": "0''", "md": "2017-03-03T19:30:00Z", "t1": "13",
+        "t2": "43", "t1g": 2, "t2g": 2, "pt": "43", "st": 4, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1746",
+        "day": 24, "p": 5, "mp": "22''", "md": "2017-03-11T14:30:00Z", "t1": "43",
+        "t2": "11", "t1g": 0, "t2g": 1, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "1753",
+        "day": 25, "p": 86, "mp": "90''", "md": "2017-03-18T14:30:00Z", "t1": "10",
+        "t2": "43", "t1g": 3, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1764",
+        "day": 26, "p": 0, "mp": "0''", "md": "2017-04-01T13:30:00Z", "t1": "43",
+        "t2": "42", "t1g": 4, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ba3a2ad2348140378f6dd3eef4829230.svg"}, {"mi": "1767",
+        "day": 27, "p": 20, "mp": "41''", "md": "2017-04-05T18:00:00Z", "t1": "18",
+        "t2": "43", "t1g": 2, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1782",
+        "day": 28, "p": 27, "mp": "1''", "md": "2017-04-08T13:30:00Z", "t1": "43",
+        "t2": "7", "t1g": 1, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "1791",
+        "day": 29, "p": 155, "mp": "90''", "md": "2017-04-15T13:30:00Z", "t1": "43",
+        "t2": "5", "t1g": 4, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "1794",
+        "day": 30, "p": 0, "mp": "0''", "md": "2017-04-23T15:30:00Z", "t1": "8", "t2":
+        "43", "t1g": 1, "t2g": 1, "pt": "43", "st": 3, "cur": false, "mdst": 2, "ap":
+        62, "tp": 738, "asp": 3330, "t1im": "content/file/fed743ec085c41a9b2453875157257fe.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1809",
+        "day": 31, "p": 62, "mp": "90''", "md": "2017-04-29T13:30:00Z", "t1": "43",
+        "t2": "36", "t1g": 0, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/2da3bf1e0634440fad7a9167965e83ab.svg"}, {"mi": "1813",
+        "day": 32, "p": 152, "mp": "90''", "md": "2017-05-06T16:30:00Z", "t1": "20",
+        "t2": "43", "t1g": 1, "t2g": 4, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/97c01bf49f8041bd9049739029eba077.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1827",
+        "day": 33, "p": 57, "mp": "90''", "md": "2017-05-13T13:30:00Z", "t1": "43",
+        "t2": "2", "t1g": 4, "t2g": 5, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "1836",
+        "day": 34, "p": 114, "mp": "90''", "md": "2017-05-20T13:30:00Z", "t1": "4",
+        "t2": "43", "t1g": 2, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 62, "tp": 738, "asp": 3330, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}]}, {"sid": "10",
+        "ti": "2017/2018", "n": "Bundesliga", "ph": [{"mi": "1842", "day": 1, "p":
+        -12, "mp": "90''", "md": "2017-08-19T16:30:00Z", "t1": "8", "t2": "43", "t1g":
+        2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst": 2, "ap": 94, "tp":
+        2640, "asp": 4849, "t1im": "content/file/fed743ec085c41a9b2453875157257fe.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1847",
+        "day": 2, "p": 173, "mp": "90''", "md": "2017-08-27T13:30:00Z", "t1": "43",
+        "t2": "5", "t1g": 4, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "1861",
+        "day": 3, "p": 181, "mp": "90''", "md": "2017-09-08T18:30:00Z", "t1": "6",
+        "t2": "43", "t1g": 0, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1866",
+        "day": 4, "p": 123, "mp": "90''", "md": "2017-09-16T16:30:00Z", "t1": "43",
+        "t2": "15", "t1g": 2, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "1884",
+        "day": 6, "p": 100, "mp": "90''", "md": "2017-09-23T13:30:00Z", "t1": "43",
+        "t2": "4", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "1891",
+        "day": 7, "p": 90, "mp": "90''", "md": "2017-10-01T16:00:00Z", "t1": "28",
+        "t2": "43", "t1g": 1, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1901",
+        "day": 8, "p": 34, "mp": "90''", "md": "2017-10-14T16:30:00Z", "t1": "3",
+        "t2": "43", "t1g": 2, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1918",
+        "day": 10, "p": 0, "mp": "90''", "md": "2017-10-28T16:30:00Z", "t1": "2",
+        "t2": "43", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1928",
+        "day": 11, "p": 116, "mp": "90''", "md": "2017-11-04T14:30:00Z", "t1": "43",
+        "t2": "17", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/5a33ee25e8074812962ae1654ad89479.svg"}, {"mi": "1941",
+        "day": 12, "p": 31, "mp": "22''", "md": "2017-11-18T14:30:00Z", "t1": "7",
+        "t2": "43", "t1g": 2, "t2g": 2, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1946",
+        "day": 13, "p": 198, "mp": "90''", "md": "2017-11-25T14:30:00Z", "t1": "43",
+        "t2": "10", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "1955",
+        "day": 14, "p": 23, "mp": "45''", "md": "2017-12-02T14:30:00Z", "t1": "14",
+        "t2": "43", "t1g": 4, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1980",
+        "day": 16, "p": 51, "mp": "89''", "md": "2017-12-12T17:30:00Z", "t1": "11",
+        "t2": "43", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "1991",
+        "day": 18, "p": 78, "mp": "90''", "md": "2018-01-13T17:30:00Z", "t1": "43",
+        "t2": "8", "t1g": 3, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/fed743ec085c41a9b2453875157257fe.svg"}, {"mi": "2002",
+        "day": 19, "p": 101, "mp": "90''", "md": "2018-01-20T14:30:00Z", "t1": "5",
+        "t2": "43", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2010",
+        "day": 20, "p": 125, "mp": "90''", "md": "2018-01-27T14:30:00Z", "t1": "43",
+        "t2": "6", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg"}, {"mi": "2020",
+        "day": 21, "p": 168, "mp": "90''", "md": "2018-02-03T17:30:00Z", "t1": "15",
+        "t2": "43", "t1g": 0, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2028",
+        "day": 22, "p": 253, "mp": "90''", "md": "2018-02-09T19:30:00Z", "t1": "43",
+        "t2": "13", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "2040",
+        "day": 23, "p": 70, "mp": "90''", "md": "2018-02-19T19:30:00Z", "t1": "4",
+        "t2": "43", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2046",
+        "day": 24, "p": 68, "mp": "90''", "md": "2018-02-25T17:00:00Z", "t1": "43",
+        "t2": "28", "t1g": 1, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "2053",
+        "day": 25, "p": 62, "mp": "90''", "md": "2018-03-03T17:30:00Z", "t1": "43",
+        "t2": "3", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "2070",
+        "day": 26, "p": 0, "mp": "0''", "md": "2018-03-11T14:30:00Z", "t1": "9", "t2":
+        "43", "t1g": 0, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst": 2, "ap":
+        94, "tp": 2640, "asp": 4849, "t1im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2072",
+        "day": 27, "p": 121, "mp": "90''", "md": "2018-03-18T17:00:00Z", "t1": "43",
+        "t2": "2", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "2087",
+        "day": 28, "p": 23, "mp": "9''", "md": "2018-03-31T13:30:00Z", "t1": "17",
+        "t2": "43", "t1g": 2, "t2g": 3, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/5a33ee25e8074812962ae1654ad89479.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2090",
+        "day": 29, "p": 18, "mp": "90''", "md": "2018-04-09T18:30:00Z", "t1": "43",
+        "t2": "7", "t1g": 1, "t2g": 4, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "2108",
+        "day": 31, "p": 97, "mp": "28''", "md": "2018-04-21T13:30:00Z", "t1": "43",
+        "t2": "14", "t1g": 2, "t2g": 5, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "2123",
+        "day": 32, "p": -3, "mp": "90''", "md": "2018-04-29T13:30:00Z", "t1": "18",
+        "t2": "43", "t1g": 3, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2126",
+        "day": 33, "p": 142, "mp": "90''", "md": "2018-05-05T13:30:00Z", "t1": "43",
+        "t2": "11", "t1g": 4, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "2136",
+        "day": 34, "p": 209, "mp": "90''", "md": "2018-05-12T13:30:00Z", "t1": "20",
+        "t2": "43", "t1g": 2, "t2g": 6, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 94, "tp": 2640, "asp": 4849, "t1im": "content/file/97c01bf49f8041bd9049739029eba077.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}]}, {"sid": "11",
+        "ti": "2018/2019", "n": "Bundesliga", "ph": [{"mi": "2144", "day": 1, "p":
+        51, "mp": "90''", "md": "2018-08-26T16:00:00Z", "t1": "3", "t2": "43", "t1g":
+        4, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst": 2, "ap": 90, "tp":
+        1351, "asp": 5168, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2155",
+        "day": 2, "p": 49, "mp": "90''", "md": "2018-09-02T13:30:00Z", "t1": "43",
+        "t2": "12", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/6fa09bd8c5414ff2be1a3ecfe155454d.svg"}, {"mi": "2163",
+        "day": 3, "p": 0, "mp": "0''", "md": "2018-09-15T13:30:00Z", "t1": "43", "t2":
+        "17", "t1g": 3, "t2g": 2, "pt": "43", "st": 3, "cur": false, "mdst": 2, "ap":
+        90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/5a33ee25e8074812962ae1654ad89479.svg"}, {"mi": "2174",
+        "day": 4, "p": 83, "mp": "90''", "md": "2018-09-23T16:00:00Z", "t1": "4",
+        "t2": "43", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2181",
+        "day": 5, "p": 149, "mp": "90''", "md": "2018-09-26T18:30:00Z", "t1": "43",
+        "t2": "9", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "2189",
+        "day": 6, "p": 109, "mp": "90''", "md": "2018-09-29T13:30:00Z", "t1": "14",
+        "t2": "43", "t1g": 1, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2200",
+        "day": 7, "p": 146, "mp": "90''", "md": "2018-10-07T16:00:00Z", "t1": "43",
+        "t2": "16", "t1g": 6, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/60f6d3da98714a54b6c85c15de7c1940.svg"}, {"mi": "2212",
+        "day": 8, "p": 0, "mp": "0''", "md": "2018-10-20T13:30:00Z", "t1": "13", "t2":
+        "43", "t1g": 0, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst": 2, "ap":
+        90, "tp": 1351, "asp": 5168, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2217",
+        "day": 9, "p": 131, "mp": "90''", "md": "2018-10-28T14:30:00Z", "t1": "43",
+        "t2": "8", "t1g": 0, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/fed743ec085c41a9b2453875157257fe.svg"}, {"mi": "2229",
+        "day": 10, "p": 0, "mp": "0''", "md": "2018-11-03T17:30:00Z", "t1": "20",
+        "t2": "43", "t1g": 0, "t2g": 3, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/97c01bf49f8041bd9049739029eba077.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2235",
+        "day": 11, "p": 123, "mp": "90''", "md": "2018-11-11T14:30:00Z", "t1": "43",
+        "t2": "7", "t1g": 3, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "2253",
+        "day": 13, "p": 115, "mp": "90''", "md": "2018-12-02T14:30:00Z", "t1": "43",
+        "t2": "15", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "2266",
+        "day": 14, "p": 12, "mp": "90''", "md": "2018-12-08T14:30:00Z", "t1": "5",
+        "t2": "43", "t1g": 3, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2271",
+        "day": 15, "p": 118, "mp": "90''", "md": "2018-12-16T14:30:00Z", "t1": "43",
+        "t2": "18", "t1g": 4, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "2278",
+        "day": 16, "p": 93, "mp": "90''", "md": "2018-12-19T19:30:00Z", "t1": "2",
+        "t2": "43", "t1g": 1, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2290",
+        "day": 17, "p": 48, "mp": "32''", "md": "2018-12-22T14:30:00Z", "t1": "43",
+        "t2": "10", "t1g": 3, "t2g": 2, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "2299",
+        "day": 18, "p": 69, "mp": "90''", "md": "2019-01-19T17:30:00Z", "t1": "43",
+        "t2": "3", "t1g": 0, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "2444",
+        "day": 34, "p": 55, "mp": "90''", "md": "2019-05-18T13:30:00Z", "t1": "10",
+        "t2": "43", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 1351, "asp": 5168, "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}]}, {"sid": "12",
+        "ti": "2019/2020", "n": "Bundesliga", "ph": [{"mi": "2490", "day": 5, "p":
+        163, "mp": "90''", "md": "2019-09-21T16:30:00Z", "t1": "10", "t2": "43", "t1g":
+        0, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst": 2, "ap": 111, "tp":
+        3116, "asp": 5055, "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2495",
+        "day": 6, "p": 88, "mp": "90''", "md": "2019-09-28T13:30:00Z", "t1": "43",
+        "t2": "8", "t1g": 1, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/fed743ec085c41a9b2453875157257fe.svg"}, {"mi": "2504",
+        "day": 7, "p": 66, "mp": "90''", "md": "2019-10-05T13:30:00Z", "t1": "7",
+        "t2": "43", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2513",
+        "day": 8, "p": 82, "mp": "90''", "md": "2019-10-19T13:30:00Z", "t1": "43",
+        "t2": "11", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "2527",
+        "day": 9, "p": 96, "mp": "90''", "md": "2019-10-26T13:30:00Z", "t1": "5",
+        "t2": "43", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2531",
+        "day": 10, "p": 134, "mp": "52''", "md": "2019-11-02T14:30:00Z", "t1": "43",
+        "t2": "18", "t1g": 8, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "2542",
+        "day": 11, "p": 103, "mp": "90''", "md": "2019-11-09T14:30:00Z", "t1": "20",
+        "t2": "43", "t1g": 2, "t2g": 4, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/97c01bf49f8041bd9049739029eba077.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2549",
+        "day": 12, "p": 176, "mp": "89''", "md": "2019-11-23T17:30:00Z", "t1": "43",
+        "t2": "28", "t1g": 4, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "2565",
+        "day": 13, "p": 94, "mp": "90''", "md": "2019-11-30T14:30:00Z", "t1": "29",
+        "t2": "43", "t1g": 2, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/ce455adfd794457f9ab90f7bab522812.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2567",
+        "day": 14, "p": 157, "mp": "90''", "md": "2019-12-07T14:30:00Z", "t1": "43",
+        "t2": "14", "t1g": 3, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "2578",
+        "day": 15, "p": 167, "mp": "90''", "md": "2019-12-14T17:30:00Z", "t1": "12",
+        "t2": "43", "t1g": 0, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/6fa09bd8c5414ff2be1a3ecfe155454d.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2584",
+        "day": 16, "p": 139, "mp": "90''", "md": "2019-12-17T19:30:00Z", "t1": "3",
+        "t2": "43", "t1g": 3, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2594",
+        "day": 17, "p": 139, "mp": "90''", "md": "2019-12-21T14:30:00Z", "t1": "43",
+        "t2": "13", "t1g": 3, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "2602",
+        "day": 18, "p": 169, "mp": "90''", "md": "2020-01-18T17:30:00Z", "t1": "43",
+        "t2": "40", "t1g": 3, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "2616",
+        "day": 19, "p": 82, "mp": "90''", "md": "2020-01-25T14:30:00Z", "t1": "4",
+        "t2": "43", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2621",
+        "day": 20, "p": 122, "mp": "90''", "md": "2020-02-01T17:30:00Z", "t1": "43",
+        "t2": "15", "t1g": 2, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "2629",
+        "day": 21, "p": 156, "mp": "90''", "md": "2020-02-09T17:00:00Z", "t1": "2",
+        "t2": "43", "t1g": 0, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2639",
+        "day": 22, "p": 172, "mp": "90''", "md": "2020-02-15T14:30:00Z", "t1": "43",
+        "t2": "10", "t1g": 3, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "2655",
+        "day": 23, "p": 115, "mp": "90''", "md": "2020-02-22T17:30:00Z", "t1": "8",
+        "t2": "43", "t1g": 0, "t2g": 5, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/fed743ec085c41a9b2453875157257fe.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2657",
+        "day": 24, "p": 50, "mp": "90''", "md": "2020-03-01T14:30:00Z", "t1": "43",
+        "t2": "7", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "2668",
+        "day": 25, "p": 125, "mp": "90''", "md": "2020-03-07T14:30:00Z", "t1": "11",
+        "t2": "43", "t1g": 0, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2687",
+        "day": 27, "p": 111, "mp": "60''", "md": "2020-05-24T13:30:00Z", "t1": "18",
+        "t2": "43", "t1g": 0, "t2g": 5, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2693",
+        "day": 28, "p": 70, "mp": "90''", "md": "2020-05-27T16:30:00Z", "t1": "43",
+        "t2": "20", "t1g": 2, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/97c01bf49f8041bd9049739029eba077.svg"}, {"mi": "2708",
+        "day": 29, "p": 125, "mp": "90''", "md": "2020-06-01T18:30:00Z", "t1": "28",
+        "t2": "43", "t1g": 2, "t2g": 4, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2711",
+        "day": 30, "p": -32, "mp": "43''", "md": "2020-06-06T13:30:00Z", "t1": "43",
+        "t2": "29", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ce455adfd794457f9ab90f7bab522812.svg"}, {"mi": "2729",
+        "day": 32, "p": 115, "mp": "45''", "md": "2020-06-17T18:30:00Z", "t1": "43",
+        "t2": "12", "t1g": 2, "t2g": 2, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/6fa09bd8c5414ff2be1a3ecfe155454d.svg"}, {"mi": "2738",
+        "day": 33, "p": 59, "mp": "90''", "md": "2020-06-20T13:30:00Z", "t1": "43",
+        "t2": "3", "t1g": 0, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "2753",
+        "day": 34, "p": 73, "mp": "90''", "md": "2020-06-27T13:30:00Z", "t1": "13",
+        "t2": "43", "t1g": 1, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 111, "tp": 3116, "asp": 5055, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}]}, {"sid": "13",
+        "ti": "2020/2021", "n": "Bundesliga", "ph": [{"mi": "3058", "day": 1, "p":
+        131, "mp": "90''", "md": "2020-09-20T13:30:00Z", "t1": "43", "t2": "18", "t1g":
+        3, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst": 2, "ap": 100, "tp":
+        2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "3050",
+        "day": 2, "p": 47, "mp": "90''", "md": "2020-09-26T13:30:00Z", "t1": "7",
+        "t2": "43", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "3040",
+        "day": 3, "p": 162, "mp": "71''", "md": "2020-10-03T16:30:00Z", "t1": "43",
+        "t2": "8", "t1g": 4, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/fed743ec085c41a9b2453875157257fe.svg"}, {"mi": "3026",
+        "day": 4, "p": 143, "mp": "90''", "md": "2020-10-17T13:30:00Z", "t1": "13",
+        "t2": "43", "t1g": 0, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "3022",
+        "day": 5, "p": 257, "mp": "90''", "md": "2020-10-24T13:30:00Z", "t1": "43",
+        "t2": "20", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/97c01bf49f8041bd9049739029eba077.svg"}, {"mi": "3015",
+        "day": 6, "p": 25, "mp": "90''", "md": "2020-10-31T17:30:00Z", "t1": "15",
+        "t2": "43", "t1g": 1, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2993",
+        "day": 8, "p": 41, "mp": "45''", "md": "2020-11-21T17:30:00Z", "t1": "4",
+        "t2": "43", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2987",
+        "day": 9, "p": 66, "mp": "45''", "md": "2020-11-28T14:30:00Z", "t1": "43",
+        "t2": "22", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/8baf5cc340f649dfbdb36c676ea05ff4.svg"}, {"mi": "2979",
+        "day": 10, "p": 73, "mp": "90''", "md": "2020-12-05T17:30:00Z", "t1": "2",
+        "t2": "43", "t1g": 3, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2969",
+        "day": 11, "p": 161, "mp": "90''", "md": "2020-12-12T14:30:00Z", "t1": "43",
+        "t2": "10", "t1g": 2, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "2960",
+        "day": 12, "p": 151, "mp": "90''", "md": "2020-12-16T19:30:00Z", "t1": "14",
+        "t2": "43", "t1g": 0, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2952",
+        "day": 13, "p": 143, "mp": "90''", "md": "2020-12-19T14:30:00Z", "t1": "43",
+        "t2": "28", "t1g": 0, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "2935",
+        "day": 14, "p": 89, "mp": "90''", "md": "2021-01-02T19:30:00Z", "t1": "9",
+        "t2": "43", "t1g": 0, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2934",
+        "day": 15, "p": 45, "mp": "90''", "md": "2021-01-09T17:30:00Z", "t1": "43",
+        "t2": "3", "t1g": 1, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "2922",
+        "day": 16, "p": 94, "mp": "90''", "md": "2021-01-16T14:30:00Z", "t1": "11",
+        "t2": "43", "t1g": 2, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2916",
+        "day": 17, "p": 128, "mp": "90''", "md": "2021-01-20T19:30:00Z", "t1": "43",
+        "t2": "40", "t1g": 1, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "2901",
+        "day": 18, "p": 94, "mp": "90''", "md": "2021-01-23T14:30:00Z", "t1": "18",
+        "t2": "43", "t1g": 3, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2896",
+        "day": 19, "p": 134, "mp": "90''", "md": "2021-01-30T17:30:00Z", "t1": "43",
+        "t2": "7", "t1g": 1, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "2884",
+        "day": 20, "p": 119, "mp": "90''", "md": "2021-02-06T14:30:00Z", "t1": "8",
+        "t2": "43", "t1g": 0, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/fed743ec085c41a9b2453875157257fe.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2878",
+        "day": 21, "p": 0, "mp": "0''", "md": "2021-02-12T19:30:00Z", "t1": "43",
+        "t2": "13", "t1g": 2, "t2g": 1, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "2860",
+        "day": 23, "p": 62, "mp": "90''", "md": "2021-02-27T17:30:00Z", "t1": "43",
+        "t2": "15", "t1g": 3, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "2850",
+        "day": 24, "p": 148, "mp": "90''", "md": "2021-03-06T14:30:00Z", "t1": "5",
+        "t2": "43", "t1g": 0, "t2g": 3, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2843",
+        "day": 25, "p": 24, "mp": "28''", "md": "2021-03-14T14:30:00Z", "t1": "43",
+        "t2": "4", "t1g": 1, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "2825",
+        "day": 27, "p": 46, "mp": "90''", "md": "2021-04-03T16:30:00Z", "t1": "43",
+        "t2": "2", "t1g": 0, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "2807",
+        "day": 29, "p": 150, "mp": "90''", "md": "2021-04-16T18:30:00Z", "t1": "43",
+        "t2": "14", "t1g": 0, "t2g": 0, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "2794",
+        "day": 30, "p": 105, "mp": "90''", "md": "2021-04-20T16:30:00Z", "t1": "28",
+        "t2": "43", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2790",
+        "day": 31, "p": 84, "mp": "45''", "md": "2021-04-25T13:30:00Z", "t1": "43",
+        "t2": "9", "t1g": 2, "t2g": 0, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "2780",
+        "day": 32, "p": 68, "mp": "90''", "md": "2021-05-08T13:30:00Z", "t1": "3",
+        "t2": "43", "t1g": 3, "t2g": 2, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "2772",
+        "day": 33, "p": 36, "mp": "27''", "md": "2021-05-16T18:30:00Z", "t1": "43",
+        "t2": "11", "t1g": 2, "t2g": 2, "pt": "43", "st": 3, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "2758",
+        "day": 34, "p": 64, "mp": "90''", "md": "2021-05-22T13:30:00Z", "t1": "40",
+        "t2": "43", "t1g": 2, "t2g": 1, "pt": "43", "st": 5, "cur": false, "mdst":
+        2, "ap": 100, "tp": 2890, "asp": 4822, "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}]}, {"sid": "14",
+        "ti": "2021/2022", "n": "Bundesliga", "ph": [{"mi": "3366", "day": 1, "p":
+        111, "mp": "96''", "md": "2021-08-13T18:30:00Z", "t1": "15", "t2": "2", "t1g":
+        1, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2, "ap": 127, "tp":
+        3561, "asp": 5033, "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3357",
+        "day": 2, "p": 93, "mp": "95''", "md": "2021-08-22T15:30:00Z", "t1": "2",
+        "t2": "28", "t1g": 3, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "3348",
+        "day": 3, "p": 88, "mp": "49''", "md": "2021-08-28T16:30:00Z", "t1": "2",
+        "t2": "20", "t1g": 5, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/97c01bf49f8041bd9049739029eba077.svg"}, {"mi": "3339",
+        "day": 4, "p": 66, "mp": "96''", "md": "2021-09-11T16:30:00Z", "t1": "43",
+        "t2": "2", "t1g": 1, "t2g": 4, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3313",
+        "day": 6, "p": 88, "mp": "94''", "md": "2021-09-24T18:30:00Z", "t1": "19",
+        "t2": "2", "t1g": 1, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/319ef0610ff34fcea0ab82b1da44e812.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3312",
+        "day": 7, "p": 116, "mp": "96''", "md": "2021-10-03T15:30:00Z", "t1": "2",
+        "t2": "4", "t1g": 1, "t2g": 2, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "3301",
+        "day": 8, "p": 209, "mp": "90''", "md": "2021-10-17T13:30:00Z", "t1": "7",
+        "t2": "2", "t1g": 1, "t2g": 5, "pt": "2", "k": [3], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3294",
+        "day": 9, "p": 284, "mp": "94''", "md": "2021-10-23T13:30:00Z", "t1": "2",
+        "t2": "14", "t1g": 4, "t2g": 0, "pt": "2", "k": [3, 3], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "3282",
+        "day": 10, "p": 98, "mp": "22''", "md": "2021-10-30T13:30:00Z", "t1": "40",
+        "t2": "2", "t1g": 2, "t2g": 5, "pt": "2", "k": [3], "st": 4, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3276",
+        "day": 11, "p": 144, "mp": "97''", "md": "2021-11-06T14:30:00Z", "t1": "2",
+        "t2": "5", "t1g": 2, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "3260",
+        "day": 12, "p": 138, "mp": "96''", "md": "2021-11-19T19:30:00Z", "t1": "13",
+        "t2": "2", "t1g": 2, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3258",
+        "day": 13, "p": 153, "mp": "93''", "md": "2021-11-27T17:30:00Z", "t1": "2",
+        "t2": "22", "t1g": 1, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8baf5cc340f649dfbdb36c676ea05ff4.svg"}, {"mi": "3249",
+        "day": 14, "p": -14, "mp": "101''", "md": "2021-12-04T17:30:00Z", "t1": "3",
+        "t2": "2", "t1g": 2, "t2g": 3, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3240",
+        "day": 15, "p": 174, "mp": "97''", "md": "2021-12-11T14:30:00Z", "t1": "2",
+        "t2": "18", "t1g": 2, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "3222",
+        "day": 17, "p": 422, "mp": "90''", "md": "2021-12-17T19:30:00Z", "t1": "2",
+        "t2": "11", "t1g": 4, "t2g": 0, "pt": "2", "k": [1], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "3189",
+        "day": 20, "p": -27, "mp": "11''", "md": "2022-01-23T16:30:00Z", "t1": "20",
+        "t2": "2", "t1g": 1, "t2g": 4, "pt": "2", "st": 4, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/97c01bf49f8041bd9049739029eba077.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3186",
+        "day": 21, "p": 17, "mp": "21''", "md": "2022-02-05T17:30:00Z", "t1": "2",
+        "t2": "43", "t1g": 3, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "3170",
+        "day": 22, "p": -33, "mp": "49''", "md": "2022-02-12T14:30:00Z", "t1": "24",
+        "t2": "2", "t1g": 4, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3168",
+        "day": 23, "p": 140, "mp": "97''", "md": "2022-02-20T14:30:00Z", "t1": "2",
+        "t2": "19", "t1g": 4, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/319ef0610ff34fcea0ab82b1da44e812.svg"}, {"mi": "3159",
+        "day": 24, "p": 117, "mp": "96''", "md": "2022-02-26T17:30:00Z", "t1": "4",
+        "t2": "2", "t1g": 0, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3150",
+        "day": 25, "p": 90, "mp": "94''", "md": "2022-03-05T14:30:00Z", "t1": "2",
+        "t2": "7", "t1g": 1, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "3132",
+        "day": 27, "p": 168, "mp": "92''", "md": "2022-03-19T17:30:00Z", "t1": "2",
+        "t2": "40", "t1g": 4, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "3118",
+        "day": 28, "p": 202, "mp": "99''", "md": "2022-04-02T13:30:00Z", "t1": "5",
+        "t2": "2", "t1g": 1, "t2g": 4, "pt": "2", "k": [3, 4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3114",
+        "day": 29, "p": 145, "mp": "96''", "md": "2022-04-09T13:30:00Z", "t1": "2",
+        "t2": "13", "t1g": 1, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "3097",
+        "day": 30, "p": 171, "mp": "99''", "md": "2022-04-17T13:30:00Z", "t1": "22",
+        "t2": "2", "t1g": 0, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/8baf5cc340f649dfbdb36c676ea05ff4.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3096",
+        "day": 31, "p": 94, "mp": "96''", "md": "2022-04-23T16:30:00Z", "t1": "2",
+        "t2": "3", "t1g": 3, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "3078",
+        "day": 33, "p": 187, "mp": "99''", "md": "2022-05-08T15:30:00Z", "t1": "2",
+        "t2": "9", "t1g": 2, "t2g": 2, "pt": "2", "k": [3], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "3068",
+        "day": 34, "p": 120, "mp": "95''", "md": "2022-05-14T13:30:00Z", "t1": "11",
+        "t2": "2", "t1g": 2, "t2g": 2, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 127, "tp": 3561, "asp": 5033, "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}]}, {"sid": "15",
+        "ti": "2022/2023", "n": "Bundesliga", "ph": [{"mi": "3978", "day": 1, "p":
+        125, "mp": "92''", "md": "2022-08-05T18:30:00Z", "t1": "4", "t2": "2", "t1g":
+        1, "t2g": 6, "pt": "2", "st": 5, "cur": false, "mdst": 2, "ap": 90, "tp":
+        2601, "asp": 5160, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3969",
+        "day": 2, "p": 145, "mp": "98''", "md": "2022-08-14T15:30:00Z", "t1": "2",
+        "t2": "11", "t1g": 2, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "3954",
+        "day": 3, "p": 164, "mp": "92''", "md": "2022-08-21T15:30:00Z", "t1": "24",
+        "t2": "2", "t1g": 0, "t2g": 7, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3951",
+        "day": 4, "p": 47, "mp": "99''", "md": "2022-08-27T16:30:00Z", "t1": "2",
+        "t2": "15", "t1g": 1, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "3940",
+        "day": 5, "p": 76, "mp": "96''", "md": "2022-09-03T13:30:00Z", "t1": "40",
+        "t2": "2", "t1g": 1, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3933",
+        "day": 6, "p": 91, "mp": "96''", "md": "2022-09-10T13:30:00Z", "t1": "2",
+        "t2": "9", "t1g": 2, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "3924",
+        "day": 7, "p": 35, "mp": "96''", "md": "2022-09-17T13:30:00Z", "t1": "13",
+        "t2": "2", "t1g": 1, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3915",
+        "day": 8, "p": 145, "mp": "81''", "md": "2022-09-30T18:30:00Z", "t1": "2",
+        "t2": "7", "t1g": 4, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "3906",
+        "day": 9, "p": 132, "mp": "97''", "md": "2022-10-08T16:30:00Z", "t1": "3",
+        "t2": "2", "t1g": 2, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3897",
+        "day": 10, "p": 137, "mp": "90''", "md": "2022-10-16T17:30:00Z", "t1": "2",
+        "t2": "5", "t1g": 5, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "3884",
+        "day": 11, "p": 117, "mp": "96''", "md": "2022-10-22T13:30:00Z", "t1": "14",
+        "t2": "2", "t1g": 0, "t2g": 2, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3879",
+        "day": 12, "p": 127, "mp": "94''", "md": "2022-10-29T13:30:00Z", "t1": "2",
+        "t2": "18", "t1g": 6, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "3863",
+        "day": 13, "p": 121, "mp": "97''", "md": "2022-11-05T14:30:00Z", "t1": "20",
+        "t2": "2", "t1g": 2, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/97c01bf49f8041bd9049739029eba077.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3861",
+        "day": 14, "p": 72, "mp": "92''", "md": "2022-11-08T19:30:00Z", "t1": "2",
+        "t2": "10", "t1g": 6, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "3845",
+        "day": 15, "p": 175, "mp": "94''", "md": "2022-11-12T17:30:00Z", "t1": "8",
+        "t2": "2", "t1g": 0, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/fed743ec085c41a9b2453875157257fe.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3842",
+        "day": 16, "p": 72, "mp": "96''", "md": "2023-01-20T19:30:00Z", "t1": "43",
+        "t2": "2", "t1g": 1, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3834",
+        "day": 17, "p": 184, "mp": "94''", "md": "2023-01-24T19:30:00Z", "t1": "2",
+        "t2": "28", "t1g": 1, "t2g": 1, "pt": "2", "k": [3], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "3825",
+        "day": 18, "p": 138, "mp": "96''", "md": "2023-01-28T17:30:00Z", "t1": "2",
+        "t2": "4", "t1g": 1, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "3811",
+        "day": 19, "mp": "0''", "md": "2023-02-05T16:30:00Z", "t1": "11", "t2": "2",
+        "t1g": 2, "t2g": 4, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 90,
+        "tp": 2601, "asp": 5160, "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3807",
+        "day": 20, "p": 111, "mp": "93''", "md": "2023-02-11T14:30:00Z", "t1": "2",
+        "t2": "24", "t1g": 3, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg"}, {"mi": "3795",
+        "day": 21, "p": -77, "mp": "8''", "md": "2023-02-18T14:30:00Z", "t1": "15",
+        "t2": "2", "t1g": 3, "t2g": 2, "pt": "2", "k": [6], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3789",
+        "day": 22, "mp": "0''", "md": "2023-02-26T16:30:00Z", "t1": "2", "t2": "40",
+        "t1g": 3, "t2g": 0, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 90,
+        "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "3772",
+        "day": 23, "p": 68, "mp": "95''", "md": "2023-03-04T17:30:00Z", "t1": "9",
+        "t2": "2", "t1g": 1, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3771",
+        "day": 24, "p": 100, "mp": "95''", "md": "2023-03-11T14:30:00Z", "t1": "2",
+        "t2": "13", "t1g": 5, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "3761",
+        "day": 25, "p": 36, "mp": "100''", "md": "2023-03-19T16:30:00Z", "t1": "7",
+        "t2": "2", "t1g": 2, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3753",
+        "day": 26, "p": 82, "mp": "97''", "md": "2023-04-01T16:30:00Z", "t1": "2",
+        "t2": "3", "t1g": 4, "t2g": 2, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "3742",
+        "day": 27, "mp": "0''", "md": "2023-04-08T13:30:00Z", "t1": "5", "t2": "2",
+        "t1g": 0, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 90,
+        "tp": 2601, "asp": 5160, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3735",
+        "day": 28, "p": 37, "mp": "96''", "md": "2023-04-15T13:30:00Z", "t1": "2",
+        "t2": "14", "t1g": 1, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "3723",
+        "day": 29, "p": 32, "mp": "98''", "md": "2023-04-22T13:30:00Z", "t1": "18",
+        "t2": "2", "t1g": 3, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3717",
+        "day": 30, "mp": "0''", "md": "2023-04-30T13:30:00Z", "t1": "2", "t2": "20",
+        "t1g": 2, "t2g": 0, "pt": "2", "st": 1, "cur": false, "mdst": 2, "ap": 90,
+        "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/97c01bf49f8041bd9049739029eba077.svg"}, {"mi": "3700",
+        "day": 31, "mp": "0''", "md": "2023-05-06T16:30:00Z", "t1": "10", "t2": "2",
+        "t1g": 1, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 90,
+        "tp": 2601, "asp": 5160, "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "3699",
+        "day": 32, "p": 35, "mp": "9''", "md": "2023-05-13T13:30:00Z", "t1": "2",
+        "t2": "8", "t1g": 6, "t2g": 0, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/fed743ec085c41a9b2453875157257fe.svg"}, {"mi": "3690",
+        "day": 33, "p": -9, "mp": "9''", "md": "2023-05-20T16:30:00Z", "t1": "2",
+        "t2": "43", "t1g": 1, "t2g": 3, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "3678",
+        "day": 34, "p": 83, "mp": "97''", "md": "2023-05-27T13:30:00Z", "t1": "28",
+        "t2": "2", "t1g": 1, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 90, "tp": 2601, "asp": 5160, "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}]}, {"sid": "20",
+        "ti": "2023/2024", "n": "Bundesliga", "ph": [{"mi": "5656", "day": 1, "p":
+        136, "mp": "99''", "md": "2023-08-18T18:30:00Z", "t1": "10", "t2": "2", "t1g":
+        0, "t2g": 4, "pt": "2", "st": 5, "cur": false, "mdst": 2, "ap": 91, "tp":
+        2286, "asp": 4606, "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5647",
+        "day": 2, "p": 107, "mp": "97''", "md": "2023-08-27T15:30:00Z", "t1": "2",
+        "t2": "13", "t1g": 3, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "5634",
+        "day": 3, "p": 92, "mp": "101''", "md": "2023-09-02T16:30:00Z", "t1": "15",
+        "t2": "2", "t1g": 1, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5629",
+        "day": 4, "p": 58, "mp": "100''", "md": "2023-09-15T18:30:00Z", "t1": "2",
+        "t2": "7", "t1g": 2, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "5620",
+        "day": 5, "p": 110, "mp": "48''", "md": "2023-09-23T13:30:00Z", "t1": "2",
+        "t2": "24", "t1g": 7, "t2g": 0, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg"}, {"mi": "5611",
+        "day": 6, "p": 115, "mp": "99''", "md": "2023-09-30T16:30:00Z", "t1": "43",
+        "t2": "2", "t1g": 2, "t2g": 2, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5602",
+        "day": 7, "p": 140, "mp": "80''", "md": "2023-10-08T15:30:00Z", "t1": "2",
+        "t2": "5", "t1g": 3, "t2g": 0, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "5589",
+        "day": 8, "mp": "0''", "md": "2023-10-21T16:30:00Z", "t1": "18", "t2": "2",
+        "t1g": 1, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5584",
+        "day": 9, "mp": "0''", "md": "2023-10-28T13:30:00Z", "t1": "2", "t2": "42",
+        "t1g": 8, "t2g": 0, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/ba3a2ad2348140378f6dd3eef4829230.svg"}, {"mi": "5575",
+        "day": 10, "p": 201, "mp": "61''", "md": "2023-11-04T17:30:00Z", "t1": "3",
+        "t2": "2", "t1g": 0, "t2g": 4, "pt": "2", "k": [1, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5566",
+        "day": 11, "p": 107, "mp": "62''", "md": "2023-11-11T14:30:00Z", "t1": "2",
+        "t2": "50", "t1g": 4, "t2g": 2, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/f387dd39aafb47d0b4863381fc4a521c.svg"}, {"mi": "5552",
+        "day": 12, "p": 160, "mp": "96''", "md": "2023-11-24T19:30:00Z", "t1": "28",
+        "t2": "2", "t1g": 0, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5537",
+        "day": 14, "p": 52, "mp": "96''", "md": "2023-12-09T14:30:00Z", "t1": "4",
+        "t2": "2", "t1g": 5, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5530",
+        "day": 15, "p": 97, "mp": "96''", "md": "2023-12-17T18:30:00Z", "t1": "2",
+        "t2": "9", "t1g": 3, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "5517",
+        "day": 16, "p": 183, "mp": "96''", "md": "2023-12-20T19:30:00Z", "t1": "11",
+        "t2": "2", "t1g": 1, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5512",
+        "day": 17, "p": 199, "mp": "94''", "md": "2024-01-12T19:30:00Z", "t1": "2",
+        "t2": "14", "t1g": 3, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "5503",
+        "day": 18, "p": 132, "mp": "100''", "md": "2024-01-21T14:30:00Z", "t1": "2",
+        "t2": "10", "t1g": 0, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "5548",
+        "day": 13, "p": 104, "mp": "50''", "md": "2024-01-24T19:30:00Z", "t1": "2",
+        "t2": "40", "t1g": 1, "t2g": 0, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "5487",
+        "day": 19, "mp": "0''", "md": "2024-01-27T14:30:00Z", "t1": "13", "t2": "2",
+        "t1g": 2, "t2g": 3, "pt": "2", "st": 1, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5485",
+        "day": 20, "mp": "0''", "md": "2024-02-03T14:30:00Z", "t1": "2", "t2": "15",
+        "t1g": 3, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "5474",
+        "day": 21, "p": 12, "mp": "61''", "md": "2024-02-10T17:30:00Z", "t1": "7",
+        "t2": "2", "t1g": 3, "t2g": 0, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5461",
+        "day": 22, "p": -95, "mp": "65''", "md": "2024-02-18T16:30:00Z", "t1": "24",
+        "t2": "2", "t1g": 3, "t2g": 2, "pt": "2", "k": [8, 4, 5], "st": 3, "cur":
+        false, "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5458",
+        "day": 23, "mp": "0''", "md": "2024-02-24T17:30:00Z", "t1": "2", "t2": "43",
+        "t1g": 2, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "5448",
+        "day": 24, "p": -5, "mp": "12''", "md": "2024-03-01T19:30:00Z", "t1": "5",
+        "t2": "2", "t1g": 2, "t2g": 2, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5440",
+        "day": 25, "mp": "0''", "md": "2024-03-09T14:30:00Z", "t1": "2", "t2": "18",
+        "t1g": 8, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "5423",
+        "day": 26, "mp": "0''", "md": "2024-03-16T14:30:00Z", "t1": "42", "t2": "2",
+        "t1g": 2, "t2g": 5, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ba3a2ad2348140378f6dd3eef4829230.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5422",
+        "day": 27, "mp": "0''", "md": "2024-03-30T17:30:00Z", "t1": "2", "t2": "3",
+        "t1g": 0, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "5405",
+        "day": 28, "p": 53, "mp": "97''", "md": "2024-04-06T13:30:00Z", "t1": "50",
+        "t2": "2", "t1g": 3, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/f387dd39aafb47d0b4863381fc4a521c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5404",
+        "day": 29, "p": 37, "mp": "34''", "md": "2024-04-13T13:30:00Z", "t1": "2",
+        "t2": "28", "t1g": 2, "t2g": 0, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}, {"mi": "5394",
+        "day": 30, "p": 73, "mp": "33''", "md": "2024-04-20T16:30:00Z", "t1": "40",
+        "t2": "2", "t1g": 1, "t2g": 5, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5386",
+        "day": 31, "mp": "0''", "md": "2024-04-27T13:30:00Z", "t1": "2", "t2": "4",
+        "t1g": 2, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 91,
+        "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "5370",
+        "day": 32, "p": 4, "mp": "50''", "md": "2024-05-04T13:30:00Z", "t1": "9",
+        "t2": "2", "t1g": 3, "t2g": 1, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "5368",
+        "day": 33, "p": 142, "mp": "94''", "md": "2024-05-12T15:30:00Z", "t1": "2",
+        "t2": "11", "t1g": 2, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "5354",
+        "day": 34, "p": 72, "mp": "98''", "md": "2024-05-18T13:30:00Z", "t1": "14",
+        "t2": "2", "t1g": 4, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 91, "tp": 2286, "asp": 4606, "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}]}, {"sid": "25",
+        "ti": "2024/2025", "n": "Bundesliga", "ph": [{"mi": "7305", "day": 1, "p":
+        121, "mp": "98''", "md": "2024-08-25T13:30:00Z", "t1": "11", "t2": "2", "t1g":
+        2, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2, "ap": 154, "tp":
+        3076, "asp": 5631, "mdsn": "1", "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7407",
+        "day": 2, "p": 99, "mp": "93''", "md": "2024-09-01T15:30:00Z", "t1": "2",
+        "t2": "5", "t1g": 2, "t2g": 0, "pt": "2", "k": [4, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "2", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "7500",
+        "day": 3, "p": 147, "mp": "95''", "md": "2024-09-14T16:30:00Z", "t1": "51",
+        "t2": "2", "t1g": 1, "t2g": 6, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "3", "t1im": "content/file/69548ff0da384343aaa6e2c9abe9f192.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7558",
+        "day": 4, "p": 179, "mp": "94''", "md": "2024-09-21T13:30:00Z", "t1": "10",
+        "t2": "2", "t1g": 0, "t2g": 5, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "4", "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7571",
+        "day": 5, "p": 104, "mp": "97''", "md": "2024-09-28T16:30:00Z", "t1": "2",
+        "t2": "7", "t1g": 1, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "5", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "7579",
+        "day": 6, "p": 226, "mp": "92''", "md": "2024-10-06T15:30:00Z", "t1": "4",
+        "t2": "2", "t1g": 3, "t2g": 3, "pt": "2", "k": [1, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "6", "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7588",
+        "day": 7, "p": 113, "mp": "83''", "md": "2024-10-19T16:30:00Z", "t1": "2",
+        "t2": "9", "t1g": 4, "t2g": 0, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "7", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "7591",
+        "day": 8, "p": 157, "mp": "96''", "md": "2024-10-27T14:30:00Z", "t1": "24",
+        "t2": "2", "t1g": 0, "t2g": 5, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "8", "t1im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7606",
+        "day": 9, "p": 228, "mp": "95''", "md": "2024-11-02T14:30:00Z", "t1": "2",
+        "t2": "40", "t1g": 3, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "9", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "7311",
+        "day": 10, "p": 184, "mp": "94''", "md": "2024-11-09T14:30:00Z", "t1": "39",
+        "t2": "2", "t1g": 0, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "10", "t1im": "content/file/cae200d5499e43c4a5c382a1fbb25435.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7326",
+        "day": 11, "p": 176, "mp": "99''", "md": "2024-11-22T19:30:00Z", "t1": "2",
+        "t2": "13", "t1g": 3, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "11", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "7336",
+        "day": 12, "p": 48, "mp": "98''", "md": "2024-11-30T17:30:00Z", "t1": "3",
+        "t2": "2", "t1g": 1, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "12", "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7344",
+        "day": 13, "p": 274, "mp": "93''", "md": "2024-12-07T14:30:00Z", "t1": "2",
+        "t2": "50", "t1g": 4, "t2g": 2, "pt": "2", "k": [1], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "13", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/f387dd39aafb47d0b4863381fc4a521c.svg"}, {"mi": "7350",
+        "day": 14, "mp": "0''", "md": "2024-12-14T14:30:00Z", "t1": "18", "t2": "2",
+        "t1g": 2, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "14", "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7362",
+        "day": 15, "p": 141, "mp": "94''", "md": "2024-12-20T19:30:00Z", "t1": "2",
+        "t2": "43", "t1g": 5, "t2g": 1, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "15", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "7366",
+        "day": 16, "mp": "0''", "md": "2025-01-11T17:30:00Z", "t1": "15", "t2": "2",
+        "t1g": 0, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "16", "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7380",
+        "day": 17, "p": 138, "mp": "64''", "md": "2025-01-15T19:30:00Z", "t1": "2",
+        "t2": "14", "t1g": 5, "t2g": 0, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "17", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "7389",
+        "day": 18, "p": 110, "mp": "100''", "md": "2025-01-18T14:30:00Z", "t1": "2",
+        "t2": "11", "t1g": 3, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "18", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "7397",
+        "day": 19, "mp": "0''", "md": "2025-01-25T14:30:00Z", "t1": "5", "t2": "2",
+        "t1g": 1, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "19", "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7416",
+        "day": 20, "p": 149, "mp": "97''", "md": "2025-02-01T14:30:00Z", "t1": "2",
+        "t2": "51", "t1g": 4, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "20", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/69548ff0da384343aaa6e2c9abe9f192.svg"}, {"mi": "7427",
+        "day": 21, "p": 189, "mp": "98''", "md": "2025-02-07T19:30:00Z", "t1": "2",
+        "t2": "10", "t1g": 3, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "21", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "7436",
+        "day": 22, "p": 116, "mp": "97''", "md": "2025-02-15T17:30:00Z", "t1": "7",
+        "t2": "2", "t1g": 0, "t2g": 0, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "22", "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7445",
+        "day": 23, "mp": "0''", "md": "2025-02-23T16:30:00Z", "t1": "2", "t2": "4",
+        "t1g": 4, "t2g": 0, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "23", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "7454",
+        "day": 24, "mp": "0''", "md": "2025-02-28T19:30:00Z", "t1": "9", "t2": "2",
+        "t1g": 1, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "24", "t1im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7462",
+        "day": 25, "mp": "0''", "md": "2025-03-08T14:30:00Z", "t1": "2", "t2": "24",
+        "t1g": 2, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "25", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/14ab924f96264bc89ada2be8fb3a0421.svg"}, {"mi": "7466",
+        "day": 26, "p": 177, "mp": "98''", "md": "2025-03-15T14:30:00Z", "t1": "40",
+        "t2": "2", "t1g": 1, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 154, "tp": 3076, "asp": 5631, "mdsn": "26", "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7480",
+        "day": 27, "mp": "0''", "md": "2025-03-29T14:30:00Z", "t1": "2", "t2": "39",
+        "t1g": 3, "t2g": 2, "pt": "2", "st": 1, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "27", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/cae200d5499e43c4a5c382a1fbb25435.svg"}, {"mi": "7486",
+        "day": 28, "mp": "0''", "md": "2025-04-04T18:30:00Z", "t1": "13", "t2": "2",
+        "t1g": 1, "t2g": 3, "pt": "2", "st": 1, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "28", "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7497",
+        "day": 29, "mp": "0''", "md": "2025-04-12T16:30:00Z", "t1": "2", "t2": "3",
+        "t1g": 2, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "29", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "7515",
+        "day": 30, "mp": "0''", "md": "2025-04-19T13:30:00Z", "t1": "50", "t2": "2",
+        "t1g": 0, "t2g": 4, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "30", "t1im": "content/file/f387dd39aafb47d0b4863381fc4a521c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7524",
+        "day": 31, "mp": "0''", "md": "2025-04-26T13:30:00Z", "t1": "2", "t2": "18",
+        "t1g": 3, "t2g": 0, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "31", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "7535",
+        "day": 32, "mp": "0''", "md": "2025-05-03T13:30:00Z", "t1": "43", "t2": "2",
+        "t1g": 3, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "32", "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "7542",
+        "day": 33, "mp": "0''", "md": "2025-05-10T16:30:00Z", "t1": "2", "t2": "15",
+        "t1g": 2, "t2g": 0, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "33", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "7551",
+        "day": 34, "mp": "0''", "md": "2025-05-17T13:30:00Z", "t1": "14", "t2": "2",
+        "t1g": 0, "t2g": 4, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 154,
+        "tp": 3076, "asp": 5631, "mdsn": "34", "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}]}, {"sid": "34",
+        "ti": "2025/2026", "n": "Bundesliga", "ph": [{"mi": "8310", "day": 1, "p":
+        149, "mp": "102''", "md": "2025-08-22T18:30:00Z", "t1": "2", "t2": "43", "t1g":
+        6, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst": 2, "ap": 119, "tp":
+        2858, "asp": 4966, "mdsn": "1", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "8322",
+        "day": 2, "p": 95, "mp": "107''", "md": "2025-08-30T16:30:00Z", "t1": "13",
+        "t2": "2", "t1g": 2, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "2", "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8336",
+        "day": 3, "p": 86, "mp": "51''", "md": "2025-09-13T16:30:00Z", "t1": "2",
+        "t2": "6", "t1g": 5, "t2g": 0, "pt": "2", "k": [4, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "3", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg"}, {"mi": "8338",
+        "day": 4, "p": 28, "mp": "31''", "md": "2025-09-20T13:30:00Z", "t1": "14",
+        "t2": "2", "t1g": 1, "t2g": 4, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "4", "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8354",
+        "day": 5, "p": 142, "mp": "96''", "md": "2025-09-26T18:30:00Z", "t1": "2",
+        "t2": "10", "t1g": 4, "t2g": 0, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "5", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"}, {"mi": "8362",
+        "day": 6, "p": 162, "mp": "97''", "md": "2025-10-04T16:30:00Z", "t1": "4",
+        "t2": "2", "t1g": 0, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "6", "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8372",
+        "day": 7, "p": 83, "mp": "96''", "md": "2025-10-18T16:30:00Z", "t1": "2",
+        "t2": "3", "t1g": 2, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "7", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"}, {"mi": "8376",
+        "day": 8, "p": 114, "mp": "50''", "md": "2025-10-25T13:45:00Z", "t1": "15",
+        "t2": "2", "t1g": 0, "t2g": 3, "pt": "2", "k": [4, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "8", "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8390",
+        "day": 9, "mp": "0''", "md": "2025-11-01T17:30:00Z", "t1": "2", "t2": "7",
+        "t1g": 3, "t2g": 0, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "9", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"}, {"mi": "8393",
+        "day": 10, "p": 109, "mp": "101''", "md": "2025-11-08T14:30:00Z", "t1": "40",
+        "t2": "2", "t1g": 2, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "10", "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8408",
+        "day": 11, "p": 248, "mp": "79''", "md": "2025-11-22T14:30:00Z", "t1": "2",
+        "t2": "5", "t1g": 6, "t2g": 2, "pt": "2", "k": [1, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "11", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"}, {"mi": "8417",
+        "day": 12, "mp": "0''", "md": "2025-11-29T14:30:00Z", "t1": "2", "t2": "39",
+        "t1g": 3, "t2g": 1, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "12", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/cae200d5499e43c4a5c382a1fbb25435.svg"}, {"mi": "8423",
+        "day": 13, "p": 118, "mp": "91''", "md": "2025-12-06T14:30:00Z", "t1": "9",
+        "t2": "2", "t1g": 0, "t2g": 5, "pt": "2", "k": [4, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "13", "t1im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8435",
+        "day": 14, "mp": "0''", "md": "2025-12-14T16:30:00Z", "t1": "2", "t2": "18",
+        "t1g": 2, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "14", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"}, {"mi": "8438",
+        "day": 15, "p": 140, "mp": "92''", "md": "2025-12-21T16:30:00Z", "t1": "50",
+        "t2": "2", "t1g": 0, "t2g": 4, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "15", "t1im": "content/file/f387dd39aafb47d0b4863381fc4a521c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8453",
+        "day": 16, "p": 99, "mp": "80''", "md": "2026-01-11T16:30:00Z", "t1": "2",
+        "t2": "11", "t1g": 8, "t2g": 1, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "16", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/88bc71ea83264622b9b222595706f426.svg"}, {"mi": "8455",
+        "day": 17, "p": 53, "mp": "28''", "md": "2026-01-14T19:30:00Z", "t1": "28",
+        "t2": "2", "t1g": 1, "t2g": 3, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "17", "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8470",
+        "day": 18, "p": 175, "mp": "100''", "md": "2026-01-17T17:30:00Z", "t1": "43",
+        "t2": "2", "t1g": 1, "t2g": 5, "pt": "2", "k": [3], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "18", "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8480",
+        "day": 19, "mp": "0''", "md": "2026-01-24T14:30:00Z", "t1": "2", "t2": "13",
+        "t1g": 1, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "19", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}, {"mi": "8481",
+        "day": 20, "p": 123, "mp": "106''", "md": "2026-01-31T17:30:00Z", "t1": "6",
+        "t2": "2", "t1g": 2, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "20", "t1im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8498",
+        "day": 21, "p": 106, "mp": "98''", "md": "2026-02-08T16:30:00Z", "t1": "2",
+        "t2": "14", "t1g": 5, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "21", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/5212904732a04199aab426e44067347c.svg"}, {"mi": "8503",
+        "day": 22, "mp": "0''", "md": "2026-02-14T14:30:00Z", "t1": "10", "t2": "2",
+        "t1g": 0, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "22", "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8516",
+        "day": 23, "p": 116, "mp": "102''", "md": "2026-02-21T14:30:00Z", "t1": "2",
+        "t2": "4", "t1g": 3, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "23", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}, {"mi": "8521",
+        "day": 24, "p": 133, "mp": "103''", "md": "2026-02-28T17:30:00Z", "t1": "3",
+        "t2": "2", "t1g": 2, "t2g": 3, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "24", "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8534",
+        "day": 25, "p": 106, "mp": "62''", "md": "2026-03-06T19:30:00Z", "t1": "2",
+        "t2": "15", "t1g": 4, "t2g": 1, "pt": "2", "k": [9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "25", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"}, {"mi": "8543",
+        "day": 26, "p": 118, "mp": "104''", "md": "2026-03-14T14:30:00Z", "t1": "7",
+        "t2": "2", "t1g": 1, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "26", "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8552",
+        "day": 27, "p": 132, "mp": "62''", "md": "2026-03-21T14:30:00Z", "t1": "2",
+        "t2": "40", "t1g": 4, "t2g": 0, "pt": "2", "k": [4, 9], "st": 5, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "27", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "8559",
+        "day": 28, "mp": "0''", "md": "2026-04-04T13:30:00Z", "t1": "5", "t2": "2",
+        "t1g": 2, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "28", "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8564",
+        "day": 29, "mp": "0''", "md": "2026-04-11T16:30:00Z", "t1": "39", "t2": "2",
+        "t1g": 0, "t2g": 5, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "29", "t1im": "content/file/cae200d5499e43c4a5c382a1fbb25435.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8579",
+        "day": 30, "mp": "0''", "md": "2026-04-19T15:30:00Z", "t1": "2", "t2": "9",
+        "t1g": 4, "t2g": 2, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "30", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "8587",
+        "day": 31, "mp": "0''", "md": "2026-04-25T13:30:00Z", "t1": "18", "t2": "2",
+        "t1g": 3, "t2g": 4, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "31", "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8597",
+        "day": 32, "mp": "0''", "md": "2026-05-02T13:30:00Z", "t1": "2", "t2": "50",
+        "t1g": 3, "t2g": 3, "pt": "2", "st": 4, "cur": false, "mdst": 2, "ap": 119,
+        "tp": 2858, "asp": 4966, "mdsn": "32", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/f387dd39aafb47d0b4863381fc4a521c.svg"}, {"mi": "8602",
+        "day": 33, "p": 71, "mp": "50''", "md": "2026-05-09T16:30:00Z", "t1": "11",
+        "t2": "2", "t1g": 0, "t2g": 1, "pt": "2", "k": [8], "st": 3, "cur": false,
+        "mdst": 2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "33", "t1im": "content/file/88bc71ea83264622b9b222595706f426.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "8608",
+        "day": 34, "p": 152, "mp": "98''", "md": "2026-05-16T13:30:00Z", "t1": "2",
+        "t2": "28", "t1g": 5, "t2g": 1, "pt": "2", "st": 5, "cur": false, "mdst":
+        2, "ap": 119, "tp": 2858, "asp": 4966, "mdsn": "34", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"}]}, {"sid": "42",
+        "ti": "2026/2027", "n": "Bundesliga", "ph": [{"mi": "11914", "day": 1, "p":
+        272, "mp": "96''", "md": "2026-08-28T18:30:00Z", "t1": "2", "t2": "9", "t1g":
+        5, "t2g": 1, "pt": "2", "k": [1], "st": 5, "cur": false, "mdst": 2, "ap":
+        178, "tp": 712, "asp": 5071, "mdsn": "#1", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg"}, {"mi": "11944",
+        "day": 2, "p": 217, "mp": "96''", "md": "2026-09-05T16:30:00Z", "t1": "8",
+        "t2": "2", "t1g": 0, "t2g": 0, "pt": "2", "k": [4], "st": 5, "cur": false,
+        "mdst": 2, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "2", "t1im": "content/file/fed743ec085c41a9b2453875157257fe.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "11968",
+        "day": 3, "p": 126, "mp": "98''", "md": "2026-09-13T15:30:00Z", "t1": "77",
+        "t2": "2", "t1g": 1, "t2g": 2, "pt": "2", "st": 5, "cur": false, "mdst": 2,
+        "ap": 178, "tp": 712, "asp": 5071, "mdsn": "3", "t1im": "content/file/0316d4ec54e94ae4afac4ba34fcec8de.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12019",
+        "day": 4, "p": 97, "mp": "48''", "md": "2026-09-18T18:30:00Z", "t1": "2",
+        "t2": "40", "t1g": 7, "t2g": 0, "pt": "2", "k": [4, 9], "st": 5, "cur": true,
+        "mdst": 2, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "4", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"mi": "12034",
+        "day": 5, "md": "2026-10-10T13:30:00Z", "t1": "13", "t2": "2", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "5", "t1im":
+        "content/file/8d68c946b9774505b8292adfa910d0a0.svg", "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"},
+        {"mi": "12073", "day": 6, "md": "2026-10-17T16:30:00Z", "t1": "2", "t2": "43",
+        "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn":
+        "6", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im":
+        "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}, {"mi": "12088", "day":
+        7, "md": "2026-10-25T16:30:00Z", "t1": "5", "t2": "2", "st": 0, "cur": false,
+        "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "7", "t1im": "content/file/6c1a9f14b668493283f966834891aa70.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12127",
+        "day": 8, "md": "2026-10-31T17:30:00Z", "t1": "2", "t2": "3", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "8", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg"},
+        {"mi": "12139", "day": 9, "md": "2026-11-07T14:30:00Z", "t1": "18", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "9", "t1im": "content/file/d4ac9675b44944039d463837f888cb1c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12181",
+        "day": 10, "md": "2026-11-20T19:30:00Z", "t1": "2", "t2": "28", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "10", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"},
+        {"mi": "12193", "day": 11, "md": "2026-11-28T14:30:00Z", "t1": "6", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "11", "t1im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12235",
+        "day": 12, "md": "2026-12-05T13:30:00Z", "t1": "2", "t2": "29", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "12", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/ce455adfd794457f9ab90f7bab522812.svg"},
+        {"mi": "12256", "day": 13, "md": "2026-12-12T13:30:00Z", "t1": "14", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "13", "t1im": "content/file/5212904732a04199aab426e44067347c.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12289",
+        "day": 14, "md": "2026-12-19T13:30:00Z", "t1": "2", "t2": "10", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "14", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg"},
+        {"mi": "12304", "day": 15, "md": "2027-01-09T13:30:00Z", "t1": "15", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "15", "t1im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12343",
+        "day": 16, "md": "2027-01-13T13:30:00Z", "t1": "2", "t2": "7", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "16", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"},
+        {"mi": "12358", "day": 17, "md": "2027-01-16T13:30:00Z", "t1": "4", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "17", "t1im": "content/file/422de82bee3b47eb898699d6d27095ba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12397",
+        "day": 18, "md": "2027-01-23T13:30:00Z", "t1": "9", "t2": "2", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "18", "t1im":
+        "content/file/9a1bb78d0ccf45f895797c0c6d8c4d40.svg", "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"},
+        {"mi": "12424", "day": 19, "md": "2027-01-30T13:30:00Z", "t1": "2", "t2":
+        "8", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "19", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/fed743ec085c41a9b2453875157257fe.svg"}, {"mi": "12451",
+        "day": 20, "md": "2027-02-06T13:30:00Z", "t1": "2", "t2": "77", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "20", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/0316d4ec54e94ae4afac4ba34fcec8de.svg"},
+        {"mi": "12460", "day": 21, "md": "2027-02-13T13:30:00Z", "t1": "40", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "21", "t1im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12505",
+        "day": 22, "md": "2027-02-20T13:30:00Z", "t1": "2", "t2": "13", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "22", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"},
+        {"mi": "12529", "day": 23, "md": "2027-02-27T13:30:00Z", "t1": "43", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "23", "t1im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12559",
+        "day": 24, "md": "2027-03-03T13:30:00Z", "t1": "2", "t2": "5", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "24", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/6c1a9f14b668493283f966834891aa70.svg"},
+        {"mi": "12586", "day": 25, "md": "2027-03-06T13:30:00Z", "t1": "3", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "25", "t1im": "content/file/dc3d63ae79bf4282a4107bafcd572b99.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12613",
+        "day": 26, "md": "2027-03-13T13:30:00Z", "t1": "2", "t2": "18", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "26", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/d4ac9675b44944039d463837f888cb1c.svg"},
+        {"mi": "12619", "day": 27, "md": "2027-03-20T13:30:00Z", "t1": "28", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "27", "t1im": "content/file/dca70c4089fd4623932b245c0e81eaba.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12667",
+        "day": 28, "md": "2027-04-03T13:30:00Z", "t1": "2", "t2": "6", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "28", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/c9b7d8772f324f9badeb285af4c5810a.svg"},
+        {"mi": "12670", "day": 29, "md": "2027-04-10T13:30:00Z", "t1": "29", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "29", "t1im": "content/file/ce455adfd794457f9ab90f7bab522812.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12721",
+        "day": 30, "md": "2027-04-17T13:30:00Z", "t1": "2", "t2": "14", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "30", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/5212904732a04199aab426e44067347c.svg"},
+        {"mi": "12727", "day": 31, "md": "2027-04-24T13:30:00Z", "t1": "10", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "31", "t1im": "content/file/82f8ba6f2d9e46119e4deac25a0b5480.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12775",
+        "day": 32, "md": "2027-05-08T13:30:00Z", "t1": "2", "t2": "15", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "32", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/7178ef92ad0747a5ad1a05d0783f5088.svg"},
+        {"mi": "12793", "day": 33, "md": "2027-05-15T13:30:00Z", "t1": "7", "t2":
+        "2", "st": 0, "cur": false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071,
+        "mdsn": "33", "t1im": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"mi": "12829",
+        "day": 34, "md": "2027-05-22T13:30:00Z", "t1": "2", "t2": "4", "st": 0, "cur":
+        false, "mdst": 0, "ap": 178, "tp": 712, "asp": 5071, "mdsn": "34", "t1im":
+        "content/file/ff70df040a9f4179a7b45219225a2273.svg", "t2im": "content/file/422de82bee3b47eb898699d6d27095ba.svg"}]}]}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '93464'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:01 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

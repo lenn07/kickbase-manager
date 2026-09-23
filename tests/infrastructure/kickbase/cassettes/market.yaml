@@ -20,81 +20,77 @@ interactions:
     uri: https://api.kickbase.com/v4/leagues/1111111/market
   response:
     body:
-      string: '{"it": [{"i": "75", "fn": "Patrick", "n": "Drewes", "tid": "3", "pos":
-        1, "st": 0, "mvt": 0, "mv": 500000, "ofc": 0, "exs": 27522, "prc": 500000,
-        "isn": true, "iposl": false, "dt": "2026-08-31T01:59:05Z", "pim": "redacted/image.png",
-        "prob": 5}, {"i": "89", "fn": "Christian", "n": "G\u00fcnter", "tid": "5",
-        "pos": 2, "st": 0, "mvt": 2, "mv": 5453363, "ofc": 0, "exs": 83818, "prc":
-        5453363, "isn": false, "iposl": false, "dt": "2026-08-30T17:16:21Z", "pim":
-        "redacted/image.png", "prob": 3}, {"i": "670", "fn": "Kenan", "n": "Karaman",
-        "tid": "8", "pos": 4, "st": 2, "mvt": 2, "mv": 10275517, "ofc": 0, "exs":
-        118482, "prc": 10275517, "isn": false, "iposl": false, "dt": "2026-08-30T20:29:05Z",
-        "pim": "redacted/image.png", "prob": 4}, {"i": "1920", "fn": "Serhou", "n":
-        "Guirassy", "tid": "3", "pos": 4, "st": 0, "mvt": 1, "mv": 30111965, "p":
-        181, "ap": 181, "ofc": 0, "exs": 54567, "prc": 30111965, "isn": false, "iposl":
-        false, "dt": "2026-08-30T19:27:50Z", "pim": "redacted/image.png", "prob":
-        1}, {"i": "2084", "fn": "Philipp", "n": "Lienhart", "tid": "5", "pos": 2,
-        "st": 0, "mvt": 2, "mv": 13303792, "p": 128, "ap": 128, "ofc": 0, "exs": 2902,
-        "prc": 13303792, "isn": false, "iposl": false, "dt": "2026-08-29T12:44:45Z",
-        "pim": "redacted/image.png", "prob": 3}, {"i": "2141", "fn": "Ridle ", "n":
-        "Baku", "tid": "43", "pos": 2, "st": 0, "mvt": 1, "mv": 18705177, "p": 234,
-        "ap": 234, "ofc": 0, "exs": 77623, "prc": 18705177, "isn": true, "iposl":
-        false, "dt": "2026-08-31T06:09:06Z", "pim": "redacted/image.png", "prob":
-        1}, {"i": "2201", "fn": "Linton", "n": "Maina", "tid": "28", "pos": 4, "st":
-        0, "mvt": 1, "mv": 6346358, "p": 99, "ap": 99, "ofc": 0, "exs": 77944, "prc":
-        6346358, "isn": false, "iposl": false, "dt": "2026-08-30T21:39:27Z", "pim":
-        "redacted/image.png", "prob": 4}, {"i": "2476", "fn": "Jae-Sung", "n": "Lee",
-        "tid": "18", "pos": 3, "st": 0, "mvt": 1, "mv": 12158136, "p": 80, "ap": 80,
-        "ofc": 0, "exs": 47786, "prc": 12158136, "isn": true, "iposl": false, "dt":
-        "2026-08-31T09:31:49Z", "pim": "redacted/image.png", "prob": 2}, {"i": "2764",
-        "fn": "Yannik", "n": "Keitel", "tid": "13", "pos": 3, "st": 0, "mvt": 2, "mv":
-        2352586, "p": 23, "ap": 23, "ofc": 0, "exs": 31360, "prc": 2352586, "isn":
-        false, "iposl": false, "dt": "2026-08-29T20:31:03Z", "pim": "redacted/image.png",
-        "prob": 5}, {"i": "3120", "fn": "Tom", "n": "Bischof", "tid": "2", "pos":
-        3, "st": 0, "mvt": 2, "mv": 21655370, "p": 40, "ap": 40, "ofc": 0, "exs":
-        15461, "prc": 21655370, "isn": false, "iposl": false, "dt": "2026-08-30T14:04:04Z",
-        "pim": "redacted/image.png", "prob": 4}, {"i": "4318", "fn": "Tim", "n": "Oermann",
-        "tid": "7", "pos": 2, "st": 0, "mvt": 2, "mv": 3898038, "ofc": 0, "exs": 76944,
-        "prc": 3898038, "isn": true, "iposl": false, "dt": "2026-08-31T04:03:47Z",
-        "pim": "redacted/image.png", "prob": 5}, {"i": "4606", "fn": "Hasan", "n":
-        "Kuru\u00e7ay", "tid": "8", "pos": 2, "st": 0, "mvt": 2, "mv": 10911995, "p":
-        22, "ap": 22, "ofc": 0, "exs": 115622, "prc": 10911995, "isn": true, "iposl":
-        false, "dt": "2026-08-31T07:16:25Z", "pim": "redacted/image.png", "prob":
-        2}, {"i": "6061", "fn": "Ibrahim", "n": "Maza", "tid": "7", "pos": 3, "st":
-        0, "mvt": 1, "mv": 30155582, "p": 107, "ap": 107, "ofc": 0, "exs": 39577,
-        "prc": 30155582, "isn": true, "iposl": false, "dt": "2026-08-31T05:07:00Z",
-        "pim": "redacted/image.png", "prob": 1}, {"i": "6176", "fn": "Nicolas", "n":
-        "Seiwald", "tid": "43", "pos": 3, "st": 0, "mvt": 1, "mv": 18272223, "p":
-        109, "ap": 109, "ofc": 0, "exs": 39793, "prc": 18272223, "isn": true, "iposl":
-        false, "dt": "2026-08-31T08:23:36Z", "pim": "redacted/image.png", "prob":
-        1}, {"i": "7491", "fn": "Jean-Matt\u00e9o", "n": "Bahoya", "tid": "4", "pos":
-        4, "st": 0, "mvt": 2, "mv": 4803290, "ofc": 0, "exs": 86949, "prc": 4803290,
-        "isn": false, "iposl": false, "dt": "2026-08-30T18:25:32Z", "pim": "redacted/image.png",
-        "prob": 5}, {"i": "7781", "fn": "Leo", "n": "Sauer", "tid": "9", "pos": 3,
-        "st": 0, "mvt": 2, "mv": 3588449, "ofc": 0, "exs": 101286, "prc": 3588449,
-        "isn": true, "iposl": false, "dt": "2026-08-31T03:01:29Z", "pim": "redacted/image.png",
-        "prob": 5}, {"i": "8367", "fn": "Albert", "n": "Sambi Lokonga", "tid": "6",
-        "pos": 3, "st": 0, "mvt": 2, "mv": 10634700, "p": 44, "ap": 44, "ofc": 0,
-        "exs": 41057, "prc": 10634700, "isn": false, "iposl": false, "dt": "2026-08-30T16:10:40Z",
-        "pim": "redacted/image.png", "prob": 1}, {"i": "10120", "fn": "Alexander",
-        "n": "R\u00f8ssing-Lelesiit", "tid": "6", "pos": 4, "st": 4, "mvt": 2, "mv":
-        730234, "ofc": 0, "exs": 118715, "prc": 730234, "isn": true, "iposl": false,
-        "dt": "2026-08-31T10:41:58Z", "pim": "redacted/image.png", "prob": 5}, {"i":
-        "12293", "fn": "Jeremy", "n": "Ar\u00e9valo", "tid": "9", "pos": 4, "st":
-        2, "mvt": 2, "mv": 2104214, "ofc": 0, "exs": 52103, "prc": 2104214, "isn":
-        false, "iposl": false, "dt": "2026-08-30T12:59:46Z", "pim": "redacted/image.png",
-        "prob": 5}, {"i": "14048", "fn": "Keisuke", "n": "Goto", "tid": "5", "pos":
-        4, "st": 0, "mvt": 2, "mv": 4047696, "p": 11, "ap": 11, "ofc": 0, "exs": 48386,
-        "prc": 4047696, "isn": false, "iposl": false, "dt": "2026-08-30T05:23:49Z",
-        "pim": "redacted/image.png", "prob": 5}, {"i": "15613", "fn": "Daiki", "n":
-        "Hashioka", "tid": "15", "pos": 2, "st": 2, "mvt": 2, "mv": 9574469, "p":
-        17, "ap": 17, "ofc": 0, "exs": 47464, "prc": 9574469, "isn": false, "iposl":
-        false, "dt": "2026-08-30T00:59:27Z", "pim": "redacted/image.png", "prob":
-        5}, {"i": "16378", "fn": "Konstantinos", "n": "Karetsas", "tid": "3", "pos":
-        3, "st": 0, "mvt": 1, "mv": 25374381, "p": 214, "ap": 214, "ofc": 0, "exs":
-        17581, "prc": 25374381, "isn": false, "iposl": false, "dt": "2026-08-29T22:42:24Z",
-        "pim": "redacted/image.png", "prob": 1}], "nps": 9, "tv": 135562602, "mvud":
-        "2026-08-31T20:00:00Z", "dt": "2026-09-04T18:30:00Z", "day": 2, "sn": "26/27"}'
+      string: '{"it": [{"i": "43", "fn": "Mitchell", "n": "Weiser", "tid": "10", "pos":
+        2, "st": 0, "mvt": 1, "mv": 6779912, "p": 141, "ap": 71, "ofc": 0, "exs":
+        16176, "prc": 6779912, "isn": false, "iposl": false, "dt": "2026-09-23T02:01:35Z",
+        "pim": "redacted/image.png"}, {"i": "78", "fn": "Jonas", "n": "Hofmann", "tid":
+        "7", "pos": 3, "st": 0, "mvt": 2, "mv": 3410857, "p": 43, "ap": 43, "ofc":
+        0, "exs": 65737, "prc": 3410857, "isn": true, "iposl": false, "dt": "2026-09-23T12:59:36Z",
+        "pim": "redacted/image.png"}, {"i": "157", "fn": "Niklas", "n": "Stark", "tid":
+        "10", "pos": 2, "st": 0, "mvt": 2, "mv": 2821595, "ofc": 0, "exs": 11139,
+        "prc": 2821595, "isn": false, "iposl": false, "dt": "2026-09-22T12:41:38Z",
+        "pim": "redacted/image.png"}, {"i": "737", "fn": "Luca", "n": "Waldschmidt",
+        "tid": "28", "pos": 3, "st": 0, "mvt": 2, "mv": 1005207, "p": -4, "ap": -4,
+        "ofc": 0, "exs": 148259, "prc": 1005207, "isn": true, "iposl": false, "dt":
+        "2026-09-23T10:45:58Z", "pim": "redacted/image.png"}, {"i": "1012", "fn":
+        "Edin", "n": "D\u017eeko", "tid": "8", "pos": 4, "st": 0, "mvt": 2, "mv":
+        4329635, "p": 59, "ap": 20, "ofc": 0, "exs": 72099, "prc": 4329635, "isn":
+        false, "iposl": false, "dt": "2026-09-22T23:50:38Z", "pim": "redacted/image.png"},
+        {"i": "1553", "fn": "Janik", "n": "Haberer", "tid": "40", "pos": 3, "st":
+        0, "mvt": 2, "mv": 4272054, "p": 42, "ap": 11, "ofc": 0, "exs": 41278, "prc":
+        4272054, "isn": false, "iposl": false, "dt": "2026-09-22T20:23:57Z", "pim":
+        "redacted/image.png"}, {"i": "1689", "fn": "Benjamin", "n": "Henrichs", "tid":
+        "43", "pos": 2, "st": 0, "mvt": 1, "mv": 7011249, "p": 122, "ap": 41, "ofc":
+        0, "exs": 21059, "prc": 7011249, "isn": false, "iposl": false, "dt": "2026-09-22T00:56:58Z",
+        "pim": "redacted/image.png"}, {"i": "1809", "fn": "Marius", "n": "Wolf", "tid":
+        "13", "pos": 3, "st": 0, "mvt": 2, "mv": 8811078, "p": 444, "ap": 111, "ofc":
+        0, "u": {"i": "9999999", "n": "Redacted", "uim": "redacted/image.png", "isvf":
+        false, "vft": 0, "st": 0}, "prc": 9200000, "isn": true, "iposl": false, "dt":
+        "2026-09-23T13:31:57Z", "pim": "redacted/image.png"}, {"i": "2172", "fn":
+        "Chris", "n": "F\u00fchrich", "tid": "9", "pos": 3, "st": 0, "mvt": 2, "mv":
+        17047077, "p": 181, "ap": 60, "ofc": 0, "exs": 145289, "prc": 17047077, "isn":
+        true, "iposl": false, "dt": "2026-09-23T15:12:28Z", "pim": "redacted/image.png"},
+        {"i": "2300", "fn": "Josip", "n": "Stani\u0161i\u0107", "tid": "2", "pos":
+        2, "st": 0, "mvt": 1, "mv": 16591375, "p": 319, "ap": 106, "ofc": 0, "exs":
+        135421, "prc": 16591375, "isn": true, "iposl": false, "dt": "2026-09-23T06:23:00Z",
+        "pim": "redacted/image.png"}, {"i": "2804", "fn": "Jamal", "n": "Musiala",
+        "tid": "2", "pos": 3, "st": 0, "mvt": 1, "mv": 26056187, "p": 446, "ap": 149,
+        "ofc": 0, "exs": 33779, "prc": 26056187, "isn": false, "iposl": false, "dt":
+        "2026-09-23T03:06:58Z", "pim": "redacted/image.png"}, {"i": "3158", "fn":
+        "Fisnik", "n": "Asllani", "tid": "14", "pos": 4, "st": 0, "mvt": 1, "mv":
+        15900243, "p": 67, "ap": 34, "ofc": 0, "exs": 60349, "prc": 15900243, "isn":
+        true, "iposl": false, "dt": "2026-09-23T05:20:48Z", "pim": "redacted/image.png"},
+        {"i": "3166", "fn": "Keke", "n": "Topp", "tid": "10", "pos": 4, "st": 4, "mvt":
+        0, "mv": 500000, "ofc": 0, "exs": 118139, "prc": 500000, "isn": true, "iposl":
+        false, "dt": "2026-09-23T16:22:58Z", "pim": "redacted/image.png"}, {"i": "4318",
+        "fn": "Tim", "n": "Oermann", "tid": "7", "pos": 2, "st": 0, "mvt": 2, "mv":
+        738658, "ofc": 0, "exs": 57384, "prc": 738658, "isn": false, "iposl": false,
+        "dt": "2026-09-22T11:39:23Z", "pim": "redacted/image.png"}, {"i": "6745",
+        "fn": "Victor", "n": "Boniface", "tid": "7", "pos": 4, "st": 0, "mvt": 2,
+        "mv": 2889401, "p": 43, "ap": 43, "ofc": 0, "exs": 156487, "prc": 2889401,
+        "isn": true, "iposl": false, "dt": "2026-09-23T14:09:06Z", "pim": "redacted/image.png"},
+        {"i": "7963", "fn": "Jarell", "n": "Quansah", "tid": "7", "pos": 2, "st":
+        0, "mvt": 2, "mv": 16717275, "p": 400, "ap": 100, "ofc": 0, "exs": 147799,
+        "prc": 16717275, "isn": true, "iposl": false, "dt": "2026-09-23T11:54:18Z",
+        "pim": "redacted/image.png"}, {"i": "8061", "fn": "Johan", "n": "Bakayoko",
+        "tid": "43", "pos": 4, "st": 2, "mvt": 2, "mv": 4412716, "p": 48, "ap": 24,
+        "ofc": 0, "exs": 10013, "prc": 4412716, "isn": false, "iposl": false, "dt":
+        "2026-09-22T19:18:52Z", "pim": "redacted/image.png"}, {"i": "8984", "fn":
+        "Nyamekye", "n": "Awortwie-Grant", "tid": "29", "pos": 2, "st": 4, "mvt":
+        0, "mv": 500000, "ofc": 0, "exs": 11404, "prc": 500000, "isn": false, "iposl":
+        false, "dt": "2026-09-22T10:32:03Z", "pim": "redacted/image.png"}, {"i": "10106",
+        "fn": "Marin", "n": "Ljubi\u010di\u0107", "tid": "40", "pos": 4, "st": 0,
+        "mvt": 2, "mv": 3234700, "p": 4, "ap": 1, "ofc": 0, "exs": 387, "prc": 3234700,
+        "isn": false, "iposl": false, "dt": "2026-09-22T18:11:26Z", "pim": "redacted/image.png"},
+        {"i": "11100", "fn": "Samuele", "n": "In\u00e1cio", "tid": "3", "pos": 3,
+        "st": 0, "mvt": 1, "mv": 5813189, "p": -60, "ap": -60, "ofc": 0, "exs": 45068,
+        "prc": 5813189, "isn": false, "iposl": false, "dt": "2026-09-22T17:01:07Z",
+        "pim": "redacted/image.png"}, {"i": "12297", "fn": "Satoshi", "n": "Tanaka",
+        "tid": "8", "pos": 3, "st": 0, "mvt": 2, "mv": 8370212, "p": 260, "ap": 87,
+        "ofc": 0, "exs": 74482, "prc": 8370212, "isn": false, "iposl": false, "dt":
+        "2026-09-23T04:11:21Z", "pim": "redacted/image.png"}], "nps": 8, "tv": 148767974,
+        "mvud": "2026-09-23T20:00:00Z", "dt": "2026-10-09T18:30:00Z", "day": 5, "sn":
+        "26/27"}'
     headers:
       cache-control:
       - no-store, no-cache
@@ -103,11 +99,11 @@ interactions:
       connection:
       - keep-alive
       content-length:
-      - '5689'
+      - '5376'
       content-type:
       - application/json; charset=utf-8
       date:
-      - Mon, 31 Aug 2026 11:01:23 GMT
+      - Wed, 23 Sep 2026 16:22:59 GMT
       server:
       - cloudflare
       transfer-encoding:

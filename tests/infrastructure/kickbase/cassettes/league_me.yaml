@@ -1,0 +1,54 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      cookie:
+      - REDACTED_COOKIE
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/me
+  response:
+    body:
+      string: '{"b": -380069.0, "bs": 3, "mppu": 16, "un": 81, "adm": false, "cpi":
+        "1", "lnm": "Noob_League", "tpc": [{"tid": "2", "npt": 2, "tim": "content/file/ff70df040a9f4179a7b45219225a2273.svg"},
+        {"tid": "28", "npt": 1, "tim": "content/file/dca70c4089fd4623932b245c0e81eaba.svg"},
+        {"tid": "29", "npt": 1, "tim": "content/file/ce455adfd794457f9ab90f7bab522812.svg"},
+        {"tid": "4", "npt": 1, "tim": "content/file/422de82bee3b47eb898699d6d27095ba.svg"},
+        {"tid": "7", "npt": 1, "tim": "content/file/e06a055a6eaf4fd7bebfadb35037f957.svg"},
+        {"tid": "13", "npt": 2, "tim": "content/file/8d68c946b9774505b8292adfa910d0a0.svg"}],
+        "gpm": 1, "rnkm": 1, "mgc": 4, "mgm": 18, "hum": false, "isp": false, "cd":
+        "DE", "upe": false, "as2e": true, "isvf": false, "vft": 0}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '674'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:22:59 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

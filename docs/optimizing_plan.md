@@ -49,7 +49,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 ### Phase 0 — Discovery & Guardrails · Status: **offen**
 - [x] **P0-0.1** Endpoint-Discovery erweitern (`scripts/inspect_endpoints.py`)
 - [x] **P0-0.2** Die 5 offenen Fragen beantworten (-> §8) — F4/F5 geklärt, F1–F3 eingegrenzt
-- [ ] **P0-0.3** Cassettes neu aufnehmen (inkl. aktivem Listing + Gebot)
+- [x] **P0-0.3** Cassettes neu aufnehmen — 15 Cassettes, **aktives eigenes Listing dabei**, Gebots-Fall fehlt noch (braucht ein echtes Gebot, §8/F1)
 - [ ] **P0-0.4** Payload-Snapshot-Test bauen
 - [ ] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`)
 
@@ -396,6 +396,31 @@ Auswertung läuft über `scripts/answer_open_questions.py` — wertet F1–F5 ge
 **Wichtig:** eine Aufnahme **mit aktivem eigenen Listing und mindestens einem Gebot darauf** —
 sonst fehlt genau der Fall für P0-2. Redaktion läuft über `tests/infrastructure/kickbase/vcr_config.py`.
 **DoD:** neue Cassettes im Repo, `pytest` grün.
+
+> **[Plan-Ergänzung 2026-09-23] Die Redaktion hätte personenbezogene Daten durchgelassen.**
+> `_looks_like_user_context()` suchte nach `id` — Kickbase schreibt aber `i`. Damit wären mit den
+> neuen Endpunkten Klarnamen, Profilbild-URLs und **User-IDs fremder Mitspieler** aus `/ranking`
+> (`us[]`), dem `u`-Objekt im Market-Payload und `othnm` aus `/transfer` unredigiert ins Repo
+> gewandert. Ohne diese Korrektur hätte das Paket sein eigenes Versprechen („Redaktion läuft über
+> vcr_config.py") gebrochen.
+> **Umgesetzt:** Manager-Objekte werden über `uim`/`unm`/`profile`/`em` erkannt, Spieler-Objekte
+> über `pos`/`mv`/`pi`/`pn` — Spieler-Marker gewinnen, damit Spielernamen (öffentlich, von
+> Contract-Tests geprüft) erhalten bleiben. Fremde Manager-IDs werden deterministisch
+> pseudonymisiert, die eigene ID bleibt `FAKE_USER_ID`.
+> **Abgesichert durch** `tests/infrastructure/kickbase/test_cassette_privacy.py` — prüft die
+> Redaktionsfunktion gegen synthetische Payloads *und* jede eingecheckte Cassette.
+>
+> **Zweite Ergänzung:** die Contract-Tests hingen an Stückzahlen (`== 9` Spieler, `== 22`
+> Angebote, `budget > 0`). Diese Zahlen ändern sich mit jedem Transfer und jeder Stunde am Markt
+> — sie hätten bei jeder Neuaufnahme rot geleuchtet, ohne je einen Feldnamen-Drift zu zeigen.
+> Jetzt prüfen sie Struktur (Feld vorhanden, Typ, Wertebereich). Die echte Drift-Erkennung
+> leistet P0-0.5.
+
+**Aufgenommen 2026-09-23:** `login`, `leagues_selection`, `league_me`, `squad`, `market`,
+`matchdays`, `market_value` (über den Client) + `lineup`, `lineup_overview`, `league_squad`,
+`ranking`, `manager_transfer`, `competition_table`, `player_detail`, `player_performance`
+(roh, für P0-4/P1-8/P1-9/P2-11/P2-12).
+**Offen:** `market.yaml` mit `ofc > 0`. Das Skript meldet am Ende, ob der Fall dabei war.
 
 #### P0-0.4 — Payload-Snapshot-Test
 Neu: `tests/application/test_user_payload_snapshot.py` + `tests/application/snapshots/user_payload.json`.
@@ -755,6 +780,7 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 | 2026-09-23 | — | Plan erstellt | Recherche + Code-Audit abgeschlossen; 12 Defekte (§4), 5 offene Fragen (§8) |
 | 2026-09-23 | P0-0.1 | Discovery auf 16 Endpunkte erweitert, `scripts/dump_keys.py` neu | `/v4/leagues/{l}/settings` **existiert nicht** (HTTP 500 `NotFound`) — die Liga-Settings stehen in `/me` + `/leagues/{l}/squad`. GET auf `/market/{pid}/offers` → 405 (nur POST), GET `/market/{pid}` → 405 (nur DELETE) ⇒ das Gebots-Array kann nur im `/market`-Payload stecken. |
 | 2026-09-23 | P0-0.2 | F1-F5 gegen echte Payloads ausgewertet, `scripts/answer_open_questions.py` + `docs/api_notes.md` neu | **F4 beantwortet:** `mvud` ist der *nächste* Update-Zeitpunkt. **F5:** eigene Listings tragen kein `exs` - sie laufen nicht ab. **F2:** `prob=1` = sicherste Startelf, aber `prob` fehlt außerhalb der Spieltagswoche komplett -> P0-3 braucht eine Quellen-Kette. **F3:** nur st 0/2/4 real gesehen, kein 128 - nicht abschließbar, D6 unabhängig lösen. **F1:** kein Lese-Endpunkt für Gebote (405), braucht ein echtes Gebot. |
+| 2026-09-23 | P0-0.3 | 15 Cassettes neu aufgenommen, Redaktion gehärtet, Contract-Tests entzahlt | Die alte Redaktion erkannte Manager-Objekte nicht (`id` statt `i`) - Klarnamen und IDs fremder Mitspieler wären ins Repo gewandert. Neuer Privacy-Test sichert das ab. Cassette enthält ein aktives eigenes Listing, aber noch kein Gebot. |
 
 ---
 

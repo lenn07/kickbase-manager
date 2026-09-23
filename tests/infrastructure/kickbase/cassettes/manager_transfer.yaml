@@ -1,0 +1,86 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/managers/9999999/transfer
+  response:
+    body:
+      string: '{"u": "9999999", "unm": "Redacted", "it": [{"pi": "3176", "pn": "Ibrahimovi\u0107",
+        "tid": "13", "tty": 2, "trp": 9745521, "dt": "2026-09-23T13:28:19Z", "pim":
+        "redacted/image.png"}, {"pi": "6668", "pn": "Minjae", "tid": "2", "tty": 2,
+        "othnm": "Redacted", "trp": 12200000, "dt": "2026-09-23T12:46:13Z", "pim":
+        "redacted/image.png"}, {"pi": "2302", "pn": "Jeong", "tid": "40", "tty": 2,
+        "trp": 3268575, "dt": "2026-09-23T12:40:53Z", "pim": "redacted/image.png"},
+        {"pi": "14251", "pn": "Saibari", "tid": "2", "tty": 1, "trp": 28000000, "dt":
+        "2026-09-22T21:21:41Z", "pim": "redacted/image.png"}, {"pi": "12317", "pn":
+        "Adam", "tid": "77", "tty": 2, "trp": 899208, "dt": "2026-09-22T12:17:05Z",
+        "pim": "redacted/image.png"}, {"pi": "12317", "pn": "Adam", "tid": "77", "tty":
+        1, "trp": 1568521, "dt": "2026-09-17T13:25:38Z", "pim": "redacted/image.png"},
+        {"pi": "1809", "pn": "Wolf", "tid": "13", "tty": 1, "trp": 11000005, "dt":
+        "2026-09-15T08:13:22Z", "pim": "redacted/image.png"}, {"pi": "3232", "pn":
+        "Pfeiffer", "tid": "77", "tty": 2, "trp": 763244, "dt": "2026-09-15T05:27:56Z",
+        "pim": "redacted/image.png"}, {"pi": "13629", "pn": "G\u00fcther", "tid":
+        "40", "tty": 2, "trp": 977174, "dt": "2026-09-15T05:27:53Z", "pim": "redacted/image.png"},
+        {"pi": "12763", "pn": "Latte Lath", "tid": "40", "tty": 2, "trp": 7323331,
+        "dt": "2026-09-15T05:27:49Z", "pim": "redacted/image.png"}, {"pi": "17179",
+        "pn": "Nakuzola", "tid": "18", "tty": 2, "trp": 893153, "dt": "2026-09-15T05:27:46Z",
+        "pim": "redacted/image.png"}, {"pi": "12285", "pn": "Arrhov", "tid": "4",
+        "tty": 2, "trp": 648550, "dt": "2026-09-15T05:27:42Z", "pim": "redacted/image.png"},
+        {"pi": "12285", "pn": "Arrhov", "tid": "4", "tty": 1, "trp": 648550, "dt":
+        "2026-09-15T04:21:56Z", "pim": "redacted/image.png"}, {"pi": "17179", "pn":
+        "Nakuzola", "tid": "18", "tty": 1, "trp": 1116788, "dt": "2026-09-14T23:48:20Z",
+        "pim": "redacted/image.png"}, {"pi": "13629", "pn": "G\u00fcther", "tid":
+        "40", "tty": 1, "trp": 1110727, "dt": "2026-09-14T03:50:39Z", "pim": "redacted/image.png"},
+        {"pi": "3232", "pn": "Pfeiffer", "tid": "77", "tty": 1, "trp": 1023125, "dt":
+        "2026-09-13T19:06:27Z", "pim": "redacted/image.png"}, {"pi": "13806", "pn":
+        "Seol", "tid": "13", "tty": 2, "trp": 2589060, "dt": "2026-09-13T13:06:45Z",
+        "pim": "redacted/image.png"}, {"pi": "2400", "pn": "Trimmel", "tid": "40",
+        "tty": 2, "trp": 2162586, "dt": "2026-09-11T07:10:42Z", "pim": "redacted/image.png"},
+        {"pi": "13806", "pn": "Seol", "tid": "13", "tty": 1, "trp": 2796539, "dt":
+        "2026-09-11T06:10:55Z", "pim": "redacted/image.png"}, {"pi": "11262", "pn":
+        "Musah", "tid": "10", "tty": 2, "trp": 3568603, "dt": "2026-09-10T15:10:44Z",
+        "pim": "redacted/image.png"}, {"pi": "2400", "pn": "Trimmel", "tid": "40",
+        "tty": 1, "trp": 2396006, "dt": "2026-09-10T12:18:00Z", "pim": "redacted/image.png"},
+        {"pi": "11262", "pn": "Musah", "tid": "10", "tty": 1, "trp": 3568603, "dt":
+        "2026-09-10T10:38:05Z", "pim": "redacted/image.png"}, {"pi": "2399", "pn":
+        "Maloney", "tid": "18", "tty": 2, "trp": 2388653, "dt": "2026-09-09T11:20:13Z",
+        "pim": "redacted/image.png"}, {"pi": "461", "pn": "Chandler", "tid": "4",
+        "tty": 2, "trp": 930275, "dt": "2026-09-09T11:20:08Z", "pim": "redacted/image.png"},
+        {"pi": "3176", "pn": "Ibrahimovi\u0107", "tid": "13", "tty": 1, "trp": 7200000,
+        "dt": "2026-09-09T10:22:56Z", "pim": "redacted/image.png"}]}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '3755'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:01 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,71 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/squad
+  response:
+    body:
+      string: '{"it": [{"mvgl": -181730, "i": "1991", "n": "Upamecano", "lo": 2, "lst":
+        1, "st": 0, "stl": [], "mdst": 0, "pos": 2, "mv": 33697577, "mvt": 1, "p":
+        712, "ap": 178, "iotm": false, "ofc": 0, "tid": "2", "sdmvt": 7367, "tfhmvt":
+        5697, "pim": "redacted/image.png"}, {"mvgl": -1561169, "i": "12321", "n":
+        "Simpson-Pusey", "lo": 1, "lst": 1, "st": 0, "stl": [], "mdst": 0, "pos":
+        2, "mv": 10827018, "mvt": 1, "p": 302, "ap": 76, "iotm": false, "ofc": 0,
+        "tid": "28", "sdmvt": 1021585, "tfhmvt": 175802, "pim": "redacted/image.png"},
+        {"mvgl": -508723, "i": "2977", "n": "Noll", "lo": 0, "lst": 1, "st": 0, "stl":
+        [], "mdst": 0, "pos": 1, "mv": 13491277, "mvt": 1, "p": 504, "ap": 126, "iotm":
+        false, "ofc": 0, "tid": "29", "sdmvt": 368512, "tfhmvt": 89403, "pim": "redacted/image.png"},
+        {"mvgl": -4183499, "i": "6081", "n": "Uzun", "lo": 4, "lst": 1, "st": 0, "stl":
+        [], "mdst": 0, "pos": 3, "mv": 25816501, "mvt": 1, "p": 476, "ap": 119, "iotm":
+        false, "ofc": 0, "tid": "4", "sdmvt": 293984, "tfhmvt": 46185, "pim": "redacted/image.png"},
+        {"mvgl": 3140589, "i": "11956", "n": "Fern\u00e1ndez", "lo": 6, "lst": 1,
+        "st": 0, "stl": [], "mdst": 0, "pos": 3, "mv": 13140589, "mvt": 1, "p": 490,
+        "ap": 123, "iotm": false, "ofc": 0, "tid": "7", "sdmvt": 882298, "tfhmvt":
+        183939, "pim": "redacted/image.png"}, {"mvgl": 2578132, "i": "493", "n": "Gregoritsch",
+        "lo": 9, "lst": 1, "st": 0, "stl": [], "mdst": 0, "pos": 4, "mv": 15347905,
+        "mvt": 1, "p": 549, "ap": 137, "iotm": false, "ofc": 0, "tid": "13", "sdmvt":
+        1111634, "tfhmvt": 100079, "pim": "redacted/image.png"}, {"mvgl": -2188927,
+        "i": "1809", "n": "Wolf", "lo": 8, "lst": 1, "st": 0, "stl": [], "mdst": 0,
+        "pos": 3, "mv": 8811078, "mvt": 2, "p": 444, "ap": 111, "iotm": true, "ofc":
+        0, "tid": "13", "sdmvt": -1336985, "tfhmvt": -351210, "pim": "redacted/image.png"},
+        {"mvgl": -363971, "i": "14251", "n": "Saibari", "lo": 10, "lst": 1, "st":
+        0, "stl": [], "mdst": 0, "pos": 4, "mv": 27636029, "mvt": 1, "p": 581, "ap":
+        145, "iotm": false, "ofc": 0, "tid": "2", "sdmvt": -28299, "tfhmvt": 16019,
+        "pim": "redacted/image.png"}], "mppu": 16, "ua": "redacted/image.png", "prfu":
+        "redacted/image.png"}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '2137'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:01 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1

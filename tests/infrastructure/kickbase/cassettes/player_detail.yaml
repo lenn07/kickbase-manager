@@ -1,0 +1,63 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      authorization:
+      - REDACTED_TOKEN
+      connection:
+      - keep-alive
+      host:
+      - api.kickbase.com
+      user-agent:
+      - Kickbase/4.5.0 (iPhone; iOS 17.5.1; Scale/3.00)
+    method: GET
+    uri: https://api.kickbase.com/v4/leagues/1111111/players/1991
+  response:
+    body:
+      string: '{"i": "1991", "fn": "Dayot", "ln": "Upamecano", "shn": 2, "tid": "2",
+        "tn": "Bayern", "oui": "9999999", "st": 0, "stl": [], "pos": 2, "iposl": false,
+        "tp": 712, "ap": 178, "sec": 20285, "g": 1, "a": 0, "pes": 0, "cs": 0, "ph":
+        [{"hp": true, "p": 97}, {"hp": true, "p": 126}, {"hp": true, "p": 217}, {"hp":
+        true, "p": 272}], "mv": 33697577, "cv": 33600000, "tfhmvt": 5697, "mvt": 1,
+        "day": 4, "r": 0, "y": 2, "mdsum": [{"t1": "2", "t2": "40", "t1g": 7, "t2g":
+        0, "day": 4, "md": "2026-09-18T18:30:00Z", "cur": true, "mdst": 2, "mdln":
+        "4 Match Day", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/8f4c7c08ee9b4dca85c28260fc5917bd.svg"}, {"t1": "13",
+        "t2": "2", "t1g": 0, "t2g": 0, "day": 5, "md": "2026-10-10T13:30:00Z", "cur":
+        false, "mdst": 0, "mdln": "5 Match Day", "t1im": "content/file/8d68c946b9774505b8292adfa910d0a0.svg",
+        "t2im": "content/file/ff70df040a9f4179a7b45219225a2273.svg"}, {"t1": "2",
+        "t2": "43", "t1g": 0, "t2g": 0, "day": 6, "md": "2026-10-17T16:30:00Z", "cur":
+        false, "mdst": 0, "mdln": "6 Match Day", "t1im": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "t2im": "content/file/29ceb88867954b548ca9e27d39d050c2.svg"}], "stud": 240,
+        "smc": 4, "ismc": 4, "smdc": 4, "sl": true, "plpt": "Ligainsider", "plpurl":
+        "content/file/ef187fece16544febb50bd330706fd7d.png", "dt": "2026-01-26T16:45:48Z",
+        "opl": [], "pim": "redacted/image.png", "tim": "content/file/ff70df040a9f4179a7b45219225a2273.svg",
+        "uim": "redacted/image.png", "ua": "redacted/image.png", "plpim": "content/file/b36c5f8ae1dd468090b21208f3e48a8e.png",
+        "ts": "2026-09-21T10:07:43Z"}'
+    headers:
+      cache-control:
+      - no-store, no-cache
+      cf-cache-status:
+      - DYNAMIC
+      connection:
+      - keep-alive
+      content-length:
+      - '1526'
+      content-type:
+      - application/json; charset=utf-8
+      date:
+      - Wed, 23 Sep 2026 16:23:01 GMT
+      server:
+      - cloudflare
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+    status:
+      code: 200
+      message: OK
+version: 1
