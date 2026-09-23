@@ -56,7 +56,7 @@ def form_score(player: Player) -> float:
     sauber weiter, ohne dass kleine Werte im Rauschen verschwinden.
     Beispielwerte: 0 → 0, 20 → 0.20, 80 → 0.50, 160 → 0.67, 320 → 0.80.
     """
-    avg = max(0.0, player.average_points)
+    avg = max(0.0, player.average_points or 0.0)
     return avg / (avg + _FORM_HALF_SATURATION)
 
 
@@ -117,7 +117,7 @@ def compute_features(
 ) -> ScoreFeatures:
     return ScoreFeatures(
         form=form_score(player),
-        price_efficiency=price_efficiency_score(player.average_points, price),
+        price_efficiency=price_efficiency_score(player.average_points or 0.0, price),
         market_trend=market_trend_score(history),
         external_signal=_clip01(external_signal),
         injury_multiplier=injury_multiplier(player.status),

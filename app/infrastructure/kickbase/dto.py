@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import json as _json
+import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -29,6 +30,7 @@ from app.domain.models import (
     MarketValuePoint,
     Matchday,
     Player,
+    PlayerDetail,
     PlayerStatus,
     Position,
     Session,
@@ -36,10 +38,14 @@ from app.domain.models import (
     SquadPlayer,
 )
 
+_log = logging.getLogger(__name__)
+
 _DTO_CONFIG = ConfigDict(populate_by_name=True, extra="ignore")
 
 _POSITION_VALUES = frozenset(p.value for p in Position)
-_STATUS_VALUES = frozenset(s.value for s in PlayerStatus)
+# `UNKNOWN` ist ein Domain-Zustand, kein Wire-Wert — sonst würde ein `st: -1`
+# aus der API stillschweigend akzeptiert.
+_STATUS_VALUES = frozenset(s.value for s in PlayerStatus if s is not PlayerStatus.UNKNOWN)
 
 
 # ---------- Auth / User ----------
@@ -135,7 +141,23 @@ def _to_position(raw: int) -> Position:
 
 
 def _to_status(raw: int) -> PlayerStatus:
-    return PlayerStatus(raw) if raw in _STATUS_VALUES else PlayerStatus.FIT
+    """Mappt `st` auf den Domain-Status — Unbekanntes auf `UNKNOWN`, nie auf `FIT`.
+
+    Die `st`-Liste ist nicht nachweislich vollständig (Plan §8/F3: real gesehen
+    nur 0/2/4, die Doku nennt zusätzlich 128), und die Frage ist durch Sammeln
+    nicht abschließbar. Vorher landete jeder unbekannte Wert auf `FIT` — ein
+    gesperrter Spieler sah damit spielbereit aus, wurde aufgestellt und kostete
+    100 Punkte (Defekt D6). `UNKNOWN` ist ehrlich: der Enricher hängt ein
+    `missing_data`-Flag dran, statt eine Startelf-Chance zu erfinden.
+    """
+    if raw in _STATUS_VALUES:
+        return PlayerStatus(raw)
+    _log.warning(
+        "Unbekannter Kickbase-Spielerstatus st=%r — als UNKNOWN behandelt. "
+        "Wert in `PlayerStatus` ergänzen, sobald die Bedeutung geklärt ist (Plan §8/F3).",
+        raw,
+    )
+    return PlayerStatus.UNKNOWN
 
 
 class SquadPlayerDTO(BaseModel):
@@ -150,8 +172,10 @@ class SquadPlayerDTO(BaseModel):
     position: int = Field(default=0, validation_alias="pos")
     status: int = Field(default=0, validation_alias="st")
     market_value: Decimal = Field(default=Decimal(0), validation_alias="mv")
-    average_points: float = Field(default=0.0, validation_alias="ap")
-    total_points: int = Field(default=0, validation_alias="p")
+    # None statt 0.0: „kein Einsatz" und „0 Punkte erzielt" sind verschiedene
+    # Aussagen, und nur eine davon darf eine Kaufentscheidung tragen.
+    average_points: float | None = Field(default=None, validation_alias="ap")
+    total_points: int | None = Field(default=None, validation_alias="p")
     # `lo` = Lineup-Order (0..10 = Startelf-Slot laut Kickbase-App).
     lineup_order: int | None = Field(default=None, validation_alias="lo")
 
@@ -215,6 +239,16 @@ class MarketPlayerDTO(BaseModel):
     seller_id: str | None = Field(default=None, validation_alias="u")
     # `ofc` = Anzahl der Gebote auf dieses Listing.
     offer_count: int = Field(default=0, validation_alias="ofc")
+    # Leistungsdaten. Der Bot hat sie bis P0-3 hart auf 0 gesetzt und damit
+    # jeden Marktspieler ohne Datengrundlage bewertet (Defekt D4). 4 von 21
+    # Items der Cassette tragen die Felder nicht — dort bleibt es None.
+    average_points: float | None = Field(default=None, validation_alias="ap")
+    total_points: int | None = Field(default=None, validation_alias="p")
+    # `prob` = Startelf-Stufe 1..5, nur in der Spieltagswoche vorhanden (F2).
+    start_probability_raw: int | None = Field(default=None, validation_alias="prob")
+    # `isn` = neu am Markt, `dt` = Listing-Zeitpunkt.
+    is_new: bool = Field(default=False, validation_alias="isn")
+    listed_at: datetime | None = Field(default=None, validation_alias="dt")
 
     @field_validator("seller_id", mode="before")
     @classmethod
@@ -234,8 +268,8 @@ class MarketPlayerDTO(BaseModel):
             position=_to_position(self.position),
             status=_to_status(self.status),
             market_value=self.market_value,
-            average_points=0.0,
-            total_points=0,
+            average_points=self.average_points,
+            total_points=self.total_points,
         )
         return MarketPlayer(
             player=player,
@@ -243,6 +277,9 @@ class MarketPlayerDTO(BaseModel):
             expires_in_s=self.expires_in_s,
             seller_id=self.seller_id,
             offer_count=self.offer_count,
+            start_probability_raw=self.start_probability_raw,
+            is_new=self.is_new,
+            listed_at=self.listed_at,
             # Leer, bis der Feldname gegen ein echtes Gebot verifiziert ist
             # (Plan §8/F1). `offer_count` trägt die Information bis dahin.
             offers=(),
@@ -288,6 +325,25 @@ class MarketResponseDTO(BaseModel):
             matchday=self.matchday,
             squad_size=self.squad_size,
             season=self.season,
+        )
+
+
+class PlayerDetailDTO(BaseModel):
+    """`GET /v4/leagues/{l}/players/{p}` — nur der Teil, den P0-3 braucht."""
+
+    model_config = _DTO_CONFIG
+
+    id: str = Field(default="", validation_alias="i")
+    # `sl` = Startelf-Prognose als bool, `plpt` nennt die Quelle
+    # (aktuell „Ligainsider"). Ganzjährig verfügbar, anders als `prob`.
+    is_predicted_starter: bool | None = Field(default=None, validation_alias="sl")
+    prediction_source: str = Field(default="", validation_alias="plpt")
+
+    def to_domain(self, player_id: str) -> PlayerDetail:
+        return PlayerDetail(
+            player_id=self.id or player_id,
+            is_predicted_starter=self.is_predicted_starter,
+            prediction_source=self.prediction_source,
         )
 
 

@@ -15,9 +15,11 @@
   "incoming_offers": [],
   "market": [
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 71.0,
       "expires_at_iso": "2026-09-23T20:29:36+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-23T02:01:35+00:00",
       "listed_by": "kickbase",
       "listed_price": 6779912,
       "market_trend_1d_pct": 0.02,
@@ -26,8 +28,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 6779912,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Mitchell Weiser",
@@ -35,13 +36,16 @@
       "player_id": "43",
       "position": "DEF",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "10"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 43.0,
       "expires_at_iso": "2026-09-24T10:15:37+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T12:59:36+00:00",
       "listed_by": "kickbase",
       "listed_price": 3410857,
       "market_trend_1d_pct": null,
@@ -61,12 +65,15 @@
       "position": "MID",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "7"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-23T19:05:39+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T12:41:38+00:00",
       "listed_by": "kickbase",
       "listed_price": 2821595,
       "market_trend_1d_pct": null,
@@ -76,7 +83,7 @@
       "market_value": 2821595,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
-        "missing_data:avg_points_last5_using_season_avg",
+        "missing_data:avg_points_last5",
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
@@ -86,12 +93,15 @@
       "position": "DEF",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "10"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": -4.0,
       "expires_at_iso": "2026-09-25T09:10:59+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T10:45:58+00:00",
       "listed_by": "kickbase",
       "listed_price": 1005207,
       "market_trend_1d_pct": null,
@@ -111,12 +121,15 @@
       "position": "MID",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "28"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 20.0,
       "expires_at_iso": "2026-09-24T12:01:39+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T23:50:38+00:00",
       "listed_by": "kickbase",
       "listed_price": 4329635,
       "market_trend_1d_pct": null,
@@ -136,12 +149,15 @@
       "position": "STK",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "8"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 11.0,
       "expires_at_iso": "2026-09-24T03:27:58+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T20:23:57+00:00",
       "listed_by": "kickbase",
       "listed_price": 4272054,
       "market_trend_1d_pct": null,
@@ -161,12 +177,15 @@
       "position": "MID",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "40"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 41.0,
       "expires_at_iso": "2026-09-23T21:50:59+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T00:56:58+00:00",
       "listed_by": "kickbase",
       "listed_price": 7011249,
       "market_trend_1d_pct": 0.02,
@@ -175,8 +194,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 7011249,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Benjamin Henrichs",
@@ -184,13 +202,16 @@
       "player_id": "1689",
       "position": "DEF",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "43"
     },
     {
       "avg_points_last5": 111.0,
       "expires_at_iso": null,
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T13:31:57+00:00",
       "listed_by": "self",
       "listed_price": 9200000,
       "market_trend_1d_pct": 0.02,
@@ -199,8 +220,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 8811078,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Marius Wolf",
@@ -208,13 +228,16 @@
       "player_id": "1809",
       "position": "MID",
       "seller_id": "9999999",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "13"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 60.0,
       "expires_at_iso": "2026-09-25T08:21:29+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T15:12:28+00:00",
       "listed_by": "kickbase",
       "listed_price": 17047077,
       "market_trend_1d_pct": 0.02,
@@ -223,8 +246,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 17047077,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Chris Führich",
@@ -232,13 +254,16 @@
       "player_id": "2172",
       "position": "MID",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "9"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 106.0,
       "expires_at_iso": "2026-09-25T05:37:01+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T06:23:00+00:00",
       "listed_by": "kickbase",
       "listed_price": 16591375,
       "market_trend_1d_pct": 0.02,
@@ -247,8 +272,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 16591375,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Josip Stanišić",
@@ -256,13 +280,16 @@
       "player_id": "2300",
       "position": "DEF",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "2"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 149.0,
       "expires_at_iso": "2026-09-24T01:22:59+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-23T03:06:58+00:00",
       "listed_by": "kickbase",
       "listed_price": 26056187,
       "market_trend_1d_pct": 0.02,
@@ -271,8 +298,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 26056187,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Jamal Musiala",
@@ -280,13 +306,16 @@
       "player_id": "2804",
       "position": "MID",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "2"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 34.0,
       "expires_at_iso": "2026-09-24T08:45:49+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T05:20:48+00:00",
       "listed_by": "kickbase",
       "listed_price": 15900243,
       "market_trend_1d_pct": 0.02,
@@ -295,8 +324,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 15900243,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Fisnik Asllani",
@@ -304,13 +332,16 @@
       "player_id": "3158",
       "position": "STK",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "14"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-25T00:48:59+00:00",
       "injury_status": "out_of_squad",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T16:22:58+00:00",
       "listed_by": "kickbase",
       "listed_price": 500000,
       "market_trend_1d_pct": null,
@@ -320,7 +351,7 @@
       "market_value": 500000,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
-        "missing_data:avg_points_last5_using_season_avg",
+        "missing_data:avg_points_last5",
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
@@ -330,12 +361,15 @@
       "position": "STK",
       "seller_id": null,
       "start_probability_next": 0.15,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "10"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-24T07:56:24+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T11:39:23+00:00",
       "listed_by": "kickbase",
       "listed_price": 738658,
       "market_trend_1d_pct": null,
@@ -345,7 +379,7 @@
       "market_value": 738658,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
-        "missing_data:avg_points_last5_using_season_avg",
+        "missing_data:avg_points_last5",
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
@@ -355,12 +389,15 @@
       "position": "DEF",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "7"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 43.0,
       "expires_at_iso": "2026-09-25T11:28:07+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T14:09:06+00:00",
       "listed_by": "kickbase",
       "listed_price": 2889401,
       "market_trend_1d_pct": null,
@@ -380,12 +417,15 @@
       "position": "STK",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "7"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 100.0,
       "expires_at_iso": "2026-09-25T09:03:19+00:00",
       "injury_status": "fit",
+      "is_new_on_market": true,
+      "listed_at_iso": "2026-09-23T11:54:18+00:00",
       "listed_by": "kickbase",
       "listed_price": 16717275,
       "market_trend_1d_pct": 0.02,
@@ -394,8 +434,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 16717275,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Jarell Quansah",
@@ -403,13 +442,16 @@
       "player_id": "7963",
       "position": "DEF",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "7"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 24.0,
       "expires_at_iso": "2026-09-23T18:46:53+00:00",
       "injury_status": "questionable",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T19:18:52+00:00",
       "listed_by": "kickbase",
       "listed_price": 4412716,
       "market_trend_1d_pct": null,
@@ -429,12 +471,15 @@
       "position": "STK",
       "seller_id": null,
       "start_probability_next": 0.55,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "43"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-23T19:10:04+00:00",
       "injury_status": "out_of_squad",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T10:32:03+00:00",
       "listed_by": "kickbase",
       "listed_price": 500000,
       "market_trend_1d_pct": null,
@@ -444,7 +489,7 @@
       "market_value": 500000,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
-        "missing_data:avg_points_last5_using_season_avg",
+        "missing_data:avg_points_last5",
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
@@ -454,12 +499,15 @@
       "position": "DEF",
       "seller_id": null,
       "start_probability_next": 0.15,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "29"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 1.0,
       "expires_at_iso": "2026-09-23T16:06:27+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T18:11:26+00:00",
       "listed_by": "kickbase",
       "listed_price": 3234700,
       "market_trend_1d_pct": null,
@@ -479,12 +527,15 @@
       "position": "STK",
       "seller_id": null,
       "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "40"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": -60.0,
       "expires_at_iso": "2026-09-24T04:31:08+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-22T17:01:07+00:00",
       "listed_by": "kickbase",
       "listed_price": 5813189,
       "market_trend_1d_pct": 0.02,
@@ -493,8 +544,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 5813189,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Samuele Inácio",
@@ -502,13 +552,16 @@
       "player_id": "11100",
       "position": "MID",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "3"
     },
     {
-      "avg_points_last5": null,
+      "avg_points_last5": 87.0,
       "expires_at_iso": "2026-09-24T12:41:22+00:00",
       "injury_status": "fit",
+      "is_new_on_market": false,
+      "listed_at_iso": "2026-09-23T04:11:21+00:00",
       "listed_by": "kickbase",
       "listed_price": 8370212,
       "market_trend_1d_pct": 0.02,
@@ -517,8 +570,7 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 8370212,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Satoshi Tanaka",
@@ -526,7 +578,8 @@
       "player_id": "12297",
       "position": "MID",
       "seller_id": null,
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "8"
     }
   ],
@@ -570,14 +623,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 33697577,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Upamecano",
       "player_id": "1991",
       "position": "DEF",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "2",
       "total_points_season": 712
     },
@@ -594,14 +647,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 10827018,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Simpson-Pusey",
       "player_id": "12321",
       "position": "DEF",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "28",
       "total_points_season": 302
     },
@@ -618,14 +671,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 13491277,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Noll",
       "player_id": "2977",
       "position": "TW",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "29",
       "total_points_season": 504
     },
@@ -642,14 +695,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 25816501,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Uzun",
       "player_id": "6081",
       "position": "MID",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "4",
       "total_points_season": 476
     },
@@ -666,14 +719,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 13140589,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Fernández",
       "player_id": "11956",
       "position": "MID",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "7",
       "total_points_season": 490
     },
@@ -690,14 +743,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 15347905,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Gregoritsch",
       "player_id": "493",
       "position": "STK",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "13",
       "total_points_season": 549
     },
@@ -720,14 +773,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 8811078,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Wolf",
       "player_id": "1809",
       "position": "MID",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "13",
       "total_points_season": 444
     },
@@ -744,14 +797,14 @@
       "market_trend_7d_pct": 0.02,
       "market_value": 27636029,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
       "mv_max_30d": 33879307,
       "name": "Saibari",
       "player_id": "14251",
       "position": "STK",
-      "start_probability_next": 0.85,
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "2",
       "total_points_season": 581
     }

@@ -170,3 +170,22 @@ async def test_squad_carries_no_budget_or_team_value_fields() -> None:
 
     assert not hasattr(squad, "budget")
     assert not hasattr(squad, "team_value")
+
+
+async def test_get_player_detail_replays_the_lineup_prediction() -> None:
+    """`sl` ist Stufe 2 der Startelf-Kette und die einzige ganzjährige Quelle.
+
+    `prob` liefert Kickbase nur in der Spieltagswoche (Plan §8/F2) — ohne
+    diesen Endpunkt bliebe D5 an 11 von 14 Tagen unbehoben.
+    """
+    async with HttpxKickbaseClient(config=_fast_config()) as client:
+        with make_vcr("login").use_cassette("login.yaml"):
+            await client.login("redacted@example.com", "REDACTED_PASSWORD")
+        with make_vcr("player_detail").use_cassette("player_detail.yaml"):
+            detail = await client.get_player_detail(FAKE_LEAGUE_ID, "1991")
+
+    assert detail.player_id == "1991"
+    assert detail.is_predicted_starter is not None
+    # Die Herkunft wandert mit ins USER-JSON: eine Prognose ohne Quelle kann
+    # das Modell nicht gewichten.
+    assert detail.prediction_source

@@ -12,6 +12,7 @@ from app.domain.models import (
     MarketPlayer,
     MarketValuePoint,
     Player,
+    PlayerDetail,
     PlayerStatus,
     Position,
     Squad,
@@ -22,17 +23,27 @@ LEAGUE_ID = "L1"
 
 
 class FakeKickbase:
-    """Kickbase-Gateway-Fake — der Enricher ruft nur `get_market_value_history`."""
+    """Kickbase-Gateway-Fake für die beiden Endpunkte, die der Enricher anfasst.
+
+    `detail_calls` ist der eigentliche Prüfwert bei P0-3: jeder Eintrag darin
+    ist ein zusätzlicher HTTP-Request pro Tick, und §9 des Plans führt genau
+    das als Ban-Risiko.
+    """
 
     def __init__(
         self,
         *,
         history: dict[str, list[MarketValuePoint]] | None = None,
         raise_for: set[str] | None = None,
+        predicted_starters: dict[str, bool | None] | None = None,
+        detail_raise_for: set[str] | None = None,
     ) -> None:
         self.history = history or {}
         self.raise_for = raise_for or set()
+        self.predicted_starters = predicted_starters or {}
+        self.detail_raise_for = detail_raise_for or set()
         self.calls: list[str] = []
+        self.detail_calls: list[str] = []
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7
@@ -42,6 +53,17 @@ class FakeKickbase:
         if player_id in self.raise_for:
             raise TransportError("no history")
         return self.history.get(player_id, [])
+
+    async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
+        del league_id
+        self.detail_calls.append(player_id)
+        if player_id in self.detail_raise_for:
+            raise TransportError("no detail")
+        return PlayerDetail(
+            player_id=player_id,
+            is_predicted_starter=self.predicted_starters.get(player_id),
+            prediction_source="Ligainsider",
+        )
 
 
 def _player(

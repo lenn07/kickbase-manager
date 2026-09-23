@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -28,12 +29,13 @@ from app.application.ai_decision_engine import _build_user_payload
 from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord, RecentAction
 from app.application.player_enrichment import PlayerEnricher
 from app.application.run_tick_uc import _max_negative_allowed, _open_bids_total
-from app.domain.models import MarketPlayer, MarketValuePoint, Squad
+from app.domain.models import MarketPlayer, MarketValuePoint, PlayerDetail, Squad
 from app.domain.trade import TradeAction, TradeIntent
 from app.infrastructure.kickbase.dto import (
     LeagueMeDTO,
     MarketResponseDTO,
     MarketValueResponseDTO,
+    PlayerDetailDTO,
     SquadResponseDTO,
 )
 
@@ -98,16 +100,20 @@ def _build_context() -> DecisionContext:
     )
 
 
-class _StaticHistoryGateway:
-    """Liefert jedem Spieler dieselbe echte Marktwert-Serie.
+class _StaticGateway:
+    """Liefert jedem Spieler dieselbe echte Marktwert-Serie und dasselbe Detail.
 
     Der Enricher soll im Snapshot seinen echten Pfad laufen (Trendfenster,
-    `mv_max_30d`, `missing_data`-Flags) — nur die Datenquelle ist fixiert,
-    damit das Ergebnis reproduzierbar bleibt.
+    `mv_max_30d`, Startelf-Kette, `missing_data`-Flags) — nur die Datenquellen
+    sind fixiert, damit das Ergebnis reproduzierbar bleibt. Dass dadurch alle
+    Spieler dieselbe Startelf-Prognose bekommen, ist ein Artefakt des Fakes und
+    kein Befund; die Streuung prüft `test_prob_scale_spreads_the_start_probability`
+    gegen die Archiv-Stichprobe, in der `prob` wirklich enthalten ist.
     """
 
-    def __init__(self, history: list[MarketValuePoint]) -> None:
+    def __init__(self, history: list[MarketValuePoint], detail: PlayerDetail) -> None:
         self._history = history
+        self._detail = detail
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7
@@ -115,11 +121,16 @@ class _StaticHistoryGateway:
         del league_id, player_id, days
         return list(self._history)
 
+    async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
+        del league_id
+        return replace(self._detail, player_id=player_id)
+
 
 def _enrich(
     squad: Squad, market: tuple[MarketPlayer, ...], history: list[MarketValuePoint]
 ) -> dict[str, Any]:
-    enricher = PlayerEnricher(_StaticHistoryGateway(history))  # type: ignore[arg-type]
+    detail = PlayerDetailDTO.model_validate(load_cassette_payload("player_detail")).to_domain("x")
+    enricher = PlayerEnricher(_StaticGateway(history, detail))  # type: ignore[arg-type]
     return asyncio.run(enricher.enrich(FAKE_LEAGUE_ID, squad, market))
 
 
@@ -301,37 +312,85 @@ def test_both_clocks_are_in_the_payload(payload: dict[str, Any]) -> None:
     assert payload["minutes_until_mv_update"] is not None
 
 
-def test_market_players_always_have_a_start_probability(payload: dict[str, Any]) -> None:
-    """Invariante, kein Gap: ein fehlender Wert wäre schlimmer als ein grober."""
-    assert all(p["start_probability_next"] is not None for p in payload["market"])
+def test_every_start_probability_names_its_source(payload: dict[str, Any]) -> None:
+    """Invariante seit P0-3: entweder ein Wert **mit** Herkunft, oder ein Flag.
 
-
-@pytest.mark.xfail(
-    strict=True, reason="P0-3: Startelf-Signal ist eine Status-Pauschale (Defekt D5)"
-)
-def test_gap_market_start_probability_is_more_than_a_status_guess(payload: dict[str, Any]) -> None:
-    """D5 misst sich nicht an `is not None` — dieser Wert ist nie None.
-
-    Der Defekt ist, dass Ersatzkeeper und Stammspieler **denselben** Wert
-    bekommen, sobald beide `fit` sind: `_START_PROBABILITY_BY_STATUS` kennt nur
-    den Verletzungsstatus. Messbar wird das erst über die Streuung innerhalb
-    einer Statusgruppe — und darüber, dass das Heuristik-Flag verschwindet,
-    wenn eine echte Quelle (`prob` bzw. `sl`) gegriffen hat.
+    Der ursprüngliche Test forderte hier „nie None" — begründet damit, ein
+    fehlender Wert sei schlimmer als ein grober. Das steht im Widerspruch zu
+    §8/F2 und §9 des Plans („niemals ein erfundener Default"), und der Plan hat
+    recht: eine 0.5 für einen Spieler mit unbekanntem Status ist von einer
+    echten Prognose nicht zu unterscheiden, ein `null` mit Flag schon. Die
+    Invariante ist deshalb nicht „hat einen Wert", sondern „ist ehrlich über
+    das, was sie hat".
     """
-    fit = [p for p in payload["market"] if p["injury_status"] == "fit"]
-    assert len(fit) > 1, "Cassette ohne fitte Marktspieler — Test aussagelos"
+    for entry in payload["market"] + payload["squad"]:
+        source = entry["start_probability_source"]
+        assert source, f"{entry['player_id']}: Startelf-Prognose ohne Herkunftsangabe"
+        if entry["start_probability_next"] is None:
+            assert source == "none"
+            assert "missing_data:start_probability_next" in entry["missing_data_flags"]
+        else:
+            assert source != "none"
 
-    distinct = {p["start_probability_next"] for p in fit}
-    assert len(distinct) > 1, (
-        f"Alle {len(fit)} fitten Marktspieler haben denselben Wert {distinct} — "
-        "das ist der Verletzungsstatus, keine Startelf-Prognose."
+
+def test_start_probability_flags_only_the_players_it_guessed(payload: dict[str, Any]) -> None:
+    """Das Heuristik-Flag muss unterscheiden, sonst trägt es keine Information.
+
+    Vor P0-3 hing es an **jedem** Spieler — das Modell konnte daran nicht
+    erkennen, wann es der Prognose trauen darf. Jetzt steht es genau dort, wo
+    wirklich nur der Verletzungsstatus die Grundlage war.
+    """
+    flag = "missing_data:start_probability_next_heuristic"
+    for entry in payload["market"] + payload["squad"]:
+        guessed = entry["start_probability_source"] == "injury_status_heuristic"
+        assert (flag in entry["missing_data_flags"]) is guessed, (
+            f"{entry['player_id']}: Flag und Quelle widersprechen sich "
+            f"({entry['start_probability_source']!r})"
+        )
+    assert any(e["start_probability_source"] == "lineup_prediction" for e in payload["market"]), (
+        "Ohne `prob` muss die `sl`-Stufe greifen — sonst ist D5 für 11 von 14 "
+        "Tagen unbehoben (Plan §8/F2)."
     )
-    assert not any(
-        "missing_data:start_probability_next_heuristic" in p.get("missing_data_flags", [])
-        for p in fit
-    )
 
 
-@pytest.mark.xfail(strict=True, reason="P0-3: Marktspieler ohne Leistungsdaten (Defekt D4)")
 def test_gap_market_players_have_recent_form(payload: dict[str, Any]) -> None:
-    assert all(p["avg_points_last5"] is not None for p in payload["market"])
+    """Geschlossen mit P0-3 (Defekt D4). Formulierung gegenüber P0-0.4 korrigiert.
+
+    Die ursprüngliche Fassung lautete `all(avg_points_last5 is not None)` und
+    war **nicht erfüllbar**: 4 der 21 Marktspieler tragen weder `ap` noch `p`
+    im Payload (Spieler ohne Einsatz), und für die ist `null` die richtige
+    Antwort — ein erfundener Wert wäre genau der Fehler aus §9. Der Defekt war
+    nie „fehlt bei manchen", sondern „`to_market_player()` setzt für **alle**
+    hart 0". Gemessen wird deshalb: was Kickbase liefert, kommt an; was fehlt,
+    trägt ein Flag.
+    """
+    raw_by_id = {item["i"]: item for item in load_cassette_payload("market")["it"]}
+    with_data = [p for p in payload["market"] if raw_by_id[p["player_id"]].get("ap") is not None]
+    without = [p for p in payload["market"] if raw_by_id[p["player_id"]].get("ap") is None]
+
+    assert len(with_data) > len(without), "Stichprobe zu dünn — Test wäre aussagelos"
+    assert all(p["avg_points_last5"] is not None for p in with_data), (
+        "Kickbase liefert `ap`, der Payload zeigt es nicht — genau das war D4."
+    )
+    assert all("missing_data:avg_points_last5" in p["missing_data_flags"] for p in without), (
+        "Fehlende Leistungsdaten müssen als fehlend markiert sein, nicht als 0 getarnt."
+    )
+    # Die Werte müssen streuen: vorher war jeder Marktspieler auf 0 gesetzt und
+    # damit von jedem anderen ununterscheidbar.
+    assert len({p["avg_points_last5"] for p in with_data}) > 1
+
+
+def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> None:
+    """Ein Minuswert ist ein Datum — und ein besonders aussagekräftiges.
+
+    `_avg_points_proxy` filterte auf `> 0` und warf damit die beiden Spieler
+    mit negativem Saison-Ø (Platzverweis, Eigentor) in denselben Topf wie die
+    ohne jede Angabe. Wer -60 nicht sieht, kauft ihn.
+    """
+    negatives = [
+        p
+        for p in payload["market"]
+        if p["avg_points_last5"] is not None and p["avg_points_last5"] < 0
+    ]
+    assert negatives, "Cassette ohne negativen Saison-Ø — Test aussagelos"
+    assert all("missing_data:avg_points_last5" not in p["missing_data_flags"] for p in negatives)

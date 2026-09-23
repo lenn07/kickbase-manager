@@ -393,7 +393,11 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         "position": _POSITION_LABELS.get(player.position, "MID"),
         "team_id": player.team_id,
         "market_value": _int(player.market_value),
-        "average_points_season": round(player.average_points, 2),
+        # `null` statt 0, wenn Kickbase keine Punktedaten liefert — 0 hieße
+        # „hat gespielt und nichts gebracht", und das ist etwas anderes.
+        "average_points_season": (
+            round(player.average_points, 2) if player.average_points is not None else None
+        ),
         "total_points_season": player.total_points,
         "lineup_order": sp.lineup_order,
         "in_starting_xi": _is_starting_xi(sp),
@@ -405,6 +409,7 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         "mv_max_30d": enrichment.mv_max_30d if enrichment else None,
         "avg_points_last5": enrichment.avg_points_last5 if enrichment else None,
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
+        "start_probability_source": enrichment.start_probability_source if enrichment else None,
         "listing": _own_listing(listing) if listing else None,
     }
     if buy is not None:
@@ -458,6 +463,9 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
         "mv_max_30d": enrichment.mv_max_30d if enrichment else None,
         "avg_points_last5": enrichment.avg_points_last5 if enrichment else None,
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
+        "start_probability_source": enrichment.start_probability_source if enrichment else None,
+        "is_new_on_market": mp.is_new,
+        "listed_at_iso": _to_iso(mp.listed_at) if mp.listed_at else None,
     }
     if enrichment:
         entry["missing_data_flags"] = list(enrichment.missing_data_flags)
