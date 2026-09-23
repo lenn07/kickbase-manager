@@ -242,6 +242,20 @@ def test_own_listing_is_visible(payload: dict[str, Any]) -> None:
     listed = [p for p in payload["squad"] if p.get("listing")]
     assert listed, "Die Cassette enthält ein eigenes Listing — es muss im Payload auftauchen"
     assert listed[0]["listing"]["price"] > 0
+    # Seit P0-2: wie viele Manager bereits geboten haben. `has_offers` allein
+    # sagt nur ob, nicht wie stark — der Unterschied entscheidet zwischen
+    # „Listing halten" und „Preis nachziehen".
+    assert "offer_count" in listed[0]["listing"]
+
+
+def test_market_entries_show_the_bidding_competition(payload: dict[str, Any]) -> None:
+    """`offer_count` ist die Grundlage der Overbid-Kalibrierung (P2-13).
+
+    Ohne sie bietet der Bot gegen unbekannte Konkurrenz — der Aufschlag bliebe
+    die willkürliche „+15 %"-Konstante aus dem Prompt.
+    """
+    assert all("offer_count" in p for p in payload["market"])
+    assert all(isinstance(p["offer_count"], int) for p in payload["market"])
 
 
 # -- Gap-Assertions: das Definition-of-Done von Phase 1 -------------------

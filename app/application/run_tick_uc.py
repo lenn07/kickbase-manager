@@ -360,6 +360,12 @@ def _load_own_listings(
     dem letzten LIST_ON_MARKET-Log-Eintrag; ist keiner vorhanden (z. B. weil
     das Listing über die Kickbase-App angelegt wurde), bleibt es None und
     der Stale-Fallback stützt sich allein auf `expires_at`.
+
+    `has_offers` kommt seit P0-2 aus `ofc` und nicht mehr aus dem `offers`-Tupel
+    — das ist bis zur Klärung von F1 immer leer und hätte jedes eingegangene
+    Gebot als „keins" gemeldet. Genau daran hing der Stale-Fallback: Ein
+    Listing mit Bietern wäre in den Sofortverkauf gelaufen und hätte den
+    Bieterwettbewerb verschenkt.
     """
     own = [mp for mp in market if mp.seller_id == manager_id]
     if not own:
@@ -373,7 +379,8 @@ def _load_own_listings(
             listing_price=mp.price,
             listed_at=ts_by_player.get(pid),
             expires_at=mp.expires_at(now),
-            has_offers=bool(mp.offers),
+            has_offers=mp.has_offers,
+            offer_count=mp.offer_count,
         )
     return out
 

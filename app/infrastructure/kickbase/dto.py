@@ -17,6 +17,7 @@ import contextlib
 import json as _json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
@@ -187,9 +188,17 @@ class SquadResponseDTO(BaseModel):
 
 
 class MarketPlayerDTO(BaseModel):
-    """Spieler-Wire-Format im Markt (Struktur unterscheidet sich von Squad)."""
+    """Spieler-Wire-Format im Markt (Struktur unterscheidet sich von Squad).
 
-    model_config = _DTO_CONFIG
+    `extra="allow"` statt `ignore` — bewusst, und nur hier: das Gebots-Array
+    liegt irgendwo in diesem Objekt, und sein Name ist unbekannt, weil er erst
+    bei `ofc > 0` auftaucht (Plan §8/F1). Mit `ignore` würde pydantic es beim
+    ersten echten Gebot still verschlucken; mit `allow` steht es in
+    `model_extra` und `unknown_fields()` kann es melden. Der Fund kostet damit
+    keinen glücklich getimten manuellen Skriptlauf mehr.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="i")
     first_name: str = Field(default="", validation_alias="fn")
@@ -204,6 +213,8 @@ class MarketPlayerDTO(BaseModel):
     # `u` war früher die Seller-ID als String; seit einem API-Update kann es
     # auch ein User-Objekt sein (z. B. {"i": "...", "n": "...", "vft": 0, "st": 0}).
     seller_id: str | None = Field(default=None, validation_alias="u")
+    # `ofc` = Anzahl der Gebote auf dieses Listing.
+    offer_count: int = Field(default=0, validation_alias="ofc")
 
     @field_validator("seller_id", mode="before")
     @classmethod
@@ -231,8 +242,20 @@ class MarketPlayerDTO(BaseModel):
             price=self.price,
             expires_in_s=self.expires_in_s,
             seller_id=self.seller_id,
+            offer_count=self.offer_count,
+            # Leer, bis der Feldname gegen ein echtes Gebot verifiziert ist
+            # (Plan §8/F1). `offer_count` trägt die Information bis dahin.
             offers=(),
         )
+
+    def unknown_fields(self) -> dict[str, Any]:
+        """Felder, die dieses DTO (noch) nicht kennt — Rohwerte inklusive.
+
+        Einziger Zweck: den Namen des Gebots-Arrays festhalten, sobald Kickbase
+        es erstmals mitschickt. Wer das Ergebnis liest, sieht Name **und**
+        Struktur und kann F1 beantworten, ohne auf ein offenes Gebot zu warten.
+        """
+        return dict(self.model_extra or {})
 
 
 class MarketResponseDTO(BaseModel):

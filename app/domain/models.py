@@ -111,7 +111,24 @@ class MarketPlayer:
     price: Decimal
     expires_in_s: int | None
     seller_id: str | None  # None → Kickbase-eigener Angebotspool
+    # `ofc` = Anzahl abgegebener Gebote auf dieses Listing. Der billige
+    # Indikator: er sagt *dass* geboten wurde, lange bevor klar ist, *wie* das
+    # Gebots-Array im Payload heißt (Plan §8/F1). Auf eigenen Listings ist er
+    # das Signal „warten statt Sofortverkauf", auf fremden ein Konkurrenzmaß.
+    offer_count: int = 0
+    # Die Gebote selbst. Bleibt leer, bis der Feldname gegen ein echtes Gebot
+    # verifiziert ist — ein geratenes Array wäre schlimmer als keins, weil
+    # `ACCEPT_OFFER` dann mit einer erfundenen ID rausginge.
     offers: tuple[MarketOffer, ...] = ()
+
+    @property
+    def has_offers(self) -> bool:
+        """Liegt mindestens ein Gebot vor?
+
+        Stützt sich auf `ofc`, **nicht** auf `offers`: das Array ist bis zur
+        Klärung von F1 immer leer, der Zähler ist echt.
+        """
+        return self.offer_count > 0 or bool(self.offers)
 
     def expires_at(self, now: datetime) -> datetime | None:
         if self.expires_in_s is None:

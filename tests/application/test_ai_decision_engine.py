@@ -434,3 +434,169 @@ async def test_starting_xi_count_reflects_lineup_order(
     assert len(bench_in_payload) == 2
     assert bench_in_payload[0]["lineup_order"] == 15
     assert bench_in_payload[1]["lineup_order"] is None
+
+
+# -- P0-2: erfundene IDs kommen nicht durch -------------------------------
+
+
+async def test_accept_offer_with_an_unknown_offer_id_becomes_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Der teuerste Halluzinations-Fall: ein Gebot annehmen, das es nicht gibt.
+
+    Solange der Feldname des Gebots-Arrays offen ist (Plan §8/F1), ist
+    `incoming_offers` leer — jede vom Modell genannte `offer_id` ist erfunden.
+    Ohne diese Prüfung ginge sie an Kickbase.
+    """
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt",
+        lambda: "SYS",
+    )
+    squad_player = SquadPlayer(player=_player("s1"), lineup_order=0)
+    llm = FakeLlm(
+        response={
+            "action": "ACCEPT_OFFER",
+            "player_id": "s1",
+            "offer_id": "off_1",
+            "price": 0,
+            "intent": "PROFIT",
+            "confidence": 0.9,
+            "reason_short": "gutes Gebot",
+            "reason_long": "Preis liegt über dem Zielwert.",
+            "expected_outcome": {
+                "points_delta_next_matchday": 0,
+                "profit_estimate": 1_000_000,
+                "balance_after_action": 4_500_000,
+                "balance_after_open_bids": 4_500_000,
+            },
+            "risk_flags": [],
+        }
+    )
+    engine = AiDecisionEngine(llm=llm, api_key="sk-ant-test")
+
+    decision = await engine.decide(_context(squad_players=(squad_player,)))
+
+    assert decision.action is TradeAction.HOLD
+    assert "unbekannter offer_id" in decision.reason
+
+
+async def test_buy_for_a_player_who_is_not_on_the_market_becomes_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ein Gebot auf einen Spieler, der nicht gelistet ist, ist ein toter Tick."""
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt",
+        lambda: "SYS",
+    )
+    llm = FakeLlm(
+        response={
+            "action": "BUY",
+            "player_id": "geistesblitz",
+            "price": 5_000_000,
+            "intent": "POINTS",
+            "confidence": 0.8,
+            "reason_short": "stark",
+            "reason_long": "Formkurve steigt.",
+            "expected_outcome": {
+                "points_delta_next_matchday": 40,
+                "profit_estimate": 0,
+                "balance_after_action": -1_500_000,
+                "balance_after_open_bids": -1_500_000,
+            },
+            "risk_flags": [],
+        }
+    )
+    engine = AiDecisionEngine(llm=llm, api_key="sk-ant-test")
+
+    decision = await engine.decide(_context(market=()))
+
+    assert decision.action is TradeAction.HOLD
+    assert "nicht am Markt" in decision.reason
+
+
+async def test_sell_for_a_player_who_is_not_in_the_squad_becomes_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt",
+        lambda: "SYS",
+    )
+    llm = FakeLlm(
+        response={
+            "action": "SELL_INSTANT",
+            "player_id": "fremder",
+            "price": 0,
+            "intent": "DEBT_RELIEF",
+            "confidence": 0.7,
+            "reason_short": "Konto ins Plus",
+            "reason_long": "Deadline in 40 Minuten.",
+            "expected_outcome": {
+                "points_delta_next_matchday": -20,
+                "profit_estimate": 0,
+                "balance_after_action": 500_000,
+                "balance_after_open_bids": 500_000,
+            },
+            "risk_flags": [],
+        }
+    )
+    engine = AiDecisionEngine(llm=llm, api_key="sk-ant-test")
+
+    decision = await engine.decide(_context(squad_players=()))
+
+    assert decision.action is TradeAction.HOLD
+    assert "nicht im Kader" in decision.reason
+
+
+async def test_accept_offer_passes_once_the_offer_is_really_in_the_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Die Sperre ist kein Verbot, sondern eine Deckungsprüfung.
+
+    Sobald Kickbase echte Gebote liefert (nach F1), muss `ACCEPT_OFFER` wieder
+    durchgehen — sonst wäre die Aktion dauerhaft tot.
+    """
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt",
+        lambda: "SYS",
+    )
+    squad_player = SquadPlayer(player=_player("s1"), lineup_order=0)
+    offer = MarketOffer(
+        id="off_1",
+        user_id="8012345",
+        user_name="Rival",
+        price=Decimal(9_300_000),
+        valid_until=None,
+    )
+    listing = MarketPlayer(
+        player=squad_player.player,
+        price=Decimal(9_200_000),
+        expires_in_s=None,
+        seller_id=MANAGER_ID,
+        offer_count=1,
+        offers=(offer,),
+    )
+    llm = FakeLlm(
+        response={
+            "action": "ACCEPT_OFFER",
+            "player_id": "s1",
+            "offer_id": "off_1",
+            "price": 0,
+            "intent": "PROFIT",
+            "confidence": 0.9,
+            "reason_short": "über Zielwert",
+            "reason_long": "Gebot liegt über Marktwert.",
+            "expected_outcome": {
+                "points_delta_next_matchday": 0,
+                "profit_estimate": 1_000_000,
+                "balance_after_action": 8_900_000,
+                "balance_after_open_bids": 8_900_000,
+            },
+            "risk_flags": [],
+        }
+    )
+    engine = AiDecisionEngine(llm=llm, api_key="sk-ant-test")
+
+    decision = await engine.decide(_context(squad_players=(squad_player,), market=(listing,)))
+
+    assert decision.action is TradeAction.ACCEPT_OFFER
+    assert decision.offer_id == "off_1"

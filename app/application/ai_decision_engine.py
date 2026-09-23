@@ -192,6 +192,7 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
     reason = _compose_reason(tool_input)
 
     _validate_action_shape(action, player_id, offer_id, price)
+    _validate_against_context(action, player_id, offer_id, context)
 
     if action is TradeAction.HOLD:
         return TradeDecision.hold(reason)
@@ -231,6 +232,48 @@ def _validate_action_shape(
         raise _InvalidDecisionError(f"{action.value} ohne gültigen Preis")
     if action in _OFFER_REQUIRED and not offer_id:
         raise _InvalidDecisionError(f"{action.value} ohne offer_id")
+
+
+def _validate_against_context(
+    action: TradeAction,
+    player_id: str | None,
+    offer_id: str | None,
+    context: DecisionContext,
+) -> None:
+    """Prüft die vom Modell genannten IDs gegen den Kontext, den es bekommen hat.
+
+    Ein Sprachmodell kann eine plausible ID erfinden. Ohne diese Prüfung geht
+    sie an Kickbase — `ACCEPT_OFFER` mit einer erfundenen `offer_id` ist der
+    teuerste Fall: der Tick ist verbraucht, der Fehler steht als Executor-Error
+    im Log, und niemand weiß, ob das Gebot nun angenommen wurde.
+
+    Solange der Feldname des Gebots-Arrays offen ist (Plan §8/F1), ist
+    `incoming_offers` **immer** leer. Damit sperrt diese Prüfung
+    `ACCEPT_OFFER`/`DECLINE_OFFER` automatisch — das ist die Absicherung, die
+    der Plan bei P0-2 als „vorher nicht scharf schalten" beschreibt, hier als
+    Code statt als Merkzettel. Sobald echte Gebote im Payload stehen, öffnet
+    sie sich von selbst.
+    """
+    if action in _OFFER_REQUIRED:
+        known = {offer.id for mp in context.market for offer in mp.offers}
+        if offer_id not in known:
+            raise _InvalidDecisionError(
+                f"{action.value} mit unbekannter offer_id {offer_id!r} — im Kontext standen "
+                f"{len(known)} Gebote. Ein Gebot, das der Bot nicht gesehen hat, darf er nicht "
+                "annehmen oder ablehnen."
+            )
+        return
+
+    if action is TradeAction.BUY:
+        if player_id not in {mp.player.id for mp in context.market}:
+            raise _InvalidDecisionError(f"BUY auf Spieler {player_id!r}, der nicht am Markt ist")
+        return
+
+    in_squad = player_id in {sp.player.id for sp in context.squad.players}
+    if action in {TradeAction.SELL, TradeAction.LIST_ON_MARKET} and not in_squad:
+        raise _InvalidDecisionError(
+            f"{action.value} für Spieler {player_id!r}, der nicht im Kader steht"
+        )
 
 
 def _compose_reason(tool_input: dict[str, Any]) -> str:
@@ -386,6 +429,7 @@ def _own_listing(listing: Any) -> dict[str, Any]:
         "listed_at_iso": _to_iso(listing.listed_at) if listing.listed_at else None,
         "expires_at_iso": _to_iso(listing.expires_at) if listing.expires_at else None,
         "has_offers": bool(listing.has_offers),
+        "offer_count": int(listing.offer_count),
     }
 
 
@@ -403,6 +447,9 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
         "expires_at_iso": _to_iso(expires_at) if expires_at else None,
         "listed_by": _listed_by(mp, context),
         "seller_id": mp.seller_id,
+        # Konkurrenz auf diesem Listing: je höher, desto eher braucht ein
+        # eigenes Gebot einen Aufschlag (Grundlage für P2-13).
+        "offer_count": mp.offer_count,
         "injury_status": enrichment.injury_status if enrichment else "unknown",
         "market_trend_1d_pct": enrichment.market_trend_1d_pct if enrichment else None,
         "market_trend_3d_pct": enrichment.market_trend_3d_pct if enrichment else None,
