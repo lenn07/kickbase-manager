@@ -23,6 +23,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -195,7 +196,16 @@ async def _fetch_endpoint(
             data = resp.json()
         except ValueError:
             data = {"_non_json_body": resp.text[:2000]}
-    _write(out_dir, endpoint.name, {"_status": resp.status_code, "_path": path, **_as_dict(data)})
+    _write(
+        out_dir,
+        endpoint.name,
+        {
+            "_status": resp.status_code,
+            "_path": path,
+            "_fetched_at": datetime.now(UTC).isoformat(),
+            **_as_dict(data),
+        },
+    )
     mark = "✓" if resp.status_code < _HTTP_ERROR else "✗"
     print(f"  {mark} {endpoint.name}.json ({resp.status_code}, {len(resp.content)} bytes)")
 

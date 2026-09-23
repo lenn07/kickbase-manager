@@ -2,6 +2,9 @@
 
 Dockerisierter, KI-gestützter Auto-Manager für [Kickbase](https://www.kickbase.com/).
 Details zu Anforderungen, Architektur und Roadmap in [`PROJEKT.md`](./PROJEKT.md).
+Der laufende Optimierungsplan (Phasen P0–P2, Fortschritts-Board, verifiziertes Kickbase-Regelwerk,
+Defekt-Register) steht in [`docs/optimizing_plan.md`](./docs/optimizing_plan.md).
+Einstieg aus einem neuen Chat: **„starte Phase 0 des Optimizing-Plans"**.
 
 > ⚠️ **Hinweis:** Nutzt eine inoffizielle Kickbase-API. Nur Privatnutzung, Account-Ban-Risiko liegt beim Betreiber.
 
