@@ -55,8 +55,8 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-0.6** Eval-Gerüst + `eval`-Marker  ⟵ *[Plan-Ergänzung, siehe §6]*
 - [x] **P0-0.7** Verifikation gegen echte Calls + Korrekturen  ⟵ *[Plan-Ergänzung, siehe §6]*
 
-### Phase 1 — P0: Bot handlungsfähig machen · Status: **offen**
-- [ ] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
+### Phase 1 — P0: Bot handlungsfähig machen · Status: **in Arbeit**
+- [x] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
 - [ ] **P0-2** Gebote parsen (Offers-Array)
 - [ ] **P0-3** Marktspieler-Leistungsdaten + `prob`
 - [ ] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`)
@@ -933,6 +933,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-0.7 | **Ergaenzung:** alles gegen echte Calls verifiziert | Eval meldete mit ungueltigem Key 5 von 6 Tests gruen (Preflight + Fallback-Guard ergaenzt). F2-Belegdaten waren durch die Cassette-Neuaufnahme zerstoert (Archiv-Stichprobe angelegt). `temperature=0` war ungeprueft. Live-Payload ist strukturgleich mit dem Snapshot. Betriebsbefunde in §9.1. |
 | 2026-09-23 | — | Kontroll-Tick nach Key-Erneuerung (`POST /api/scheduler/trigger`, dry_run=1) | Voller pfad gruen: echter modell-call in ~20 s, HOLD mit schluessiger begruendung, trade_log id 5 mit `dry_run: true`. **D1 empirisch belegt:** das LLM nennt `max_negative_allowed=0` selbst als kaufblocker, obwohl real ~49 Mio minus erlaubt waeren. |
 | 2026-09-23 | P0-0.6 | Eval-Suite erstmals mit gueltigem key ausgefuehrt | 6/6 gruen, 12 calls, 2:44 min, kein fallback. der aktuelle master-prompt besteht alle drei szenarien trotz der fehler aus §4.1. ausgabe der gewaehlten aktionen nachgeruestet (`-s`), sonst verschenkt ein bezahlter lauf seinen befund. |
+| 2026-09-23 | P0-1 | Team-Value & Markt-Metadaten, `MarketSnapshot`, `Squad.team_value`/`budget` entfernt | **D1 geschlossen:** `team_value` 0 -> 148.767.974, `max_negative_allowed` 0 -> -48.968.009 im Payload. **Loop-Stopp aus dem Plan geprueft:** `mvud` ist der *naechste* Update-Zeitpunkt (Cassette 16:09 Z -> `mvud` 20:00 Z), §3.1 stimmt, P1-10 kann darauf bauen. `dt` aus dem Market-Root deckt sich exakt mit dem bisherigen `list_matchdays()`-Ergebnis (2026-10-09T18:30Z) -> **ein HTTP-Call weniger pro Tick**, Liste bleibt Fallback fuer veraltetes `dt`. Die in P0-0.4 vorgemerkte Zeitquelle ist mit umgezogen: `MarketPlayer` traegt jetzt das rohe `exs`, `expires_at(now)` rechnet damit — der Snapshot-Workaround `_market_with_fixed_expiry` konnte ersatzlos entfallen. Dashboard zeigte `squad.team_value` (immer 0) und laeuft jetzt ueber den Snapshot — bei **gleicher** Call-Zahl, weil `nps` die Kadergroesse gleich mitliefert. |
 
 ---
 

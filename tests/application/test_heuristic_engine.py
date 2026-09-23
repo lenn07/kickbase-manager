@@ -79,7 +79,7 @@ def _market(
     offers: tuple[MarketOffer, ...] = (),
 ) -> MarketPlayer:
     return MarketPlayer(
-        player=player, price=price, expires_at=None, seller_id=seller_id, offers=offers
+        player=player, price=price, expires_in_s=None, seller_id=seller_id, offers=offers
     )
 
 

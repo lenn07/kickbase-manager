@@ -9,7 +9,7 @@ from typing import Protocol, runtime_checkable
 from app.domain.models import (
     League,
     LeagueMe,
-    MarketPlayer,
+    MarketSnapshot,
     MarketValuePoint,
     Matchday,
     Session,
@@ -49,7 +49,14 @@ class KickbaseGateway(Protocol):
 
     async def get_squad(self, league_id: str, manager_id: str) -> Squad: ...
 
-    async def get_market(self, league_id: str) -> list[MarketPlayer]: ...
+    async def get_market(self, league_id: str) -> MarketSnapshot:
+        """Transfermarkt **inkl. Root-Feldern** (Mannschaftswert, Spieltagsstart, …).
+
+        Gibt bewusst nicht nur die Listings zurück: `tv` (Mannschaftswert) und
+        `dt` (nächster Spieltagsstart) stehen in derselben Response. Wer nur
+        die Liste nimmt, wirft die 33 %-Regel-Basis weg — das war Defekt D1.
+        """
+        ...
 
     async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str: ...
 

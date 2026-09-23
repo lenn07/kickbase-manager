@@ -10,8 +10,6 @@ Die Cassettes wurden mit fake IDs geschrieben (siehe vcr_config.py):
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import pytest
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.kickbase.config import KickbaseClientConfig
@@ -92,16 +90,39 @@ async def test_get_market_replays_all_offers() -> None:
         with make_vcr("login").use_cassette("login.yaml"):
             await client.login("redacted@example.com", "REDACTED_PASSWORD")
         with make_vcr("market").use_cassette("market.yaml"):
-            market = await client.get_market(FAKE_LEAGUE_ID)
+            snapshot = await client.get_market(FAKE_LEAGUE_ID)
 
     # Die Anzahl der Angebote schwankt stündlich — geprüft wird das Wire-Format.
-    assert market
-    for mp in market:
+    assert snapshot.players
+    for mp in snapshot.players:
         assert mp.price >= 0
         assert mp.player.id != ""
         assert mp.player.market_value > 0
     # Kickbase-eigene Listings haben keinen Verkäufer, eigene/fremde schon.
-    assert any(mp.seller_id is None for mp in market)
+    assert any(mp.seller_id is None for mp in snapshot.players)
+
+
+async def test_get_market_carries_the_root_fields() -> None:
+    """Die Root-Felder sind der eigentliche Fund: sie tragen die 33 %-Regel.
+
+    `tv` ist die Basis des Minus-Spielraums, `dt` der Spieltagsstart (spart den
+    `list_matchdays`-Call) und `mvud` das nächste Marktwert-Update. Bis P0-1 hat
+    der Client sie alle weggeworfen (Defekt D1).
+    """
+    async with HttpxKickbaseClient(config=_fast_config()) as client:
+        with make_vcr("login").use_cassette("login.yaml"):
+            await client.login("redacted@example.com", "REDACTED_PASSWORD")
+        with make_vcr("market").use_cassette("market.yaml"):
+            snapshot = await client.get_market(FAKE_LEAGUE_ID)
+
+    assert snapshot.team_value > 0
+    assert snapshot.mv_update_at is not None
+    assert snapshot.next_matchday_start is not None
+    # `mvud` ist der *nächste* Update-Zeitpunkt (Plan §8/F4) und liegt bei
+    # 20:00 UTC = 22:00 Europe/Berlin.
+    assert snapshot.mv_update_at.hour == 20
+    assert snapshot.matchday > 0
+    assert snapshot.season
 
 
 async def test_list_matchdays_replays_full_season() -> None:
@@ -134,13 +155,18 @@ async def test_get_market_value_history_replays_seven_points() -> None:
     assert days == sorted(days)
 
 
-async def test_get_squad_returns_zero_budget_since_not_in_response() -> None:
-    """Squad-Response liefert kein Budget → Domain-Default 0. Budget kommt
-    aus separater get_league_me()-Abfrage."""
+async def test_squad_carries_no_budget_or_team_value_fields() -> None:
+    """`Squad` hat weder Budget noch Teamwert — und darf sie nie zurückbekommen.
+
+    Beide standen dort mit Default 0, obwohl `/squad` sie nicht liefert: das war
+    Defekt D1. Der Kontostand kommt aus `get_league_me()`, der Mannschaftswert
+    aus dem Market-Root (`MarketSnapshot.team_value`).
+    """
     async with HttpxKickbaseClient(config=_fast_config()) as client:
         with make_vcr("login").use_cassette("login.yaml"):
             await client.login("redacted@example.com", "REDACTED_PASSWORD")
         with make_vcr("squad").use_cassette("squad.yaml"):
             squad = await client.get_squad(FAKE_LEAGUE_ID, FAKE_USER_ID)
 
-    assert squad.budget == Decimal(0)
+    assert not hasattr(squad, "budget")
+    assert not hasattr(squad, "team_value")

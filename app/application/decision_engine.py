@@ -75,6 +75,11 @@ class DecisionContext:
     open_bids_total: Decimal = Decimal(0)
     now: datetime | None = None
     next_matchday_start: datetime | None = None
+    # Nächster Marktwert-Update-Zeitpunkt (`mvud` aus dem Market-Root, täglich
+    # 22:00 Berlin). Die zweite Uhr neben der Spieltags-Deadline: sie ist der
+    # einzige wirtschaftlich relevante Zeitpunkt des Tages — Käufe davor nehmen
+    # die Bewegung mit, Verkäufe danach realisieren sie.
+    mv_update_at: datetime | None = None
     # Scheduler-Intervall in Minuten — für die Berechnung, wie viele Ticks
     # bis zum nächsten Spieltag noch reinpassen (dynamische Aktions-Schwelle).
     interval_min: int = 120

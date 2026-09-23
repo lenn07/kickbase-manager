@@ -309,12 +309,14 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         "next_matchday_start_iso": _to_iso(next_start) if next_start else None,
         "ticks_until_matchday_start": ticks_until,
         "minutes_until_matchday_start": minutes_until,
+        "mv_update_at_iso": _to_iso(context.mv_update_at) if context.mv_update_at else None,
+        "minutes_until_mv_update": _minutes_until(now, context.mv_update_at),
         "rules_last_verified": RULES_LAST_VERIFIED.isoformat(),
         "budget": _budget_block(context),
         "squad": [_squad_entry(sp, context) for sp in context.squad.players],
         "squad_size": len(context.squad.players),
         "starting_xi_count": starting_xi_count,
-        "market": [_market_entry(mp, context) for mp in context.market],
+        "market": [_market_entry(mp, context, now) for mp in context.market],
         "incoming_offers": _incoming_offers(context),
         "recent_actions": [_recent_action(a) for a in context.recent_actions],
         "constraints": {
@@ -387,9 +389,10 @@ def _own_listing(listing: Any) -> dict[str, Any]:
     }
 
 
-def _market_entry(mp: MarketPlayer, context: DecisionContext) -> dict[str, Any]:
+def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> dict[str, Any]:
     player = mp.player
     enrichment = context.enrichment.get(player.id)
+    expires_at = mp.expires_at(now)
     entry: dict[str, Any] = {
         "player_id": player.id,
         "name": _full_name(mp),
@@ -397,7 +400,7 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext) -> dict[str, Any]:
         "team_id": player.team_id,
         "market_value": _int(player.market_value),
         "listed_price": _int(mp.price),
-        "expires_at_iso": _to_iso(mp.expires_at) if mp.expires_at else None,
+        "expires_at_iso": _to_iso(expires_at) if expires_at else None,
         "listed_by": _listed_by(mp, context),
         "seller_id": mp.seller_id,
         "injury_status": enrichment.injury_status if enrichment else "unknown",
@@ -457,6 +460,17 @@ def _recent_action(action: RecentAction) -> dict[str, Any]:
         "intent": action.intent.value if action.intent is not None else None,
         "executed": action.executed,
     }
+
+
+def _minutes_until(now: datetime, target: datetime | None) -> int | None:
+    """Minuten bis zum Zieltermin; None, wenn keiner bekannt ist.
+
+    Negative Werte bleiben negativ (Termin liegt zurück) — das LLM soll den
+    Unterschied zwischen „gleich" und „vorbei" sehen können.
+    """
+    if target is None:
+        return None
+    return int((target - now).total_seconds() // 60)
 
 
 def _time_until(

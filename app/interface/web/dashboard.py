@@ -140,10 +140,14 @@ async def _load_status(
     kickbase_error: str | None = None
     try:
         league_me = await kickbase.get_league_me(league.kb_league_id)
-        squad = await kickbase.get_squad(league.kb_league_id, user.kb_user_id)
+        # Mannschaftswert **und** Kadergröße stehen im Market-Root (`tv`/`nps`).
+        # Vor P0-1 holte das Dashboard hier `get_squad` und zeigte
+        # `squad.team_value` — ein Feld, das Kickbase in `/squad` nie liefert,
+        # also dauerhaft 0 (Defekt D1). Gleiche Anzahl Calls, echter Wert.
+        snapshot = await kickbase.get_market(league.kb_league_id)
         budget = league_me.budget
-        team_value = squad.team_value
-        squad_size = len(squad.players)
+        team_value = snapshot.team_value
+        squad_size = snapshot.squad_size
     except KickbaseError as exc:
         _log.warning("Kickbase-Fehler beim Dashboard-Load: %s", exc)
         kickbase_error = str(exc)

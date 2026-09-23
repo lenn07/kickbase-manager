@@ -127,7 +127,7 @@ async def test_buy_decision_maps_to_domain_action(monkeypatch: pytest.MonkeyPatc
     market_player = MarketPlayer(
         player=_player("m1"),
         price=Decimal(6_000_000),
-        expires_at=None,
+        expires_in_s=None,
         seller_id="other",
         offers=(),
     )
@@ -332,7 +332,7 @@ async def test_user_payload_contains_squad_market_recent_actions(
     market_player = MarketPlayer(
         player=_player("m1"),
         price=Decimal(6_000_000),
-        expires_at=None,
+        expires_in_s=None,
         seller_id="other",
         offers=(
             MarketOffer(
@@ -347,7 +347,7 @@ async def test_user_payload_contains_squad_market_recent_actions(
     incoming_market = MarketPlayer(
         player=_player("s1"),
         price=Decimal(5_000_000),
-        expires_at=None,
+        expires_in_s=None,
         seller_id=MANAGER_ID,
         offers=(
             MarketOffer(

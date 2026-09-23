@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import IntEnum
 
@@ -67,12 +67,19 @@ class SquadPlayer:
 
 @dataclass(frozen=True, slots=True)
 class Squad:
+    """Eigener Kader. **Kein** `team_value`/`budget` — bewusst.
+
+    Beide Felder standen hier mit Default 0, obwohl `/squad` sie gar nicht
+    liefert: der Mannschaftswert steht als `tv` im Market-Root (→
+    `MarketSnapshot`), der Kontostand in `/leagues/{id}/me`. Die Default-0
+    war die Ursache von Defekt D1 — sie sah aus wie ein Wert und war keiner,
+    also lief die 33 %-Regel jeden Tick gegen eine 0-Basis. Wer hier wieder
+    ein Default-Feld einzieht, baut denselben Defekt neu.
+    """
+
     league_id: str
     manager_id: str
     players: tuple[SquadPlayer, ...]
-    # team_value/budget stehen in /leagues/{id}/me, nicht in /squad — Default 0.
-    team_value: Decimal = Decimal(0)
-    budget: Decimal = Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,11 +93,54 @@ class MarketOffer:
 
 @dataclass(frozen=True, slots=True)
 class MarketPlayer:
+    """Ein Listing auf dem Transfermarkt.
+
+    `expires_in_s` ist bewusst die **rohe** Restlaufzeit aus `exs` und keine
+    absolute Zeit: Kickbase liefert Sekunden, und die Umrechnung braucht eine
+    Uhr. Steht die Uhr in der DTO-Schicht (`datetime.now()`), ist der ganze
+    USER-JSON nicht mehr reproduzierbar — der Payload-Snapshot aus P0-0.4 war
+    deshalb bei jedem Lauf rot. Die Uhr gehört in den `DecisionContext`;
+    `expires_at(now)` rechnet damit.
+
+    Eigene Listings tragen **kein** `exs` (Plan §8/F5) — sie laufen nicht ab.
+    Dort bleibt `expires_in_s` None, und das heißt „unbefristet", nicht
+    „abgelaufen".
+    """
+
     player: Player
     price: Decimal
-    expires_at: datetime | None
+    expires_in_s: int | None
     seller_id: str | None  # None → Kickbase-eigener Angebotspool
     offers: tuple[MarketOffer, ...] = ()
+
+    def expires_at(self, now: datetime) -> datetime | None:
+        if self.expires_in_s is None:
+            return None
+        return now + timedelta(seconds=self.expires_in_s)
+
+
+@dataclass(frozen=True, slots=True)
+class MarketSnapshot:
+    """Der Transfermarkt **plus** die Root-Felder derselben Response.
+
+    Kickbase liefert unter `/v4/leagues/{l}/market` nicht nur die Listings,
+    sondern auch den Mannschaftswert (`tv`), den nächsten Marktwert-Update-
+    Zeitpunkt (`mvud`), den Start des nächsten Spieltags (`dt`), die
+    Spieltagsnummer (`day`), die Kadergröße (`nps`) und die Saison (`sn`).
+    Der Bot hat sie bisher weggeworfen und den Spieltagsstart stattdessen
+    über einen zweiten Call (`list_matchdays`) geholt.
+
+    `mv_update_at` ist der **nächste** Update-Zeitpunkt (Plan §8/F4, zweimal
+    belegt), nicht der letzte — die Timing-Logik in P1-10 hängt daran.
+    """
+
+    players: tuple[MarketPlayer, ...]
+    team_value: Decimal
+    mv_update_at: datetime | None = None
+    next_matchday_start: datetime | None = None
+    matchday: int = 0
+    squad_size: int = 0
+    season: str = ""
 
 
 @dataclass(frozen=True, slots=True)

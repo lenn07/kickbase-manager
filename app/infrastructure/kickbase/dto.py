@@ -24,6 +24,7 @@ from app.domain.models import (
     League,
     LeagueMe,
     MarketPlayer,
+    MarketSnapshot,
     MarketValuePoint,
     Matchday,
     Player,
@@ -213,11 +214,7 @@ class MarketPlayerDTO(BaseModel):
         return v  # type: ignore[return-value]
 
     def to_market_player(self) -> MarketPlayer:
-        expires_at = (
-            datetime.now(UTC) + timedelta(seconds=self.expires_in_s)
-            if self.expires_in_s is not None
-            else None
-        )
+        # Keine Uhr hier: `exs` wird roh durchgereicht (siehe `MarketPlayer`).
         player = Player(
             id=self.id,
             first_name=self.first_name,
@@ -232,16 +229,43 @@ class MarketPlayerDTO(BaseModel):
         return MarketPlayer(
             player=player,
             price=self.price,
-            expires_at=expires_at,
+            expires_in_s=self.expires_in_s,
             seller_id=self.seller_id,
             offers=(),
         )
 
 
 class MarketResponseDTO(BaseModel):
+    """Market-Response inkl. **Root-Feldern** (`tv`, `mvud`, `dt`, `day`, `nps`, `sn`).
+
+    Die Root-Felder sind der eigentliche Fund aus Phase 0: der Mannschaftswert
+    steht hier, nicht in `/squad`, und der Spieltagsstart auch — `dt` spart den
+    separaten `list_matchdays()`-Call.
+    """
+
     model_config = _DTO_CONFIG
 
     it: list[MarketPlayerDTO] = Field(default_factory=list)
+    team_value: Decimal = Field(default=Decimal(0), validation_alias="tv")
+    # `mvud` = *nächster* Marktwert-Update-Zeitpunkt (20:00 UTC = 22:00 Berlin).
+    mv_update_at: datetime | None = Field(default=None, validation_alias="mvud")
+    # `dt` auf Root-Ebene = Start des nächsten Spieltags (nicht zu verwechseln
+    # mit `dt` im Item, das dort den Listing-Zeitpunkt meint).
+    next_matchday_start: datetime | None = Field(default=None, validation_alias="dt")
+    matchday: int = Field(default=0, validation_alias="day")
+    squad_size: int = Field(default=0, validation_alias="nps")
+    season: str = Field(default="", validation_alias="sn")
+
+    def to_domain(self) -> MarketSnapshot:
+        return MarketSnapshot(
+            players=tuple(m.to_market_player() for m in self.it),
+            team_value=self.team_value,
+            mv_update_at=self.mv_update_at,
+            next_matchday_start=self.next_matchday_start,
+            matchday=self.matchday,
+            squad_size=self.squad_size,
+            season=self.season,
+        )
 
 
 # ---------- Matchdays ----------

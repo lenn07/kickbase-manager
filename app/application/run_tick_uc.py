@@ -31,7 +31,7 @@ from app.application.setup_state import read_setup_state
 from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
-from app.domain.models import MarketPlayer, Squad
+from app.domain.models import MarketPlayer, MarketSnapshot, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.metrics import get_metrics
@@ -107,8 +107,9 @@ class RunTickUseCase:
         try:
             league_me = await self._kickbase.get_league_me(league_row.kb_league_id)
             squad = await self._kickbase.get_squad(league_row.kb_league_id, user.kb_user_id)
-            market = await self._kickbase.get_market(league_row.kb_league_id)
-            next_matchday_start = await self._next_matchday_start()
+            snapshot = await self._kickbase.get_market(league_row.kb_league_id)
+            market = list(snapshot.players)
+            next_matchday_start = await self._next_matchday_start(snapshot)
         except KickbaseError as exc:
             _log.warning("Kickbase-Fehler im Tick: %s", exc)
             row = self._trades.add(
@@ -124,6 +125,7 @@ class RunTickUseCase:
             metrics.record_tick("error")
             return TickOutcome(executed=False, decision=None, log_id=row.id)
 
+        now = datetime.now(UTC)
         squad_ids = {sp.player.id for sp in squad.players}
         buy_history = _load_buy_history(self._trades, user.id, squad_ids)
         own_listings = _load_own_listings(
@@ -131,12 +133,13 @@ class RunTickUseCase:
             user_id=user.id,
             market=market,
             manager_id=user.kb_user_id,
+            now=now,
         )
         recent_actions = _load_recent_actions(self._trades, user.id)
         enrichment = await self._enrich_players(league_row.kb_league_id, squad, market)
 
         open_bids_total = _open_bids_total(market=market, manager_id=user.kb_user_id)
-        max_negative = _max_negative_allowed(team_value=squad.team_value, cash=league_me.budget)
+        max_negative = _max_negative_allowed(team_value=snapshot.team_value, cash=league_me.budget)
         current_balance_after_open_bids = league_me.budget - open_bids_total
 
         context = DecisionContext(
@@ -149,10 +152,11 @@ class RunTickUseCase:
             max_trade_pct=settings.max_trade_pct,
             min_cash_reserve=settings.min_cash_reserve,
             blacklist=tuple(settings.blacklist),
-            team_value=squad.team_value,
+            team_value=snapshot.team_value,
             open_bids_total=open_bids_total,
-            now=datetime.now(UTC),
+            now=now,
             next_matchday_start=next_matchday_start,
+            mv_update_at=snapshot.mv_update_at,
             interval_min=settings.interval_min,
             buy_history=buy_history,
             own_listings=own_listings,
@@ -219,21 +223,31 @@ class RunTickUseCase:
             _log.info("Enrichment fehlgeschlagen (%s) — Prompt läuft ohne Zusatzsignale.", exc)
             return {}
 
-    async def _next_matchday_start(self) -> datetime | None:
-        """Frühester zukünftiger Spieltagsstart — für die Deadline-Regel.
+    async def _next_matchday_start(self, snapshot: MarketSnapshot) -> datetime | None:
+        """Start des nächsten Spieltags — für die Deadline-Regel.
 
-        Gibt None zurück, wenn Kickbase keinen kommenden Spieltag liefert oder
-        der Endpoint fehlschlägt; der Deadline-Modifikator ist dann inaktiv,
-        die restlichen Regeln greifen weiter.
+        Primärquelle ist `dt` aus dem Market-Root: es steht in einer Response,
+        die wir ohnehin holen, und spart damit einen HTTP-Call pro Tick.
+        `list_matchdays()` bleibt Fallback für den Fall, dass Kickbase das Feld
+        weglässt oder es in der Vergangenheit liegt (zwischen Anpfiff und dem
+        nächsten Payload-Update).
+
+        Gibt None zurück, wenn beide Quellen nichts liefern; der
+        Deadline-Modifikator ist dann inaktiv, die restlichen Regeln greifen
+        weiter.
         """
+        now = datetime.now(UTC)
+        from_snapshot = snapshot.next_matchday_start
+        if from_snapshot is not None and from_snapshot > now:
+            return from_snapshot
+
         try:
             matchdays = await self._kickbase.list_matchdays()
         except KickbaseError as exc:
             _log.info("Matchday-Liste nicht verfügbar (%s) — Deadline-Regel inaktiv.", exc)
-            return None
-        now = datetime.now(UTC)
+            return from_snapshot
         future = [md.starts_at for md in matchdays if md.starts_at > now]
-        return min(future) if future else None
+        return min(future) if future else from_snapshot
 
     # -- Notification --------------------------------------------------
 
@@ -336,6 +350,7 @@ def _load_own_listings(
     user_id: int,
     market: list[MarketPlayer],
     manager_id: str,
+    now: datetime,
 ) -> dict[str, ListingRecord]:
     """Baut das ListingRecord-Mapping aus Market-Response + Trade-Log.
 
@@ -357,7 +372,7 @@ def _load_own_listings(
             player_id=pid,
             listing_price=mp.price,
             listed_at=ts_by_player.get(pid),
-            expires_at=mp.expires_at,
+            expires_at=mp.expires_at(now),
             has_offers=bool(mp.offers),
         )
     return out

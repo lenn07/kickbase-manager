@@ -2,9 +2,9 @@
   "budget": {
     "cash": -380069,
     "current_balance_after_open_bids": -380069,
-    "max_negative_allowed": 0,
+    "max_negative_allowed": -48968009,
     "open_bids_total": 0,
-    "team_value": 0
+    "team_value": 148767974
   },
   "constraints": {
     "blacklist": [],
@@ -510,6 +510,8 @@
     }
   ],
   "minutes_until_matchday_start": 23190,
+  "minutes_until_mv_update": 240,
+  "mv_update_at_iso": "2026-09-23T20:00:00+00:00",
   "next_matchday_start_iso": "2026-10-09T18:30:00+00:00",
   "now_iso": "2026-09-23T16:00:00+00:00",
   "recent_actions": [

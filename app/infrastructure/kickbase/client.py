@@ -24,7 +24,7 @@ from app.domain.gateways import SessionStore
 from app.domain.models import (
     League,
     LeagueMe,
-    MarketPlayer,
+    MarketSnapshot,
     MarketValuePoint,
     Matchday,
     Session,
@@ -116,9 +116,9 @@ class HttpxKickbaseClient:
         data = await self._request("GET", path)
         return SquadResponseDTO.model_validate(data).to_domain(league_id, manager_id)
 
-    async def get_market(self, league_id: str) -> list[MarketPlayer]:
+    async def get_market(self, league_id: str) -> MarketSnapshot:
         data = await self._request("GET", f"/v4/leagues/{league_id}/market")
-        return [m.to_market_player() for m in MarketResponseDTO.model_validate(data).it]
+        return MarketResponseDTO.model_validate(data).to_domain()
 
     async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str:
         path = f"/v4/leagues/{league_id}/market/{player_id}/offers"

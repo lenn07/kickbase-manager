@@ -12,7 +12,7 @@ from app.domain.exceptions import AuthError
 from app.domain.models import (
     League,
     LeagueMe,
-    MarketPlayer,
+    MarketSnapshot,
     MarketValuePoint,
     Matchday,
     Squad,
@@ -36,6 +36,9 @@ class FakeKickbase:
         *,
         valid_credentials: tuple[str, str] = ("user@example.com", "secret"),
         leagues: list[League] | None = None,
+        team_value: Decimal = Decimal(150_000_000),
+        mv_update_at: datetime | None = None,
+        next_matchday_start: datetime | None = None,
     ) -> None:
         self._valid = valid_credentials
         self._leagues = leagues or [
@@ -43,6 +46,9 @@ class FakeKickbase:
             League(id="L2", name="Kanzlei-Kicker", creator_id="u1"),
         ]
         self.login_calls: list[tuple[str, str]] = []
+        self.team_value = team_value
+        self.mv_update_at = mv_update_at
+        self.next_matchday_start = next_matchday_start
 
     async def login(self, email: str, password: str) -> KbSession:
         self.login_calls.append((email, password))
@@ -64,8 +70,19 @@ class FakeKickbase:
     async def get_squad(self, league_id: str, manager_id: str) -> Squad:
         return Squad(league_id=league_id, manager_id=manager_id, players=())
 
-    async def get_market(self, league_id: str) -> list[MarketPlayer]:
-        return []
+    async def get_market(self, league_id: str) -> MarketSnapshot:
+        # Leerer Markt, aber **echter** Teamwert: seit P0-1 ist `tv` die Basis
+        # der 33 %-Regel. Ein Fake mit 0 würde jeden Test gegen genau den
+        # Defekt laufen lassen, den P0-1 behoben hat (D1).
+        return MarketSnapshot(
+            players=(),
+            team_value=self.team_value,
+            mv_update_at=self.mv_update_at,
+            next_matchday_start=self.next_matchday_start,
+            matchday=5,
+            squad_size=0,
+            season="26/27",
+        )
 
     async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str:
         return "offer-x"

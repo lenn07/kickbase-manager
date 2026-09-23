@@ -45,8 +45,6 @@ def test_squad_players_are_immutable_tuple() -> None:
         league_id="L1",
         manager_id="M1",
         players=(SquadPlayer(player=_make_player(), buy_price=Decimal("20000000")),),
-        team_value=Decimal("50000000"),
-        budget=Decimal("5000000"),
     )
     assert isinstance(squad.players, tuple)
     with pytest.raises(TypeError):
