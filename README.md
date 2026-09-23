@@ -28,9 +28,25 @@ docker build -t kickbase-auto-manager .
 docker run -d --name kb \
   -p 8000:8000 \
   -v kb_data:/data \
+  -e KB_LINEUP_WRITES_ENABLED=false \
   --restart unless-stopped \
   kickbase-auto-manager
 ```
+
+### Aufstellungs-Writes
+
+`KB_LINEUP_WRITES_ENABLED` steuert die einzige Aktion, die **unmittelbar
+Punkte bewegt**: das Schreiben der Startelf. Default ist `false`.
+
+Bei `false` läuft der Startelf-Guard trotzdem mit und legt jede Aufstellung,
+die er gesetzt hätte, als `SET_LINEUP`-Zeile mit `executed=false` ins
+`trade_log` — inklusive Formation und Spieler-IDs. Vergleiche diese Einträge
+eine Woche lang mit der Kickbase-App; erst dann auf `true` stellen.
+
+Zur Einordnung: jeder unbesetzte Startelf-Slot kostet **100 Punkte** pro
+Spieltag. Ein Kader mit acht Spielern verliert also 300 Punkte, die kein
+späterer Tick zurückholt — der Guard kann aber nur besetzen, was im Kader
+steht. Die fehlenden Plätze füllt nur ein Kauf.
 
 ## Betrieb & Härtung (Phase 7)
 
