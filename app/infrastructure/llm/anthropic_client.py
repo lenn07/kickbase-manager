@@ -59,6 +59,7 @@ class LlmChatGateway(Protocol):
         tool_description: str,
         input_schema: dict[str, Any],
         max_tokens: int = 1024,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
         """AI-Only-Variante: system_prompt wird als Cache-Prefix markiert.
 
@@ -173,6 +174,7 @@ class AnthropicClient:
         tool_description: str,
         input_schema: dict[str, Any],
         max_tokens: int = 1024,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
         """AI-Only-Modus: system_prompt wird als Cache-Prefix markiert.
 
@@ -204,6 +206,11 @@ class AnthropicClient:
             ],
             "tool_choice": {"type": "tool", "name": tool_name},
         }
+        # Nur setzen, wenn explizit gewünscht — der Produktivpfad bleibt beim
+        # API-Default. Die Eval-Suite fährt `temperature=0`, damit drei Läufe
+        # desselben Szenarios eine Prompt-Regression zeigen und nicht Sampling.
+        if temperature is not None:
+            payload["temperature"] = temperature
         try:
             response = await self._post(api_key, payload, timeout_s=self._decision_timeout_s)
         except httpx.TimeoutException as exc:

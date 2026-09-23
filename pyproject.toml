@@ -83,9 +83,12 @@ ignore_errors = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra --strict-markers --strict-config --cov=app --cov-report=term-missing"
+# `-m "not eval"`: die Eval-Suite kostet echte LLM-Calls und läuft nur auf
+# Zuruf (`pytest -m eval`), vor jedem Prompt-Merge. Siehe Optimizing-Plan §5.
+addopts = "-ra --strict-markers --strict-config --cov=app --cov-report=term-missing -m 'not eval'"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = ["eval: kostet echte LLM-Calls, nicht im Default-Run"]
 
 [tool.coverage.run]
 branch = true
