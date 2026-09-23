@@ -30,6 +30,11 @@ _REPO = Path(__file__).resolve().parent.parent
 _INSPECT_DIR = _REPO / "tmp" / "inspect"
 _CASSETTE_DIR = _REPO / "tests" / "infrastructure" / "kickbase" / "cassettes"
 _MVUD_LOG = _REPO / "tmp" / "mvud_log.json"
+# Historische Stichprobe vom 31.08.2026 — die einzige erhaltene Quelle mit
+# `prob`. Die damalige Cassette wurde in P0-0.3 durch eine aktuelle ersetzt,
+# und Kickbase liefert `prob` außerhalb der Spieltagswoche nicht: ohne diese
+# Datei ließe sich F2 nicht mehr belegen.
+_PROB_SAMPLE = _REPO / "docs" / "samples" / "market_prob_sample_2026-08-31.json"
 
 # Eigene User-ID: in den Live-Dumps echt, in den Cassettes durch die Fake-ID ersetzt.
 _OWN_USER_IDS = frozenset({"4320433", "9999999"})
@@ -115,20 +120,43 @@ def f2_prob_direction() -> None:
     _headline("F2", "Ist prob=1 die höchste oder niedrigste Startelf-Wahrscheinlichkeit?")
     live = _load_inspect("market")
     cassette, recorded = _load_cassette_market()
+    sample, sample_stamp = _load_prob_sample()
 
-    for label, payload, stamp in (("live", live, None), ("cassette", cassette, recorded)):
+    sources = (
+        ("live", live, None),
+        ("cassette", cassette, recorded),
+        ("archiv", sample, sample_stamp),
+    )
+    evidence_shown = False
+    for label, payload, stamp in sources:
         if payload is None:
             continue
         items = [x for x in payload.get("it", []) if isinstance(x, dict)]
         with_prob = [x for x in items if x.get("prob") is not None]
-        suffix = f" (aufgenommen {stamp})" if stamp else ""
+        suffix = f" ({stamp})" if stamp else ""
         print(f"  {label}{suffix}: {len(with_prob)}/{len(items)} Einträge mit `prob`")
         if with_prob:
             _print_prob_table(with_prob)
+            evidence_shown = True
 
-    print("  ⇒ Richtung: siehe Median-Marktwert je Stufe. Fällt er monoton mit steigendem")
-    print("     `prob`, ist 1 = sicherste Startelf.")
+    if not evidence_shown:
+        print(f"  ⚠ Keine Stichprobe mit `prob` gefunden — fehlt {_PROB_SAMPLE.name}?")
+        return
+    print("  ⇒ Fällt der Median-Marktwert monoton mit steigendem `prob`, ist 1 = sicherste")
+    print("     Startelf. `prob` erscheint nur in der Spieltagswoche — außerhalb liefert")
+    print("     Kickbase das Feld gar nicht, dann trägt nur die Archiv-Stichprobe.")
     print("  Rest-Verfahren: gegen die 5 Icons der App-Aufstellungsansicht gegenprüfen.")
+
+
+def _load_prob_sample() -> tuple[dict[str, Any] | None, str | None]:
+    """Archiv-Stichprobe mit `prob` (siehe `_PROB_SAMPLE`)."""
+    if not _PROB_SAMPLE.exists():
+        return None, None
+    try:
+        data = json.loads(_PROB_SAMPLE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None, None
+    return data, str(data.get("_recorded_at") or "archiviert")
 
 
 def _print_prob_table(items: list[dict[str, Any]]) -> None:
@@ -165,6 +193,14 @@ def f3_status_values() -> None:
         for value in _collect_status(cassette):
             seen[value] += 1
             sources.setdefault(value, set()).add("cassette:market")
+
+    # Unabhängige zweite Stichprobe von einem anderen Tag — sonst zählt man die
+    # Live-Daten faktisch doppelt, wenn die Cassette am selben Tag entstand.
+    sample, _ = _load_prob_sample()
+    if sample:
+        for value in _collect_status(sample):
+            seen[value] += 1
+            sources.setdefault(value, set()).add("archiv:2026-08-31")
 
     if not seen:
         print("  Keine Daten — erst `python -m scripts.inspect_endpoints`.")

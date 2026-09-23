@@ -53,6 +53,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-0.4** Payload-Snapshot-Test bauen — Snapshot + 4 einzeln messbare Gap-Tests
 - [x] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`) + Baseline über 14 Endpunkte
 - [x] **P0-0.6** Eval-Gerüst + `eval`-Marker  ⟵ *[Plan-Ergänzung, siehe §6]*
+- [x] **P0-0.7** Verifikation gegen echte Calls + Korrekturen  ⟵ *[Plan-Ergänzung, siehe §6]*
 
 ### Phase 1 — P0: Bot handlungsfähig machen · Status: **offen**
 - [ ] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
@@ -525,6 +526,40 @@ kaufen) · `healthy_and_quiet` (alles in Ordnung → HOLD ist legitim, Sofortver
 **Ausbau:** P0-5 ergänzt Szenarien für die Regeln, die der korrigierte Prompt neu trägt
 (Unterbietungsgrenze, Sofortverkauf zum vollen MW, `mvud`-Uhr).
 
+#### P0-0.7 — Verifikation gegen echte Calls  *(Plan-Ergänzung)*
+
+> **[Plan-Ergänzung 2026-09-23]** Jedes Phase-0-Artefakt einmal echt ausgeführt: Discovery live,
+> `dump_keys`, `answer_open_questions`, `check_contract` (beide Quellen), `record_cassettes`,
+> ein vollständiger Tick über `RunTickUseCase` und die Eval-Suite mit echtem Key. Drei Defekte
+> kamen dabei heraus, die kein Unit-Test gezeigt hätte.
+
+**V1 — Die Eval meldete grün, ohne das Modell je gefragt zu haben.** Mit einem ungültigen
+API-Key fällt `AiDecisionEngine` per Design still auf HOLD zurück (in Produktion richtig, ein
+Tick darf nicht crashen). In der Eval waren dadurch **5 von 6 Tests grün** — alle Szenarien, die
+HOLD erlauben — und der sechste meldete einen HTTP 401 als *Regelverstoß*, was die Fehlersuche
+in den Prompt gelenkt hätte. Eine Eval, die bei kaputtem Key grün ist, gibt einen Prompt-Merge
+frei, ohne den Prompt getestet zu haben.
+**Behoben:** Preflight über `verify_key()` bricht die Suite ab, bevor ein Szenario läuft (spart
+zugleich 12 sinnlose Calls), plus `_reject_fallbacks()` vor jeder inhaltlichen Assertion.
+
+**V2 — Die Belegdaten für F2 waren durch P0-0.3 zerstört.** Die Cassette vom 31.08. war die
+einzige Quelle mit `prob`; die Neuaufnahme hat sie überschrieben, und Kickbase liefert das Feld
+außerhalb der Spieltagswoche nicht. `answer_open_questions.py` zeigte danach „0/21 Einträge mit
+`prob`" — die Antwort stand nur noch als Behauptung in der Doku.
+**Behoben:** `docs/samples/market_prob_sample_2026-08-31.json` (22 Einträge, ohne Spielernamen)
+wird als dritte Quelle gelesen. Sie ist zugleich die einzige *unabhängige* zweite Stichprobe
+für F3 — ohne sie zählte die Auswertung Live-Dump und Cassette vom selben Tag doppelt.
+
+**V3 — `temperature=0` war ungeprüft.** Der Parameter hätte still verschwinden können, ohne dass
+etwas rot wird; drei Läufe je Szenario hätten dann Sampling gemessen statt Prompt-Treue.
+**Behoben:** zwei Tests in `test_anthropic_client.py` (Default lässt ihn weg, gesetzt kommt er an).
+
+**Bestätigt:** Der Live-Payload eines echten Ticks ist **strukturgleich** mit dem Snapshot aus
+P0-0.4 (einziger Unterschied: `bought_at_price`/`bought_intent`, die der Snapshot synthetisch
+setzt) — der Snapshot ist also repräsentativ. Alle vier Gap-Befunde reproduzieren sich live:
+`team_value: 0`, `max_negative_allowed: 0`, `avg_points_last5` bei 19 von 20 Marktspielern `null`,
+`start_probability_next` mit 3 distinkten Werten.
+
 ### PHASE 1 — P0: Bot handlungsfähig machen
 > Ohne diese 5 Pakete ist der Bot nicht wettbewerbsfähig. Aufwand gesamt ~3–4 Tage.
 
@@ -847,8 +882,25 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 | Aufstellungs-Write zerstört eine gute Elf | Vorvalidierung im Executor (nicht im Prompt) · 7 Tage Shadow · ENV `KB_LINEUP_WRITES_ENABLED=false` |
 | Rate-Limit / Ban | P1-7 senkt die Call-Zahl netto. P1-8/P2-11 nur mit Tages-Cache. `AsyncRateLimiter` bleibt harter Deckel. |
 | Prompt-Regression durch Sampling | Eval mit 3 Läufen/Szenario vor jedem Prompt-Merge · `temperature=0` |
-| Halbfertiger Zustand in Produktion | Ein Paket = ein Merge = ein Deploy. `dry_run=true` bleibt Default, bis Phase 1 komplett durch den Shadow ist. |
+| Halbfertiger Zustand in Produktion | Ein Paket = ein Merge = ein Deploy. `dry_run=true` bleibt Default, bis Phase 1 komplett durch den Shadow ist. ⚠️ **Ist-Zustand 2026-09-23: `dry_run = 0` in der Produktions-DB** — siehe §9.1. |
 | Rechtlich/ToS | unverändert: Privatnutzung, konservatives Rate-Limit (siehe `PROJEKT.md` §1.3/§1.4) |
+
+---
+
+### 9.1 Betriebsbefunde aus dem Verifikationslauf 2026-09-23
+
+Beim echten Tick (P0-0.7) gegen eine DB-Kopie sind zwei Zustände aufgefallen, die nichts mit den
+Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
+
+1. **`dry_run = 0`** — der Bot ist scharf geschaltet, obwohl Phase 1 nicht begonnen hat. §9 sieht
+   `dry_run=true` bis zum Ende des Shadow-Laufs vor.
+2. **Der hinterlegte Anthropic-Key ist ungültig** (`HTTP 401: API key is invalid`). Jeder Tick
+   endet damit im Fallback-HOLD — der Bot entscheidet seit unbekannter Zeit gar nichts. Im
+   `trade_log` steht das als gewöhnliches HOLD, ohne Alarm.
+   → **Kandidat für ein eigenes Paket:** ein dauerhafter LLM-Fehler muss sichtbar werden
+   (Dashboard-Warnung oder Mail), nicht als HOLD durchgehen.
+3. Nebenbefund aus dem Payload: **Kader hat 8 Spieler, `starting_xi_count: 8`.** Drei leere
+   Positionen = −300 Punkte am nächsten Spieltag (P0-4).
 
 ---
 
@@ -864,6 +916,7 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 | 2026-09-23 | P0-0.4 | Snapshot-Test + 4 einzelne Gap-Tests | Der Payload war wegen `datetime.now()` in der DTO-Schicht nicht reproduzierbar - ohne Fix waere der Snapshot bei jedem Lauf rot. Gap-Assertion 3 (`start_probability_next is not None`) war bereits gruen und haette D5 nie gemessen; ersetzt durch eine Streuungs-Assertion. |
 | 2026-09-23 | P0-0.5 | Contract-Checker + Baseline ueber 14 Endpunkte | Baseline muss erzeugbar sein (`--update`), sonst Henne-Ei. `optional`-Ausnahmen mit Begruendung noetig, sonst meldet der Checker das saisonale `prob` monatlich als Drift und wird ignoriert. |
 | 2026-09-23 | P0-0.6 | **Ergaenzung:** Eval-Geruest + `eval`-Marker + `temperature`-Parameter | §7 und das Phase-1-DoD setzen eine Eval-Suite voraus, es gab aber kein Paket dafuer. Ohne registrierten Marker scheitert jeder Eval-Test an `--strict-markers`; ohne `temperature=0` sind 3 Laeufe je Szenario eine Rauschmessung. |
+| 2026-09-23 | P0-0.7 | **Ergaenzung:** alles gegen echte Calls verifiziert | Eval meldete mit ungueltigem Key 5 von 6 Tests gruen (Preflight + Fallback-Guard ergaenzt). F2-Belegdaten waren durch die Cassette-Neuaufnahme zerstoert (Archiv-Stichprobe angelegt). `temperature=0` war ungeprueft. Live-Payload ist strukturgleich mit dem Snapshot. Betriebsbefunde in §9.1. |
 
 ---
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -193,3 +194,54 @@ async def test_curator_timeout_can_be_configured_larger_than_verify_timeout() ->
     await client.verify_key("sk-ant-good")
 
     assert seen_timeouts == [30.0, 5.0]
+
+
+async def test_submit_decision_omits_temperature_by_default() -> None:
+    """Der Produktivpfad bleibt beim API-Default — kein stilles Verhaltensänderung."""
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"content": [{"type": "tool_use", "name": "submit_decision", "input": {"a": 1}}]},
+        )
+
+    client = AnthropicClient(transport=httpx.MockTransport(handler))
+    await client.submit_decision(
+        api_key="k",
+        system_prompt="s",
+        user_message="u",
+        tool_name="submit_decision",
+        tool_description="d",
+        input_schema={"type": "object"},
+    )
+    assert "temperature" not in seen
+
+
+async def test_submit_decision_forwards_temperature_when_set() -> None:
+    """Die Eval-Suite verlässt sich darauf, dass `temperature=0` wirklich ankommt.
+
+    Ohne diesen Test wäre ein stiller Verlust des Parameters nicht bemerkbar —
+    drei Läufe je Szenario würden dann Sampling messen statt Prompt-Treue.
+    """
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"content": [{"type": "tool_use", "name": "submit_decision", "input": {"a": 1}}]},
+        )
+
+    client = AnthropicClient(transport=httpx.MockTransport(handler))
+    await client.submit_decision(
+        api_key="k",
+        system_prompt="s",
+        user_message="u",
+        tool_name="submit_decision",
+        tool_description="d",
+        input_schema={"type": "object"},
+        temperature=0.0,
+    )
+    assert seen["temperature"] == 0.0

@@ -1,0 +1,263 @@
+{
+  "_note": "Historische Stichprobe des Market-Payloads. Einzige erhaltene Quelle mit `prob`: die Cassette vom 31.08. wurde in P0-0.3 durch eine aktuelle ersetzt, und Kickbase liefert `prob` ausserhalb der Spieltagswoche nicht. Belegt F2 und F3 im Plan §8. Spielernamen sind bewusst nicht enthalten.",
+  "_recorded_at": "Mon, 31 Aug 2026 11:01:23 GMT",
+  "_source": "GET /v4/leagues/{l}/market",
+  "_root": {
+    "nps": 9,
+    "tv": 135562602,
+    "mvud": "2026-08-31T20:00:00Z",
+    "dt": "2026-09-04T18:30:00Z",
+    "day": 2,
+    "sn": "26/27"
+  },
+  "it": [
+    {
+      "i": "75",
+      "pos": 1,
+      "tid": "3",
+      "st": 0,
+      "mv": 500000,
+      "prob": 5,
+      "mvt": 0,
+      "ofc": 0
+    },
+    {
+      "i": "89",
+      "pos": 2,
+      "tid": "5",
+      "st": 0,
+      "mv": 5453363,
+      "prob": 3,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "670",
+      "pos": 4,
+      "tid": "8",
+      "st": 2,
+      "mv": 10275517,
+      "prob": 4,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "1920",
+      "pos": 4,
+      "tid": "3",
+      "st": 0,
+      "mv": 30111965,
+      "ap": 181,
+      "p": 181,
+      "prob": 1,
+      "mvt": 1,
+      "ofc": 0
+    },
+    {
+      "i": "2084",
+      "pos": 2,
+      "tid": "5",
+      "st": 0,
+      "mv": 13303792,
+      "ap": 128,
+      "p": 128,
+      "prob": 3,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "2141",
+      "pos": 2,
+      "tid": "43",
+      "st": 0,
+      "mv": 18705177,
+      "ap": 234,
+      "p": 234,
+      "prob": 1,
+      "mvt": 1,
+      "ofc": 0
+    },
+    {
+      "i": "2201",
+      "pos": 4,
+      "tid": "28",
+      "st": 0,
+      "mv": 6346358,
+      "ap": 99,
+      "p": 99,
+      "prob": 4,
+      "mvt": 1,
+      "ofc": 0
+    },
+    {
+      "i": "2476",
+      "pos": 3,
+      "tid": "18",
+      "st": 0,
+      "mv": 12158136,
+      "ap": 80,
+      "p": 80,
+      "prob": 2,
+      "mvt": 1,
+      "ofc": 0
+    },
+    {
+      "i": "2764",
+      "pos": 3,
+      "tid": "13",
+      "st": 0,
+      "mv": 2352586,
+      "ap": 23,
+      "p": 23,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "3120",
+      "pos": 3,
+      "tid": "2",
+      "st": 0,
+      "mv": 21655370,
+      "ap": 40,
+      "p": 40,
+      "prob": 4,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "4318",
+      "pos": 2,
+      "tid": "7",
+      "st": 0,
+      "mv": 3898038,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "4606",
+      "pos": 2,
+      "tid": "8",
+      "st": 0,
+      "mv": 10911995,
+      "ap": 22,
+      "p": 22,
+      "prob": 2,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "6061",
+      "pos": 3,
+      "tid": "7",
+      "st": 0,
+      "mv": 30155582,
+      "ap": 107,
+      "p": 107,
+      "prob": 1,
+      "mvt": 1,
+      "ofc": 0
+    },
+    {
+      "i": "6176",
+      "pos": 3,
+      "tid": "43",
+      "st": 0,
+      "mv": 18272223,
+      "ap": 109,
+      "p": 109,
+      "prob": 1,
+      "mvt": 1,
+      "ofc": 0
+    },
+    {
+      "i": "7491",
+      "pos": 4,
+      "tid": "4",
+      "st": 0,
+      "mv": 4803290,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "7781",
+      "pos": 3,
+      "tid": "9",
+      "st": 0,
+      "mv": 3588449,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "8367",
+      "pos": 3,
+      "tid": "6",
+      "st": 0,
+      "mv": 10634700,
+      "ap": 44,
+      "p": 44,
+      "prob": 1,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "10120",
+      "pos": 4,
+      "tid": "6",
+      "st": 4,
+      "mv": 730234,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "12293",
+      "pos": 4,
+      "tid": "9",
+      "st": 2,
+      "mv": 2104214,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "14048",
+      "pos": 4,
+      "tid": "5",
+      "st": 0,
+      "mv": 4047696,
+      "ap": 11,
+      "p": 11,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "15613",
+      "pos": 2,
+      "tid": "15",
+      "st": 2,
+      "mv": 9574469,
+      "ap": 17,
+      "p": 17,
+      "prob": 5,
+      "mvt": 2,
+      "ofc": 0
+    },
+    {
+      "i": "16378",
+      "pos": 3,
+      "tid": "3",
+      "st": 0,
+      "mv": 25374381,
+      "ap": 214,
+      "p": 214,
+      "prob": 1,
+      "mvt": 1,
+      "ofc": 0
+    }
+  ]
+}

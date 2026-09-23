@@ -118,7 +118,12 @@ Beide denkbaren GET-Endpunkte sind gesperrt (405, siehe §1). Das Array kann dah
 erneut (schreibt dann `tmp/inspect/offers_found.json`).
 
 ### F2 — `prob`-Richtung: **1 = sicherste Startelf** (starke Evidenz, App-Gegenprobe offen)
-Median-Marktwert je Stufe in der Cassette vom 31.08. (n=22):
+> Belegdatei: `docs/samples/market_prob_sample_2026-08-31.json`. Die Cassette vom 31.08. wurde
+> in P0-0.3 durch eine aktuelle ersetzt, und Kickbase liefert `prob` außerhalb der
+> Spieltagswoche nicht — ohne diese archivierte Stichprobe wäre die Antwort nicht mehr
+> überprüfbar. `scripts/answer_open_questions.py` liest sie als dritte Quelle mit.
+
+Median-Marktwert je Stufe (n=22):
 
 | `prob` | n | Median-MW |
 |---|---|---|
