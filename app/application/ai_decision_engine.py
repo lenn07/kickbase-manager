@@ -149,6 +149,12 @@ _POSITION_LABELS: dict[Position, str] = {
 @dataclass(frozen=True, slots=True)
 class AiDecisionConfig:
     max_tokens: int = 1024
+    # `0.0` seit P0-5. Die Entscheidung ist kein kreativer Akt: bei gleicher
+    # Lage soll dieselbe Aktion herauskommen. Sampling macht sonst jeden
+    # Prompt-Merge unbeweisbar — man kann nicht unterscheiden, ob eine geänderte
+    # Entscheidung an der Änderung liegt oder an der Temperatur. Genau darauf
+    # fährt die Eval-Suite (§9, „Prompt-Regression durch Sampling").
+    temperature: float | None = 0.0
 
 
 class AiDecisionEngine:
@@ -187,6 +193,7 @@ class AiDecisionEngine:
                 tool_description=_TOOL_DESCRIPTION,
                 input_schema=_INPUT_SCHEMA,
                 max_tokens=self._config.max_tokens,
+                temperature=self._config.temperature,
             )
         except LlmChatError as exc:
             _log.warning("Anthropic-Call fehlgeschlagen (%s) — HOLD.", exc)

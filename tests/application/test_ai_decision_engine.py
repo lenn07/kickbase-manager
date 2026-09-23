@@ -54,6 +54,7 @@ class FakeLlm:
         tool_description: str,
         input_schema: dict[str, Any],
         max_tokens: int = 1024,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
         self.calls.append(
             {
@@ -64,6 +65,7 @@ class FakeLlm:
                 "tool_description": tool_description,
                 "input_schema": input_schema,
                 "max_tokens": max_tokens,
+                "temperature": temperature,
             }
         )
         if self._error is not None:
@@ -601,3 +603,36 @@ async def test_accept_offer_passes_once_the_offer_is_really_in_the_payload(
 
     assert decision.action is TradeAction.ACCEPT_OFFER
     assert decision.offer_id == "off_1"
+
+
+async def test_decision_call_runs_at_temperature_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Die Entscheidung ist kein kreativer Akt — gleiche Lage, gleiche Aktion.
+
+    Ohne `temperature=0` misst jede Eval Sampling statt Prompt-Treue, und ein
+    Prompt-Merge lässt sich nicht mehr belegen (Plan §9).
+    """
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt",
+        lambda: "SYS",
+    )
+    llm = FakeLlm(
+        response={
+            "action": "HOLD",
+            "price": 0,
+            "intent": "NONE",
+            "confidence": 0.5,
+            "reason_short": "ruhig",
+            "reason_long": "Keine Gelegenheit.",
+            "expected_outcome": {
+                "points_delta_next_matchday": 0,
+                "profit_estimate": 0,
+                "balance_after_action": 0,
+                "balance_after_open_bids": 0,
+            },
+            "risk_flags": [],
+        }
+    )
+
+    await AiDecisionEngine(llm=llm, api_key="sk-ant-test").decide(_context())
+
+    assert llm.calls[0]["temperature"] == 0.0

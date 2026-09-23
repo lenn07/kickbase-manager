@@ -22,7 +22,7 @@ _USER_HEADER = "## USER"
 # werden. Sobald der Master-Prompt gegen neue Kickbase-Regeln geprüft wurde,
 # hier das Datum aktualisieren — der AI-Only-Modus liefert es via USER-JSON
 # als `rules_last_verified` an das LLM (§ 8 des Master-Prompts).
-RULES_LAST_VERIFIED: date = date(2026, 9, 16)
+RULES_LAST_VERIFIED: date = date(2026, 9, 23)
 
 
 class MasterPromptError(RuntimeError):

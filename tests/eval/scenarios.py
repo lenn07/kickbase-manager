@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from app.application.decision_engine import DecisionContext
 from app.application.player_enrichment import PlayerEnrichment
+from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
     LeagueMe,
     MarketPlayer,
@@ -45,6 +46,10 @@ class Scenario:
     forbidden: frozenset[TradeAction] = field(default_factory=frozenset)
     # Was die Regel im Prompt ist, gegen die hier geprüft wird.
     rule: str = ""
+    # Normalerweise steht eine vollständige Elf, sonst prüfte jedes Szenario
+    # nebenbei die -100-Regel statt der gemeinten. Ein Szenario, das **über**
+    # die Aufstellung geht, setzt das bewusst auf False.
+    expects_full_lineup: bool = True
 
 
 def _player(
@@ -101,21 +106,32 @@ def _context(
     team_value: int,
     minutes_until_matchday: int,
     enrichment_overrides: dict[str, PlayerEnrichment] | None = None,
+    placed_in_lineup: int | None = None,
+    market_offer_counts: dict[str, int] | None = None,
+    market_expiry_s: int = 6 * 3600,
 ) -> DecisionContext:
+    """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
+
+    Default ist eine vollständige Elf — sonst prüfte jedes Szenario nebenbei die
+    -100-Regel statt der Regel, um die es eigentlich geht.
+    """
+    placed = LINEUP_SIZE if placed_in_lineup is None else placed_in_lineup
     squad = Squad(
         league_id=LEAGUE_ID,
         manager_id=MANAGER_ID,
         players=tuple(
-            SquadPlayer(player=p, lineup_order=i if i < 11 else None)
+            SquadPlayer(player=p, lineup_order=i if i < placed else None)
             for i, p in enumerate(squad_players)
         ),
     )
+    offer_counts = market_offer_counts or {}
     market = tuple(
         MarketPlayer(
             player=p,
             price=p.market_value,
-            expires_in_s=6 * 3600,
+            expires_in_s=market_expiry_s,
             seller_id=None,
+            offer_count=offer_counts.get(p.id, 0),
             offers=(),
         )
         for p in market_players
@@ -144,6 +160,11 @@ def _context(
         enrichment=enrichment,
         max_negative_allowed=max_negative,
         current_balance_after_open_bids=Decimal(cash),
+        lineup=Lineup(
+            formation=DEFAULT_FORMATION,
+            player_ids=tuple(p.id for p in squad_players[:placed]),
+        ),
+        lineup_deadline=NOW + timedelta(minutes=minutes_until_matchday),
     )
 
 
@@ -158,6 +179,15 @@ def _squad_of_twelve() -> list[Player]:
         ],
         *[_player(f"40{i}", f"Sturm{i}", Position.FORWARD, 18_000_000) for i in range(1, 3)],
         _player("501", "Bankspieler", Position.DEFENDER, 5_000_000, average_points=40.0),
+    ]
+
+
+def _squad_of_fourteen() -> list[Player]:
+    """Elf Aufgestellte plus drei fitte Ersatzspieler — für das SET_LINEUP-Szenario."""
+    return [
+        *_squad_of_twelve(),
+        _player("502", "Ersatz-Mittelfeld", Position.MIDFIELDER, 6_000_000, average_points=95.0),
+        _player("503", "Ersatz-Sturm", Position.FORWARD, 7_000_000, average_points=105.0),
     ]
 
 
@@ -243,8 +273,162 @@ def _injured_starter() -> Scenario:
     )
 
 
+# -- Szenarien zu den Regeln, die P0-5 neu in den Prompt gebracht hat ------
+
+
+def _open_lineup_slots() -> Scenario:
+    """Zehn aufgestellt, drei fitte auf der Bank, drei Stunden bis Anpfiff.
+
+    Der leere Slot kostet 100 Punkte, die Ersatzspieler kosten nichts. Es gibt
+    keinen Grund, ihn offen zu lassen — und der Prompt kennt seit P0-5 die
+    Aktion, um ihn zu schliessen.
+    """
+    squad = _squad_of_fourteen()
+    market = [_player("904", "Irgendwer", Position.MIDFIELDER, 8_000_000, average_points=70.0)]
+    return Scenario(
+        name="open_lineup_slots",
+        description="10 von 11 Slots besetzt, 3 fitte Ersatzspieler, Anpfiff in 3 h",
+        context=_context(
+            squad_players=squad,
+            market_players=market,
+            cash=3_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=180,
+            placed_in_lineup=10,
+        ),
+        allowed=frozenset({TradeAction.SET_LINEUP}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.SELL}),
+        rule="Jede unbesetzte Startelf-Position kostet -100 Punkte (Regelwerk §2.2.2)",
+        expects_full_lineup=False,
+    )
+
+
+def _instant_sale_is_not_a_discount() -> Scenario:
+    """Konto tief im Minus, 40 Minuten bis Anpfiff, kein Listing läuft.
+
+    Der alte Prompt behauptete, `SELL_INSTANT` liege „meist unter Marktwert" —
+    tatsächlich bringt er den vollen Marktwert. Ein Modell, das den Abschlag
+    fürchtet, listet stattdessen und verpasst die Deadline: ein Listing hat
+    keine Zuschlagsgarantie, der Sofortverkauf schon.
+    """
+    squad = _squad_of_twelve()
+    market = [_player("905", "Verlockung", Position.FORWARD, 9_000_000)]
+    return Scenario(
+        name="instant_sale_before_deadline",
+        description="Konto -6 Mio, Anpfiff in 40 min, kein laufendes Listing",
+        context=_context(
+            squad_players=squad,
+            market_players=market,
+            cash=-6_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=40,
+        ),
+        allowed=frozenset({TradeAction.SELL}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.BUY}),
+        rule=(
+            "Sofortverkauf bringt den vollen Marktwert und ist der garantierte Plan B, "
+            "wenn das Konto bis zum Anpfiff ins Plus muss (Regelwerk §2.2.1/§2.3)"
+        ),
+    )
+
+
+def _bench_player_is_no_bargain() -> Scenario:
+    """Hoher Saison-Ø, aber die Startelf-Prognose sagt: spielt nicht.
+
+    Minuten sind die Basis von allem. Ein Spieler mit 140 Punkten Schnitt und
+    5 % Startelf-Chance bringt im Erwartungswert 7 — weniger als jeder
+    Stammspieler im Kader.
+    """
+    squad = _squad_of_twelve()
+    bench_star = _player("906", "Bankstar", Position.FORWARD, 14_000_000, average_points=140.0)
+    market = [bench_star]
+    overrides = {bench_star.id: _enrichment(bench_star, start_probability=0.05)}
+    return Scenario(
+        name="bench_player_is_no_bargain",
+        description="Marktspieler mit 140 Punkten Schnitt, Startelf-Chance 5 %",
+        context=_context(
+            squad_players=squad,
+            market_players=market,
+            cash=20_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=3 * 24 * 60,
+            enrichment_overrides=overrides,
+        ),
+        allowed=frozenset({TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.BUY}),
+        rule="Startelf-Wahrscheinlichkeit schlägt Form — wer nicht spielt, punktet nicht (§2.4)",
+    )
+
+
+def _profit_peak() -> Scenario:
+    """7-Tage-Trend stark positiv, 1-Tage-Trend dreht, Marktwert am 30-Tage-Hoch.
+
+    Verkaufsgrund 1 des Regelwerks: der Peak. Kaufen wäre hier die Umkehrung
+    des Signals — die Nachfrage ist bereits eingepreist.
+    """
+    squad = _squad_of_twelve()
+    peaked = squad[9]  # ein Stürmer aus der Startelf
+    market = [_player("907", "Neutral", Position.DEFENDER, 8_000_000, average_points=80.0)]
+    overrides = {
+        peaked.id: _enrichment(peaked, trend_7d=18.0, trend_1d=-1.2, start_probability=0.9)
+    }
+    return Scenario(
+        name="profit_peak",
+        description="Kaderspieler +18 % in 7 d, 1-d-Trend -1,2 %, MW am 30-d-Hoch",
+        context=_context(
+            squad_players=squad,
+            market_players=market,
+            cash=2_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=4 * 24 * 60,
+            enrichment_overrides=overrides,
+        ),
+        allowed=frozenset({TradeAction.LIST_ON_MARKET, TradeAction.SELL, TradeAction.HOLD}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        rule=(
+            "Peak = 7-d-Trend positiv, 1-d-Trend dreht, MW nahe mv_max_30d — "
+            "Verkaufsgrund 1 (§2.6). Ohne eingehendes Gebot ist ACCEPT/DECLINE unmöglich."
+        ),
+    )
+
+
+def _no_offers_means_no_accept() -> Scenario:
+    """`incoming_offers` ist leer — dann gibt es nichts anzunehmen.
+
+    Der Code verwirft eine `offer_id`, die nicht im Kontext steht, und der Tick
+    ist verloren. Das Szenario prüft, ob der Prompt das verhindert, statt sich
+    auf die Code-Sperre zu verlassen.
+    """
+    squad = _squad_of_twelve()
+    market = [_player("908", "Beliebig", Position.MIDFIELDER, 7_000_000, average_points=85.0)]
+    return Scenario(
+        name="no_offers_means_no_accept",
+        description="Kader vollständig, Konto im Plus, keine eingehenden Gebote",
+        context=_context(
+            squad_players=squad,
+            market_players=market,
+            cash=5_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=2 * 24 * 60,
+        ),
+        allowed=frozenset(
+            {TradeAction.HOLD, TradeAction.BUY, TradeAction.LIST_ON_MARKET, TradeAction.SELL}
+        ),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        rule=(
+            "IDs nur aus dem Kontext - leeres `incoming_offers` heisst: "
+            "die Aktion ist nicht verfügbar (§6)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
     _injured_starter(),
+    _open_lineup_slots(),
+    _instant_sale_is_not_a_discount(),
+    _bench_player_is_no_bargain(),
+    _profit_peak(),
+    _no_offers_means_no_accept(),
 )
