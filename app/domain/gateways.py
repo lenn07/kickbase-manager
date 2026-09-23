@@ -12,6 +12,7 @@ from app.domain.models import (
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
+    PlayerDetail,
     Session,
     Squad,
 )
@@ -80,6 +81,15 @@ class KickbaseGateway(Protocol):
     async def accept_offer(self, league_id: str, player_id: str, offer_id: str) -> None: ...
 
     async def decline_offer(self, league_id: str, player_id: str, offer_id: str) -> None: ...
+
+    async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
+        """Einzelspieler-Detail — Quelle der ganzjährigen Startelf-Prognose `sl`.
+
+        Kostet einen Request **pro Spieler**. Aufrufer müssen die Menge
+        begrenzen; der `PlayerEnricher` holt sie nur für Kader + Shortlist und
+        nur dann, wenn `prob` fehlt (Plan §9, Rate-Limit/Ban).
+        """
+        ...
 
     async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]: ...
 

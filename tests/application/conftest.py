@@ -15,6 +15,7 @@ from app.domain.models import (
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
+    PlayerDetail,
     Squad,
 )
 from app.domain.models import (
@@ -101,6 +102,9 @@ class FakeKickbase:
 
     async def decline_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         return None
+
+    async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
+        return PlayerDetail(player_id=player_id, is_predicted_starter=None)
 
     async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]:
         return []

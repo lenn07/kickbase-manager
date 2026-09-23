@@ -16,6 +16,19 @@ class Position(IntEnum):
 
 
 class PlayerStatus(IntEnum):
+    """Kickbase-`st`-Werte. Die Liste ist **nicht** nachweislich vollständig.
+
+    Real beobachtet wurden bislang nur 0, 2 und 4 (Plan §8/F3); die API-Doku
+    nennt zusätzlich 128. Die Frage ist durch Sammeln nicht abschließbar —
+    deshalb gibt es `UNKNOWN`: ein `st`, das hier nicht steht, wird darauf
+    abgebildet und **nicht** auf `FIT`. Ein nicht spielberechtigter Spieler,
+    der als fit durchgeht, wird aufgestellt und kostet 100 Punkte (Defekt D6).
+
+    `UNKNOWN` trägt bewusst einen negativen Wert: Kickbase vergibt nur
+    nicht-negative, eine Kollision ist damit ausgeschlossen.
+    """
+
+    UNKNOWN = -1
     FIT = 0
     INJURED = 1
     UNKNOWN_2 = 2
@@ -44,6 +57,19 @@ class League:
 
 @dataclass(frozen=True, slots=True)
 class Player:
+    """Ein Bundesliga-Spieler, so wie Kickbase ihn liefert.
+
+    `average_points`/`total_points` sind `None`, wenn Kickbase sie nicht
+    mitschickt — und das kommt vor: 4 von 21 Marktspielern der Cassette tragen
+    weder `ap` noch `p` (Spieler ohne Einsatz). Vor P0-3 stand dort 0.0, und
+    0.0 ist hier nicht „keine Punkte", sondern „wir wissen es nicht". Genau
+    diese Verwechslung war Defekt D1 in groß; §9 des Plans zieht daraus die
+    Regel: fehlendes Feld ⇒ `None` + `missing_data`-Flag, nie Default-0.
+
+    Ein **negativer** Wert ist dagegen echt (Platzverweis, Eigentor) und darf
+    nicht als „fehlt" behandelt werden.
+    """
+
     id: str
     first_name: str
     last_name: str
@@ -51,8 +77,8 @@ class Player:
     position: Position
     status: PlayerStatus
     market_value: Decimal
-    average_points: float
-    total_points: int
+    average_points: float | None = None
+    total_points: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +142,15 @@ class MarketPlayer:
     # Gebots-Array im Payload heißt (Plan §8/F1). Auf eigenen Listings ist er
     # das Signal „warten statt Sofortverkauf", auf fremden ein Konkurrenzmaß.
     offer_count: int = 0
+    # `prob` = Startelf-Wahrscheinlichkeit in 5 Stufen, `1` = sicherste Startelf
+    # (Plan §8/F2). **Nur in der Spieltagswoche vorhanden** — am 23.09. in 0 von
+    # 21 Items, am 31.08. in 22 von 22. Roh gehalten, damit die Umrechnung an
+    # einer Stelle steht und sichtbar bleibt, wenn die Quelle fehlt.
+    start_probability_raw: int | None = None
+    # `isn` = neu auf dem Markt. `dt` im Item = Listing-Zeitpunkt (nicht zu
+    # verwechseln mit `dt` im Root, das den Spieltagsstart meint).
+    is_new: bool = False
+    listed_at: datetime | None = None
     # Die Gebote selbst. Bleibt leer, bis der Feldname gegen ein echtes Gebot
     # verifiziert ist — ein geratenes Array wäre schlimmer als keins, weil
     # `ACCEPT_OFFER` dann mit einer erfundenen ID rausginge.
@@ -158,6 +193,25 @@ class MarketSnapshot:
     matchday: int = 0
     squad_size: int = 0
     season: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerDetail:
+    """Einzelspieler-Sicht aus `GET /v4/leagues/{l}/players/{p}`.
+
+    Gehalten wird nur, was P0-3 braucht: die Startelf-Prognose `sl`. Sie ist
+    ein **bool**, nicht die 5-stufige `prob`-Skala, dafür aber ganzjährig
+    verfügbar — `prob` fehlt außerhalb der Spieltagswoche komplett (Plan
+    §8/F2). Die Quelle (`plpt`, aktuell „Ligainsider") wandert mit ins
+    USER-JSON: eine Prognose ohne Herkunft kann das Modell nicht gewichten.
+
+    Kostet einen HTTP-Call pro Spieler — deshalb holt der Enricher sie nur für
+    eine begrenzte Auswahl und nur, wenn `prob` fehlt.
+    """
+
+    player_id: str
+    is_predicted_starter: bool | None = None
+    prediction_source: str = ""
 
 
 @dataclass(frozen=True, slots=True)

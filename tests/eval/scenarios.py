@@ -85,6 +85,9 @@ def _enrichment(
         mv_max_30d=int(player.market_value),
         avg_points_last5=player.average_points,
         start_probability_next=start_probability,
+        # Die Szenarien sollen den Prompt gegen eine Regel prüfen, nicht gegen
+        # eine Datenlücke — deshalb überall die beste Quelle.
+        start_probability_source="kickbase_prob",
         injury_status="fit" if player.status is PlayerStatus.FIT else "injured",
         missing_data_flags=(),
     )

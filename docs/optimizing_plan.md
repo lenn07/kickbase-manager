@@ -58,7 +58,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 ### Phase 1 — P0: Bot handlungsfähig machen · Status: **in Arbeit**
 - [x] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
 - [x] **P0-2** Gebote parsen (Offers-Array) — `ofc`-Teil umgesetzt, Array-Teil belegt entkoppelt
-- [ ] **P0-3** Marktspieler-Leistungsdaten + `prob`
+- [x] **P0-3** Marktspieler-Leistungsdaten + `prob`
 - [ ] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`)
 - [ ] **P0-5** Master-Prompt korrigieren
 
@@ -312,6 +312,7 @@ sähe fit aus. (P0-3)
 | D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 |
 | D11 | Keine Aufstellungs-Aktion | Gateway/Executor | teuerste Regel (−100/Slot) ohne Ausführungspfad | P0-4 |
 | D12 | Fester 120-min-Takt | `app/config.py:31`, `scheduler.py:60` | ~11 von 12 Ticks im Leerlauf; kann 20:35 statt 20:15 feuern | P1-10 |
+| D13 | `avg_points_last5` verwirft negative Werte | `app/application/player_enrichment.py` (`_avg_points_proxy`) | `ap > 0`-Filter ⇒ Spieler mit −60 Saison-Ø sieht aus wie einer ohne Daten; das aussagekräftigste Signal fällt weg | P0-3 ✅ |
 
 ### 4.1 Fehler im Master-Prompt (`docs/master_prompt.md`)
 | § | Steht da | Korrekt |
@@ -681,6 +682,52 @@ benennen, §3.1 korrigieren. Das entscheidet die Timing-Logik in P1-10.
 `avg_points_last5: null`, wenn `ap` vorhanden · Regression: `st=128` **nicht** „fit/0.85".
 **DoD:** Gap-Assertions 3+4 grün.
 
+> **[Plan-Ergänzung 2026-09-23, dritte] Beide Gap-Assertions waren in dieser Form nicht
+> erfüllbar — das DoD hätte nie zugeschlagen.**
+>
+> **1. Gap 4 (`all(avg_points_last5 is not None)`) kann nicht grün werden.** 4 der 21
+> Marktspieler der Cassette tragen weder `ap` noch `p` (Spieler ohne Einsatz). Für die ist
+> `null` die *richtige* Antwort — ein erfundener Wert wäre genau der Fehler, den §9 verbietet.
+> Mit `xfail(strict=True)` bleibt so ein Test dauerhaft „grün", und P0-3 wäre nie als fertig
+> erkennbar gewesen. Der Defekt war auch nie „fehlt bei manchen", sondern
+> „`to_market_player()` setzt für **alle** hart 0" — jeder Marktspieler sah gleich aus, der mit
+> 178 Punkten wie der ohne jede Angabe. **Umgesetzt:** Die Assertion rechnet ihre Erwartung
+> jetzt aus der Cassette aus — was Kickbase liefert, muss ankommen; wo nichts kommt, muss ein
+> `missing_data:avg_points_last5`-Flag stehen; und die Werte müssen streuen.
+>
+> **Dazu ein eigener Defekt (neu, D13):** `_avg_points_proxy()` filterte auf
+> `average_points > 0`. Die beiden Spieler mit negativem Saison-Ø (Platzverweis, Eigentor)
+> landeten damit im selben Topf wie die ohne Daten — dabei ist −60 das aussagekräftigste
+> Datum im ganzen Feld. Wer es nicht sieht, kauft den Spieler. Behoben, mit eigenem Test.
+>
+> **2. Gap 3 (Streuung der Startelf-Prognose) hat im Snapshot keine Datenquelle.** Der
+> Snapshot läuft gegen die Cassette vom 23.09., und die enthält `prob` in **0 von 21** Items
+> (§8/F2). Die `prob`-Stufe ist dort also prinzipiell nicht messbar, egal wie gut sie
+> umgesetzt ist; die `sl`-Stufe liefert einen Ja/Nein-Wert und damit ebenfalls keine Streuung.
+> **Umgesetzt:** Der `prob`-Pfad wird in `tests/application/test_start_probability_chain.py`
+> gegen die Archiv-Stichprobe aus P0-0.7 geprüft (22 Einträge mit `prob`, Stufen 1–5) — die
+> einzige erhaltene Quelle mit dem Feld. Der Haupt-Snapshot prüft stattdessen das, was in
+> seiner Datenlage messbar *ist*: dass jede Prognose ihre Quelle nennt
+> (`start_probability_source`) und das Heuristik-Flag nur noch dort steht, wo wirklich geraten
+> wurde. Vorher hing es an jedem Spieler und trug damit keine Information.
+>
+> **3. Die `sl`-Stufe hätte die Call-Zahl pro Tick verdoppelt.** `GET /players/{p}` kostet
+> einen Request **pro Spieler**; für Kader + kompletten Markt wären das ~29 zusätzliche
+> Requests, obendrauf auf die 25 Historien-Calls aus D8. §9 führt genau das als Ban-Risiko,
+> und P0-3 nennt keinen Deckel (der steht erst bei P1-7/P1-8). **Umgesetzt:** `sl` wird nur
+> für die Auswahl geholt, die ohnehin Historien bekommt (Kader + Top-N Markt), und nur dort,
+> wo `prob` fehlt. In der Spieltagswoche kostet die Kette damit **null** zusätzliche Requests
+> — durch einen Test belegt.
+>
+> **4. Der Invarianten-Test aus P0-0.4 widerspricht §8/F2 und §9.** Er forderte „jeder
+> Marktspieler hat eine Startelf-Wahrscheinlichkeit", begründet damit, ein fehlender Wert sei
+> schlimmer als ein grober. Der Plan sagt an zwei anderen Stellen das Gegenteil, und er hat
+> recht: eine 0.5 für einen Spieler mit unbekanntem Status ist von einer echten Prognose nicht
+> zu unterscheiden, ein `null` mit Flag schon. Umgestellt auf „hat einen Wert **mit** Herkunft
+> **oder** ein Flag, das sagt warum nicht". Das ist auch die Voraussetzung dafür, dass D6
+> (unbekanntes `st`) überhaupt sauber lösbar ist — `PlayerStatus.UNKNOWN` bekommt bewusst
+> **keine** Zahl.
+
 #### P0-4 — Aufstellung setzen
 **Behebt:** D11
 **Designentscheidung:** Die −100-Regel wird **nicht** dem LLM überlassen. Zwei Mechanismen:
@@ -963,6 +1010,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-0.6 | Eval-Suite erstmals mit gueltigem key ausgefuehrt | 6/6 gruen, 12 calls, 2:44 min, kein fallback. der aktuelle master-prompt besteht alle drei szenarien trotz der fehler aus §4.1. ausgabe der gewaehlten aktionen nachgeruestet (`-s`), sonst verschenkt ein bezahlter lauf seinen befund. |
 | 2026-09-23 | P0-1 | Team-Value & Markt-Metadaten, `MarketSnapshot`, `Squad.team_value`/`budget` entfernt | **D1 geschlossen:** `team_value` 0 -> 148.767.974, `max_negative_allowed` 0 -> -48.968.009 im Payload. **Loop-Stopp aus dem Plan geprueft:** `mvud` ist der *naechste* Update-Zeitpunkt (Cassette 16:09 Z -> `mvud` 20:00 Z), §3.1 stimmt, P1-10 kann darauf bauen. `dt` aus dem Market-Root deckt sich exakt mit dem bisherigen `list_matchdays()`-Ergebnis (2026-10-09T18:30Z) -> **ein HTTP-Call weniger pro Tick**, Liste bleibt Fallback fuer veraltetes `dt`. Die in P0-0.4 vorgemerkte Zeitquelle ist mit umgezogen: `MarketPlayer` traegt jetzt das rohe `exs`, `expires_at(now)` rechnet damit — der Snapshot-Workaround `_market_with_fixed_expiry` konnte ersatzlos entfallen. Dashboard zeigte `squad.team_value` (immer 0) und laeuft jetzt ueber den Snapshot — bei **gleicher** Call-Zahl, weil `nps` die Kadergroesse gleich mitliefert. |
 | 2026-09-23 | P0-2 | **Ergaenzung:** `ofc` als `offer_count` im Payload, Kontext-Validierung der LLM-IDs, Diagnose-Hook fuer das ungeklaerte Gebots-Array | `has_offers` haing am `offers`-Tupel, das bis F1 immer leer ist — ein Listing mit vier Bietern galt als „keine Gebote" und waere in den Sofortverkauf gelaufen. Jetzt aus `ofc`. **Der Plan verliess sich an zwei Stellen auf Disziplin:** „nicht scharf schalten" war ein Merkzettel (jede `offer_id` des Modells ist zwangslaeufig erfunden, der Executor haette sie abgesetzt — einziger Schutz war `dry_run`, das am 23.09. auf `0` stand), und das Rest-Verfahren fuer F1 haing an einem manuell getimten Skriptlauf waehrend eines offenen Gebots. Beides jetzt als Code. Zweiter `ofc`-Call ueber `/leagues/{l}/squad` ist ueberfluessig: eigene Listings stehen mit `ofc` im `/market`-Payload. |
+| 2026-09-23 | P0-3 | **Ergaenzung:** Leistungsdaten durchgereicht, Startelf-Quellenkette mit Herkunftsangabe, `PlayerStatus.UNKNOWN`, `_avg_points_proxy` korrigiert (D13) | **Beide Gap-Assertions waren nicht erfuellbar** — Gap 4 verlangt Werte fuer 4 Spieler, fuer die Kickbase keine liefert; Gap 3 misst Streuung in einer Cassette ohne `prob`. Mit `xfail(strict=True)` waeren beide dauerhaft „gruen" geblieben und das Phase-1-DoD haette nie zugeschlagen. Neu gefasst: Gap 4 rechnet die Erwartung aus der Cassette, Gap 3 laeuft gegen die Archiv-Stichprobe mit `prob`. **Neuer Defekt D13:** `_avg_points_proxy` filterte `> 0` — die beiden Spieler mit negativem Saison-Ø (−4, −60) galten als datenlos. **Kostendeckel:** `sl` haette ~29 Requests/Tick gekostet (§9 Ban-Risiko); jetzt nur fuer die Auswahl, die ohnehin Historien bekommt, und nur wo `prob` fehlt — in der Spieltagswoche null Zusatz-Calls. Payload-Effekt: `avg_points_last5` 1/21 -> 17/21 gefuellt, `start_probability_next` 3 -> 4 distinkte Werte mit ausgewiesener Quelle (10x `lineup_prediction`, 11x `injury_status_heuristic`). |
 
 ---
 

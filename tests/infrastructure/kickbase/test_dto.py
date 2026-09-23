@@ -3,12 +3,13 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from app.domain.models import Position
+from app.domain.models import PlayerStatus, Position
 from app.infrastructure.kickbase.dto import (
     LeagueMeDTO,
     LoginResponseDTO,
     MarketResponseDTO,
     MatchdaysResponseDTO,
+    PlayerDetailDTO,
     SquadResponseDTO,
 )
 
@@ -308,3 +309,111 @@ def test_known_fields_alone_leave_nothing_unknown() -> None:
         {"it": [{"i": "43", "fn": "Mitchell", "n": "Weiser", "tid": "10", "pos": 2, "st": 0}]}
     ).it[0]
     assert dto.unknown_fields() == {}
+
+
+# -- P0-3: Leistungsdaten, `prob` und unbekannter Status ------------------
+
+
+def test_market_item_carries_performance_and_prob() -> None:
+    """Bis P0-3 setzte `to_market_player()` beides hart auf 0 (Defekt D4)."""
+    dto = MarketResponseDTO.model_validate(
+        {
+            "it": [
+                {
+                    "i": "43",
+                    "pos": 2,
+                    "st": 0,
+                    "mv": "6779912",
+                    "prc": "6779912",
+                    "p": 141,
+                    "ap": 71,
+                    "prob": 1,
+                    "isn": True,
+                    "dt": "2026-09-23T02:01:35Z",
+                }
+            ]
+        }
+    ).it[0]
+    mp = dto.to_market_player()
+
+    assert mp.player.average_points == 71
+    assert mp.player.total_points == 141
+    assert mp.start_probability_raw == 1
+    assert mp.is_new is True
+    assert mp.listed_at is not None
+
+
+def test_missing_performance_stays_none_instead_of_zero() -> None:
+    """4 von 21 Marktspielern tragen weder `ap` noch `p`.
+
+    0.0 hieße „hat gespielt und nichts gebracht" — eine andere Aussage als
+    „wir wissen nichts". §9 des Plans: fehlendes Feld ⇒ None, nie Default-0.
+    """
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "157", "pos": 2, "st": 0, "mv": "2821595", "prc": "2821595"}]}
+    ).it[0]
+    mp = dto.to_market_player()
+
+    assert mp.player.average_points is None
+    assert mp.player.total_points is None
+    assert mp.start_probability_raw is None
+
+
+def test_negative_season_average_survives_the_mapping() -> None:
+    """Ein Minuswert ist echt (Platzverweis, Eigentor) und darf nicht wegfallen."""
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "11100", "pos": 3, "st": 0, "mv": "5813189", "p": -60, "ap": -60}]}
+    ).it[0]
+    assert dto.to_market_player().player.average_points == -60
+
+
+def test_unknown_status_does_not_become_fit() -> None:
+    """Defekt D6: `st: 128` sah als `FIT` aus und wurde aufgestellt.
+
+    Die `st`-Liste ist nicht abschließbar (Plan §8/F3) — deshalb muss
+    Unbekanntes als unbekannt durchkommen, nicht als „spielt".
+    """
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "999", "pos": 3, "st": 128, "mv": "1000000"}]}
+    ).it[0]
+    assert dto.to_market_player().player.status is PlayerStatus.UNKNOWN
+
+
+def test_known_statuses_still_map_exactly() -> None:
+    for raw, expected in (
+        (0, PlayerStatus.FIT),
+        (2, PlayerStatus.UNKNOWN_2),
+        (4, PlayerStatus.OUT_OF_SQUAD),
+    ):
+        dto = MarketResponseDTO.model_validate(
+            {"it": [{"i": "1", "pos": 3, "st": raw, "mv": "1000000"}]}
+        ).it[0]
+        assert dto.to_market_player().player.status is expected
+
+
+def test_status_minus_one_from_the_wire_is_not_silently_accepted() -> None:
+    """`UNKNOWN` ist ein Domain-Zustand, kein Wire-Wert.
+
+    Käme er je über die Leitung, wäre das eine API-Änderung und kein bekannter
+    Status — er darf nicht als „kennen wir" durchrutschen.
+    """
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "1", "pos": 3, "st": -1, "mv": "1000000"}]}
+    ).it[0]
+    assert dto.to_market_player().player.status is PlayerStatus.UNKNOWN
+
+
+def test_player_detail_maps_the_lineup_prediction() -> None:
+    """`sl` ist die ganzjährige Quelle — `prob` fehlt ausserhalb der Spieltagswoche."""
+    detail = PlayerDetailDTO.model_validate(
+        {"i": "1991", "sl": True, "plpt": "Ligainsider"}
+    ).to_domain("1991")
+
+    assert detail.player_id == "1991"
+    assert detail.is_predicted_starter is True
+    assert detail.prediction_source == "Ligainsider"
+
+
+def test_player_detail_without_prediction_stays_none() -> None:
+    detail = PlayerDetailDTO.model_validate({"i": "1991"}).to_domain("1991")
+    assert detail.is_predicted_starter is None

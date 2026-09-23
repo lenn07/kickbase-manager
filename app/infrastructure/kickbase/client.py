@@ -27,6 +27,7 @@ from app.domain.models import (
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
+    PlayerDetail,
     Session,
     Squad,
 )
@@ -39,6 +40,7 @@ from app.infrastructure.kickbase.dto import (
     MarketResponseDTO,
     MarketValueResponseDTO,
     MatchdaysResponseDTO,
+    PlayerDetailDTO,
     SquadResponseDTO,
 )
 from app.infrastructure.kickbase.rate_limit import AsyncRateLimiter
@@ -157,6 +159,11 @@ class HttpxKickbaseClient:
     async def decline_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         path = f"/v4/leagues/{league_id}/market/{player_id}/offers/{offer_id}/decline"
         await self._request("POST", path)
+
+    async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
+        path = f"/v4/leagues/{league_id}/players/{player_id}"
+        data = await self._request("GET", path)
+        return PlayerDetailDTO.model_validate(data).to_domain(player_id)
 
     # -- Spieltage + Marktwert-Historie --------------------------------
 

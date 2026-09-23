@@ -369,6 +369,7 @@ async def test_user_payload_contains_squad_market_recent_actions(
             mv_max_30d=5_100_000,
             avg_points_last5=140.0,
             start_probability_next=0.9,
+            start_probability_source="kickbase_prob",
             injury_status="fit",
             missing_data_flags=("missing_data:avg_points_last5_using_season_avg",),
         ),
