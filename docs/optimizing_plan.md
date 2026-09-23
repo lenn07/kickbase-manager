@@ -46,12 +46,13 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 ## 1. Fortschritts-Board
 
-### Phase 0 — Discovery & Guardrails · Status: **offen**
+### Phase 0 — Discovery & Guardrails · Status: **abgeschlossen** (2026-09-23)
 - [x] **P0-0.1** Endpoint-Discovery erweitern (`scripts/inspect_endpoints.py`)
 - [x] **P0-0.2** Die 5 offenen Fragen beantworten (-> §8) — F4/F5 geklärt, F1–F3 eingegrenzt
 - [x] **P0-0.3** Cassettes neu aufnehmen — 15 Cassettes, **aktives eigenes Listing dabei**, Gebots-Fall fehlt noch (braucht ein echtes Gebot, §8/F1)
 - [x] **P0-0.4** Payload-Snapshot-Test bauen — Snapshot + 4 einzeln messbare Gap-Tests
 - [x] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`) + Baseline über 14 Endpunkte
+- [x] **P0-0.6** Eval-Gerüst + `eval`-Marker  ⟵ *[Plan-Ergänzung, siehe §6]*
 
 ### Phase 1 — P0: Bot handlungsfähig machen · Status: **offen**
 - [ ] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
@@ -79,7 +80,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 | Phase | Messbar fertig, wenn … |
 |---|---|
-| **0** | `pytest` grün · Snapshot-Datei existiert · alle 5 Fragen in §8 beantwortet **oder** mit belegtem Rest-Verfahren + entkoppeltem Folgepaket abgeschlossen (siehe §8.0) |
+| **0** | `pytest` grün · Snapshot-Datei existiert · Eval-Gerüst lauffähig · alle 5 Fragen in §8 beantwortet **oder** mit belegtem Rest-Verfahren + entkoppeltem Folgepaket abgeschlossen (siehe §8.0) |
 | **1** | Die 4 Gap-Assertions aus P0-0.4 sind grün · Eval-Suite grün · 7 Tage Shadow (`dry_run=true`) ohne Executor-Fehler im `trade_log` |
 | **2** | HTTP-Calls/Tick gesunken (Messung im Log) · `avg_points_last5` ist echte L5 · keine hartkodierten Limits mehr in `kb_rules.py` · Ticks feuern in den Fenstern aus P1-10 |
 | **3** | USER-JSON enthält Gegnerstärke + Ligarang · Overbid ist formelbasiert · Deadline-Tick kann ≥ 2 Aktionen ausführen |
@@ -491,6 +492,39 @@ manueller Lauf**. Baseline: `docs/contract_baseline.json`, Anleitung in `docs/ap
 > **Verifiziert:** Umbenennung `market.it[].mv` → `marketValue` simuliert ⇒ „✗ FEHLT it[].mv",
 > „+ NEU it[].marketValue", Exit-Code 1.
 
+#### P0-0.6 — Eval-Gerüst + `eval`-Marker  *(Plan-Ergänzung)*
+
+> **[Plan-Ergänzung 2026-09-23] Dieses Paket fehlte, obwohl der Plan es voraussetzt.**
+> §7 beschreibt Phase 0 als „Discovery + Snapshot + **Eval-Gerüst**", §5 verlangt die
+> Marker-Registrierung in `pyproject.toml`, und das DoD von Phase 1 lautet „Eval-Suite grün" —
+> aber kein Paket baut sie. Ohne registrierten Marker scheitert jeder Test mit
+> `@pytest.mark.eval` sofort an `--strict-markers`; P0-5 (Prompt) hätte sein eigenes DoD nicht
+> erfüllen können.
+
+1. `pyproject.toml`: `markers = ["eval: kostet echte LLM-Calls, nicht im Default-Run"]`
+   und `-m 'not eval'` in `addopts`.
+2. `tests/eval/scenarios.py` — feste, **synthetische** Szenarien. Bewusst nicht aus den
+   Cassettes: eine Eval misst, ob der Prompt eine Regel befolgt; dafür darf nur ein Faktor
+   variieren. Jedes Szenario nennt **erlaubte** und **verbotene** Aktionen plus die Regel, gegen
+   die geprüft wird — ein Eval, das eine einzige Aktion erzwingt, misst Zufall und ist nach dem
+   ersten Prompt-Feinschliff rot, ohne dass etwas kaputt wäre.
+3. `tests/eval/test_prompt_eval.py` — 3 Läufe je Szenario, `temperature=0`. Dafür hat
+   `AnthropicClient.submit_decision` einen optionalen `temperature`-Parameter bekommen
+   (Default unverändert: der Produktivpfad bleibt beim API-Default). Ohne ihn wären drei Läufe
+   bei `temperature=1` eine Rauschmessung — §9 nennt `temperature=0` als Gegenmaßnahme, ohne
+   dass der Code sie konnte.
+4. `tests/eval/test_scenarios_build.py` — läuft **im Default-Run**, ohne Kosten: baut jedes
+   Szenario zum USER-JSON und prüft Kader, Markt, Teamwert, 33 %-Grenze und 11 aufgestellte
+   Spieler. Ohne diesen Wächter fällt ein kaputtes Szenario erst im bezahlten Lauf auf.
+
+**Startszenarien:** `debt_before_kickoff` (Konto −4,2 Mio, Anpfiff in 90 min → verkaufen, nicht
+kaufen) · `healthy_and_quiet` (alles in Ordnung → HOLD ist legitim, Sofortverkauf nicht) ·
+`injured_starter` (These gebrochen).
+**DoD:** `pytest` ignoriert die Eval im Default-Lauf, `pytest -m eval` sammelt sie und
+überspringt sie ohne `ANTHROPIC_API_KEY`. ✅
+**Ausbau:** P0-5 ergänzt Szenarien für die Regeln, die der korrigierte Prompt neu trägt
+(Unterbietungsgrenze, Sofortverkauf zum vollen MW, `mvud`-Uhr).
+
 ### PHASE 1 — P0: Bot handlungsfähig machen
 > Ohne diese 5 Pakete ist der Bot nicht wettbewerbsfähig. Aufwand gesamt ~3–4 Tage.
 
@@ -829,6 +863,7 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 | 2026-09-23 | P0-0.3 | 15 Cassettes neu aufgenommen, Redaktion gehärtet, Contract-Tests entzahlt | Die alte Redaktion erkannte Manager-Objekte nicht (`id` statt `i`) - Klarnamen und IDs fremder Mitspieler wären ins Repo gewandert. Neuer Privacy-Test sichert das ab. Cassette enthält ein aktives eigenes Listing, aber noch kein Gebot. |
 | 2026-09-23 | P0-0.4 | Snapshot-Test + 4 einzelne Gap-Tests | Der Payload war wegen `datetime.now()` in der DTO-Schicht nicht reproduzierbar - ohne Fix waere der Snapshot bei jedem Lauf rot. Gap-Assertion 3 (`start_probability_next is not None`) war bereits gruen und haette D5 nie gemessen; ersetzt durch eine Streuungs-Assertion. |
 | 2026-09-23 | P0-0.5 | Contract-Checker + Baseline ueber 14 Endpunkte | Baseline muss erzeugbar sein (`--update`), sonst Henne-Ei. `optional`-Ausnahmen mit Begruendung noetig, sonst meldet der Checker das saisonale `prob` monatlich als Drift und wird ignoriert. |
+| 2026-09-23 | P0-0.6 | **Ergaenzung:** Eval-Geruest + `eval`-Marker + `temperature`-Parameter | §7 und das Phase-1-DoD setzen eine Eval-Suite voraus, es gab aber kein Paket dafuer. Ohne registrierten Marker scheitert jeder Eval-Test an `--strict-markers`; ohne `temperature=0` sind 3 Laeufe je Szenario eine Rauschmessung. |
 
 ---
 
