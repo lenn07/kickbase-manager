@@ -3,7 +3,10 @@
 **Kostet Geld.** Läuft nicht im Default-Run — `addopts` filtert `-m "not eval"`.
 Vor jedem Merge an `docs/master_prompt.md` einmal ausführen:
 
-    ANTHROPIC_API_KEY=sk-... pytest -m eval
+    ANTHROPIC_API_KEY=sk-... pytest -m eval -s
+
+`-s` zeigt je Szenario die gewählten Aktionen und die erste Begründung — bei
+einem Prompt-Merge ist das der eigentliche Befund, nicht das grüne Häkchen.
 
 Warum drei Läufe pro Szenario: ein einzelner Lauf kann eine Regelverletzung
 verschlucken, die das Modell nur in einem von drei Fällen zeigt. `temperature=0`
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections import Counter
 from typing import Any
 
 import pytest
@@ -101,10 +105,25 @@ def _describe(decisions: list[TradeDecision]) -> str:
     return " | ".join(f"{d.action.value}: {d.reason[:90]}" for d in decisions)
 
 
+def _report(scenario: Scenario, decisions: list[TradeDecision]) -> None:
+    """Zeigt die gewählten Aktionen auch bei grünem Lauf (`pytest -m eval -s`).
+
+    Ein Lauf kostet echte Calls; nur „passed" zu melden verschenkt genau die
+    Information, für die man bezahlt hat — vor allem bei einem Prompt-Merge,
+    wo man den Effekt der Änderung sehen will, nicht nur ihre Zulässigkeit.
+    """
+    counts = Counter(d.action.value for d in decisions)
+    verteilung = ", ".join(f"{action} x{n}" for action, n in counts.most_common())
+    print(f"\n  [{scenario.name}] {verteilung}")
+    print(f"    Regel : {scenario.rule}")
+    print(f"    Grund : {decisions[0].reason[:220]}")
+
+
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
 async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Scenario) -> None:
     decisions = [await engine.decide(scenario.context) for _ in range(RUNS_PER_SCENARIO)]
     _reject_fallbacks(scenario, decisions)
+    _report(scenario, decisions)
     actions = [d.action for d in decisions]
 
     forbidden_hits = [a for a in actions if a in scenario.forbidden]
