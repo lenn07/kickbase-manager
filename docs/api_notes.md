@@ -179,12 +179,25 @@ Listing = Plan A ohne Zeitdruck, aber ohne Zuschlagsgarantie; Sofortverkauf = ga
 
 ## 5. Contract-Baseline
 
-Die maschinell geprüfte Referenzliste der erwarteten Keys liegt in
-`docs/contract_baseline.json` und wird von `scripts/check_contract.py` gepflegt
-(siehe Optimizing-Plan P0-0.5). Monatlich laufen lassen:
+Die maschinell geprüfte Referenz der erwarteten Keys liegt in `docs/contract_baseline.json`
+(14 Endpunkte, erzeugt aus dem Lauf vom 2026-09-23). Jeder Eintrag hat drei Listen:
+
+| Liste | Bedeutung | Verletzung |
+|---|---|---|
+| `always` | Key steht in **jedem** Objekt an diesem Pfad | ✗ FEHLT → Exit 1 |
+| `sometimes` | Key steht in einigen Objekten (z. B. `market.it[].u` nur bei User-Listings) | ✗ FEHLT, wenn er ganz verschwindet |
+| `optional` | Key darf komplett fehlen — Pfad → Begründung | ~ toleriert, nie Alarm |
+
+`optional` ist der Grund, warum der Checker nutzbar bleibt: `market.it[].prob` liefert Kickbase
+nur in der Spieltagswoche (§4/F2). Ohne Ausnahmeliste würde jeder Lauf außerhalb dieses Fensters
+rot melden — und ein Checker, der monatlich grundlos rot ist, wird ignoriert.
 
 ```bash
-python -m scripts.inspect_endpoints
-python -m scripts.check_contract            # meldet fehlende / neue Keys
-python -m scripts.check_contract --update   # Baseline bewusst nachziehen
+python -m scripts.inspect_endpoints                 # frische Payloads
+python -m scripts.check_contract                    # Drift-Bericht (Exit 1 = Vertrag verletzt)
+python -m scripts.check_contract --source cassettes # ohne Credentials, gegen die Cassettes
+python -m scripts.check_contract --update           # Baseline bewusst nachziehen
 ```
+
+**Monatlich laufen lassen.** Die `optional`-Einträge bleiben bei `--update` erhalten — sie sind
+handgepflegtes Wissen, keine Messung.

@@ -51,7 +51,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-0.2** Die 5 offenen Fragen beantworten (-> §8) — F4/F5 geklärt, F1–F3 eingegrenzt
 - [x] **P0-0.3** Cassettes neu aufnehmen — 15 Cassettes, **aktives eigenes Listing dabei**, Gebots-Fall fehlt noch (braucht ein echtes Gebot, §8/F1)
 - [x] **P0-0.4** Payload-Snapshot-Test bauen — Snapshot + 4 einzeln messbare Gap-Tests
-- [ ] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`)
+- [x] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`) + Baseline über 14 Endpunkte
 
 ### Phase 1 — P0: Bot handlungsfähig machen · Status: **offen**
 - [ ] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
@@ -468,11 +468,28 @@ Snapshot neu schreiben: `UPDATE_SNAPSHOTS=1 pytest tests/application/test_user_p
 `start_probability_next` mit 3 distinkten Werten für 21 Spieler.
 
 #### P0-0.5 — Contract-Drift-Checker
-`scripts/check_contract.py`: läuft live, vergleicht Key-Sets gegen eine erwartete Liste,
-meldet *fehlend* / *neu*. Kein CI-Job (braucht Credentials) — **monatlicher manueller Lauf**.
-**DoD:** Skript läuft, Referenzliste in `docs/api_notes.md`.
+`scripts/check_contract.py`: vergleicht die Key-Profile gegen eine erwartete Liste,
+meldet *fehlend* / *neu* / *schwächer*. Kein CI-Job (braucht Credentials) — **monatlicher
+manueller Lauf**. Baseline: `docs/contract_baseline.json`, Anleitung in `docs/api_notes.md` §5.
+**DoD:** Skript läuft, Referenz dokumentiert.
 
----
+> **[Plan-Ergänzung 2026-09-23] Zwei Dinge fehlten, ohne die der Checker nicht in Betrieb geht.**
+>
+> **1. Henne-Ei bei der Referenzliste.** Der Plan setzt eine „erwartete Liste" voraus, sagt aber
+> nicht, woher sie kommt. Von Hand gepflegt wäre sie bei 14 Endpunkten und ~400 Pfaden sofort
+> veraltet. Umgesetzt: `--update` erzeugt bzw. aktualisiert die Baseline aus den letzten Payloads.
+>
+> **2. Ein Checker ohne Ausnahmeliste wird ignoriert.** `market.it[].prob` ist außerhalb der
+> Spieltagswoche gar nicht da (§8/F2) — ein Checker ohne `optional`-Liste meldet das monatlich
+> als Drift. Nach dem zweiten grundlos roten Lauf schaut niemand mehr hin, und ein echter Drift
+> geht unter. Jeder Endpunkt hat deshalb `always` / `sometimes` / `optional`, wobei `optional`
+> eine **Begründung pro Pfad** verlangt und bei `--update` erhalten bleibt.
+>
+> **Zugabe:** `--source cassettes` prüft denselben Vertrag gegen die eingecheckten Aufnahmen —
+> läuft ohne Credentials und fängt Drift schon beim Neuaufnehmen der Cassettes.
+>
+> **Verifiziert:** Umbenennung `market.it[].mv` → `marketValue` simuliert ⇒ „✗ FEHLT it[].mv",
+> „+ NEU it[].marketValue", Exit-Code 1.
 
 ### PHASE 1 — P0: Bot handlungsfähig machen
 > Ohne diese 5 Pakete ist der Bot nicht wettbewerbsfähig. Aufwand gesamt ~3–4 Tage.
@@ -811,6 +828,7 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 | 2026-09-23 | P0-0.2 | F1-F5 gegen echte Payloads ausgewertet, `scripts/answer_open_questions.py` + `docs/api_notes.md` neu | **F4 beantwortet:** `mvud` ist der *nächste* Update-Zeitpunkt. **F5:** eigene Listings tragen kein `exs` - sie laufen nicht ab. **F2:** `prob=1` = sicherste Startelf, aber `prob` fehlt außerhalb der Spieltagswoche komplett -> P0-3 braucht eine Quellen-Kette. **F3:** nur st 0/2/4 real gesehen, kein 128 - nicht abschließbar, D6 unabhängig lösen. **F1:** kein Lese-Endpunkt für Gebote (405), braucht ein echtes Gebot. |
 | 2026-09-23 | P0-0.3 | 15 Cassettes neu aufgenommen, Redaktion gehärtet, Contract-Tests entzahlt | Die alte Redaktion erkannte Manager-Objekte nicht (`id` statt `i`) - Klarnamen und IDs fremder Mitspieler wären ins Repo gewandert. Neuer Privacy-Test sichert das ab. Cassette enthält ein aktives eigenes Listing, aber noch kein Gebot. |
 | 2026-09-23 | P0-0.4 | Snapshot-Test + 4 einzelne Gap-Tests | Der Payload war wegen `datetime.now()` in der DTO-Schicht nicht reproduzierbar - ohne Fix waere der Snapshot bei jedem Lauf rot. Gap-Assertion 3 (`start_probability_next is not None`) war bereits gruen und haette D5 nie gemessen; ersetzt durch eine Streuungs-Assertion. |
+| 2026-09-23 | P0-0.5 | Contract-Checker + Baseline ueber 14 Endpunkte | Baseline muss erzeugbar sein (`--update`), sonst Henne-Ei. `optional`-Ausnahmen mit Begruendung noetig, sonst meldet der Checker das saisonale `prob` monatlich als Drift und wird ignoriert. |
 
 ---
 
