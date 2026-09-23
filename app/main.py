@@ -121,7 +121,7 @@ def _install_log_handler(
 
 def _build_scheduler(engine: Engine, vault: FernetVault, settings: Settings) -> KickbaseScheduler:
     async def tick() -> TickOutcome:
-        return await _run_tick(engine, vault)
+        return await _run_tick(engine, vault, settings)
 
     interval = _resolve_initial_interval(engine, settings)
     return KickbaseScheduler(tick=tick, interval_min=interval, timezone=settings.timezone)
@@ -141,7 +141,7 @@ def _resolve_initial_interval(engine: Engine, settings: Settings) -> int:
         return row.interval_min if row is not None else settings.default_interval_min
 
 
-async def _run_tick(engine: Engine, vault: FernetVault) -> TickOutcome:
+async def _run_tick(engine: Engine, vault: FernetVault, settings: Settings) -> TickOutcome:
     """Ein Tick = frische DB-Session + frischer Kickbase-Client + AI-Only-Engine.
 
     Der Kickbase-Client hält keinen Cross-Tick-State, damit ein 401 im nächsten
@@ -165,6 +165,7 @@ async def _run_tick(engine: Engine, vault: FernetVault) -> TickOutcome:
                 engine=decision_engine,
                 smtp=smtp,
                 enricher=enricher,
+                lineup_writes_enabled=settings.lineup_writes_enabled,
             )
             return await uc.run()
         finally:

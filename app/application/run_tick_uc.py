@@ -26,11 +26,13 @@ from app.application.decision_engine import (
     ListingRecord,
     RecentAction,
 )
+from app.application.lineup_guard import propose_lineup_fix, to_decision
 from app.application.player_enrichment import PlayerEnricher, PlayerEnrichment
 from app.application.setup_state import read_setup_state
 from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
+from app.domain.lineup import Lineup
 from app.domain.models import MarketPlayer, MarketSnapshot, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
@@ -70,7 +72,12 @@ class RunTickUseCase:
         engine: DecisionEngine,
         smtp: SmtpGateway,
         enricher: PlayerEnricher | None = None,
+        lineup_writes_enabled: bool = False,
     ) -> None:
+        # Kill-Switch aus der Konfiguration (`KB_LINEUP_WRITES_ENABLED`, Default
+        # aus). Aufstellungs-Writes bewegen direkt Punkte — sie gehen erst raus,
+        # wenn der Shadow-Lauf sie bestätigt hat (Plan §9).
+        self._lineup_writes_enabled = lineup_writes_enabled
         self._session = session
         self._vault = vault
         self._kickbase = kickbase
@@ -110,6 +117,7 @@ class RunTickUseCase:
             snapshot = await self._kickbase.get_market(league_row.kb_league_id)
             market = list(snapshot.players)
             next_matchday_start = await self._next_matchday_start(snapshot)
+            lineup = await self._kickbase.get_lineup(league_row.kb_league_id)
         except KickbaseError as exc:
             _log.warning("Kickbase-Fehler im Tick: %s", exc)
             row = self._trades.add(
@@ -142,6 +150,18 @@ class RunTickUseCase:
         max_negative = _max_negative_allowed(team_value=snapshot.team_value, cash=league_me.budget)
         current_balance_after_open_bids = league_me.budget - open_bids_total
 
+        # Startelf-Guard **vor** der LLM-Abfrage: ob elf Positionen besetzt sind,
+        # ist keine Ermessensfrage (Plan §6/P0-4). Er läuft als eigene Aktion und
+        # verbraucht den Tick nicht — das Modell entscheidet danach normal weiter.
+        await self._run_lineup_guard(
+            user_id=user.id,
+            league_id=league_row.kb_league_id,
+            squad=squad,
+            lineup=lineup,
+            enrichment=enrichment,
+            dry_run=settings.dry_run,
+        )
+
         context = DecisionContext(
             league_id=league_row.kb_league_id,
             league_me=league_me,
@@ -164,10 +184,12 @@ class RunTickUseCase:
             recent_actions=recent_actions,
             max_negative_allowed=max_negative,
             current_balance_after_open_bids=current_balance_after_open_bids,
+            lineup=lineup,
+            lineup_deadline=next_matchday_start,
         )
 
         decision = await self._engine.decide(context)
-        executor = TradeExecutor(self._kickbase, dry_run=settings.dry_run)
+        executor = self._executor(squad=squad, dry_run=settings.dry_run)
         result = await executor.execute(league_row.kb_league_id, decision)
 
         row = self._trades.add(
@@ -208,6 +230,64 @@ class RunTickUseCase:
             metrics.record_tick("blocked")
 
         return TickOutcome(executed=result.executed, decision=decision, log_id=row.id)
+
+    def _executor(self, *, squad: Squad, dry_run: bool) -> TradeExecutor:
+        return TradeExecutor(
+            self._kickbase,
+            dry_run=dry_run,
+            squad=squad.players,
+            lineup_writes_enabled=self._lineup_writes_enabled,
+        )
+
+    async def _run_lineup_guard(
+        self,
+        *,
+        user_id: int,
+        league_id: str,
+        squad: Squad,
+        lineup: Lineup,
+        enrichment: dict[str, PlayerEnrichment],
+        dry_run: bool,
+    ) -> None:
+        """Füllt leere Startelf-Slots, bevor das Modell überhaupt gefragt wird.
+
+        Schweigt, wenn nichts zu verbessern ist — ein Guard, der jeden Tick
+        schreibt, erzeugt Rauschen im `trade_log` und Last gegen das
+        Rate-Limit, ohne einen einzigen Punkt zu bringen.
+        """
+        proposal = propose_lineup_fix(squad=squad.players, current=lineup, enrichment=enrichment)
+        if proposal is None:
+            return
+
+        decision = to_decision(proposal)
+        executor = self._executor(squad=squad, dry_run=dry_run)
+        result = await executor.execute(league_id, decision)
+
+        _log.info(
+            "Startelf-Guard: %s (%d -> %d Slots, Formation %s)",
+            "geschrieben" if result.executed else result.reason,
+            proposal.current_count,
+            len(proposal.lineup.player_ids),
+            proposal.lineup.formation,
+        )
+        self._trades.add(
+            TradeLogRow(
+                user_id=user_id,
+                action=decision.action.value,
+                reason_text=decision.reason,
+                executed=result.executed,
+                context={
+                    "dry_run": dry_run,
+                    "executor_note": result.reason,
+                    "error": result.error,
+                    "intent": decision.intent.value if decision.intent is not None else None,
+                    "source": "lineup_guard",
+                    "formation": proposal.lineup.formation,
+                    "player_ids": list(proposal.lineup.player_ids),
+                    "slots_before": proposal.current_count,
+                },
+            )
+        )
 
     async def _enrich_players(
         self,

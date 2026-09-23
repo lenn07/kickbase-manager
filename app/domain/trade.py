@@ -24,6 +24,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
+from app.domain.lineup import Lineup
+
 
 class TradeAction(StrEnum):
     BUY = "BUY"
@@ -31,6 +33,9 @@ class TradeAction(StrEnum):
     SELL = "SELL"
     ACCEPT_OFFER = "ACCEPT_OFFER"
     DECLINE_OFFER = "DECLINE_OFFER"
+    # Aufstellung schreiben. Die einzige Aktion, die unmittelbar Punkte bewegt:
+    # jeder leere Startelf-Slot kostet 100 Punkte, ganz ohne Gegenleistung.
+    SET_LINEUP = "SET_LINEUP"
     HOLD = "HOLD"
 
 
@@ -54,6 +59,8 @@ class TradeDecision:
     price: Decimal | None = None
     offer_id: str | None = None
     intent: TradeIntent | None = None
+    # Nur bei `SET_LINEUP` gesetzt: Formation + Spieler-IDs in Slot-Reihenfolge.
+    lineup: Lineup | None = None
 
     @classmethod
     def hold(cls, reason: str) -> TradeDecision:

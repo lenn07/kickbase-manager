@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from app.domain.exceptions import AuthError
+from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
     League,
     LeagueMe,
@@ -40,6 +41,7 @@ class FakeKickbase:
         team_value: Decimal = Decimal(150_000_000),
         mv_update_at: datetime | None = None,
         next_matchday_start: datetime | None = None,
+        lineup: Lineup | None = None,
     ) -> None:
         self._valid = valid_credentials
         self._leagues = leagues or [
@@ -50,6 +52,12 @@ class FakeKickbase:
         self.team_value = team_value
         self.mv_update_at = mv_update_at
         self.next_matchday_start = next_matchday_start
+        # Voreinstellung: eine vollständige Elf. Ein Fake mit leeren Slots
+        # würde den Startelf-Guard in jedem fremden Test mitlaufen lassen.
+        self.lineup = lineup or Lineup(
+            formation=DEFAULT_FORMATION, player_ids=tuple(str(i) for i in range(LINEUP_SIZE))
+        )
+        self.lineups_written: list[Lineup] = []
 
     async def login(self, email: str, password: str) -> KbSession:
         self.login_calls.append((email, password))
@@ -105,6 +113,12 @@ class FakeKickbase:
 
     async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
         return PlayerDetail(player_id=player_id, is_predicted_starter=None)
+
+    async def get_lineup(self, league_id: str) -> Lineup:
+        return self.lineup
+
+    async def set_lineup(self, league_id: str, lineup: Lineup) -> None:
+        self.lineups_written.append(lineup)
 
     async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]:
         return []
