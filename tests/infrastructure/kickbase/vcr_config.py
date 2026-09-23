@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 import vcr
+import yaml
 
 CASSETTE_DIR = Path(__file__).parent / "cassettes"
 
@@ -173,6 +174,22 @@ def _pseudonymous_id(value: str) -> str:
         return value
     digest = hashlib.sha256(f"kb-manager:{value}".encode()).hexdigest()
     return str(8_000_000 + int(digest[:8], 16) % 1_000_000)
+
+
+def load_cassette_payload(name: str, *, index: int = 0) -> dict[str, Any]:
+    """Response-Body einer Cassette als dict — ohne HTTP, ohne VCR-Replay.
+
+    Für Tests, die nur die *Daten* brauchen (Payload-Snapshot, Contract-Profile)
+    statt den Client-Pfad. `index` wählt die Interaktion, falls eine Cassette
+    mehrere enthält.
+    """
+    path = CASSETTE_DIR / f"{name}.yaml"
+    raw = yaml.safe_load(path.read_text())
+    body = raw["interactions"][index]["response"]["body"]["string"]
+    payload = json.loads(body)
+    if not isinstance(payload, dict):
+        raise TypeError(f"{name}.yaml liefert kein JSON-Objekt, sondern {type(payload).__name__}")
+    return payload
 
 
 def make_vcr(cassette_name: str, record_mode: str = "none") -> vcr.VCR:
