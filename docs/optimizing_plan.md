@@ -523,6 +523,9 @@ kaufen) · `healthy_and_quiet` (alles in Ordnung → HOLD ist legitim, Sofortver
 `injured_starter` (These gebrochen).
 **DoD:** `pytest` ignoriert die Eval im Default-Lauf, `pytest -m eval` sammelt sie und
 überspringt sie ohne `ANTHROPIC_API_KEY`. ✅
+**Erster echter Lauf 2026-09-23 17:2x:** 6/6 grün in 2:44 min, 12 Modell-Calls, kein Fallback —
+der aktuelle Master-Prompt besteht alle drei Szenarien. `pytest -m eval -s` zeigt je Szenario
+die Aktionsverteilung und die erste Begründung.
 **Ausbau:** P0-5 ergänzt Szenarien für die Regeln, die der korrigierte Prompt neu trägt
 (Unterbietungsgrenze, Sofortverkauf zum vollen MW, `mvud`-Uhr).
 
@@ -929,6 +932,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-0.6 | **Ergaenzung:** Eval-Geruest + `eval`-Marker + `temperature`-Parameter | §7 und das Phase-1-DoD setzen eine Eval-Suite voraus, es gab aber kein Paket dafuer. Ohne registrierten Marker scheitert jeder Eval-Test an `--strict-markers`; ohne `temperature=0` sind 3 Laeufe je Szenario eine Rauschmessung. |
 | 2026-09-23 | P0-0.7 | **Ergaenzung:** alles gegen echte Calls verifiziert | Eval meldete mit ungueltigem Key 5 von 6 Tests gruen (Preflight + Fallback-Guard ergaenzt). F2-Belegdaten waren durch die Cassette-Neuaufnahme zerstoert (Archiv-Stichprobe angelegt). `temperature=0` war ungeprueft. Live-Payload ist strukturgleich mit dem Snapshot. Betriebsbefunde in §9.1. |
 | 2026-09-23 | — | Kontroll-Tick nach Key-Erneuerung (`POST /api/scheduler/trigger`, dry_run=1) | Voller pfad gruen: echter modell-call in ~20 s, HOLD mit schluessiger begruendung, trade_log id 5 mit `dry_run: true`. **D1 empirisch belegt:** das LLM nennt `max_negative_allowed=0` selbst als kaufblocker, obwohl real ~49 Mio minus erlaubt waeren. |
+| 2026-09-23 | P0-0.6 | Eval-Suite erstmals mit gueltigem key ausgefuehrt | 6/6 gruen, 12 calls, 2:44 min, kein fallback. der aktuelle master-prompt besteht alle drei szenarien trotz der fehler aus §4.1. ausgabe der gewaehlten aktionen nachgeruestet (`-s`), sonst verschenkt ein bezahlter lauf seinen befund. |
 
 ---
 
