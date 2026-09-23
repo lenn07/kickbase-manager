@@ -1,5 +1,6 @@
 """DTO-Mapping-Tests — verifizieren, dass Wire-Format → Domain funktioniert."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.domain.models import Position
@@ -54,8 +55,12 @@ def test_league_me_maps_budget_and_flags() -> None:
     assert me.is_admin is False
 
 
-def test_squad_v4_uses_pi_pn_and_no_budget() -> None:
-    """Squad-Response hat KEIN Budget-Feld — bleibt 0. Spieler-IDs sind unter `pi`/`pn`."""
+def test_squad_v4_uses_pi_pn() -> None:
+    """Spieler-IDs stehen unter `pi`/`pn`.
+
+    Budget und Teamwert kommen **nicht** von hier: `/squad` liefert beides nicht.
+    Seit P0-1 hat `Squad` die Felder gar nicht mehr — die Default-0 war D1.
+    """
     payload = {
         "u": "4320433",
         "nps": "9",
@@ -77,7 +82,6 @@ def test_squad_v4_uses_pi_pn_and_no_budget() -> None:
 
     assert squad.league_id == "L1"
     assert squad.manager_id == "4320433"
-    assert squad.budget == Decimal(0)
     assert len(squad.players) == 1
     sp = squad.players[0]
     assert sp.player.id == "1991"
@@ -170,3 +174,73 @@ def test_unknown_fields_are_ignored() -> None:
     payload = {"tkn": "t", "u": {"id": "u"}, "future_field": {"nested": True}}
     session = LoginResponseDTO.model_validate(payload).to_session()
     assert session.token == "t"
+
+
+def test_market_root_fields_become_a_snapshot() -> None:
+    """Die Root-Felder der Market-Response sind Domain-Daten, kein Beiwerk.
+
+    `tv` trägt die 33 %-Regel, `dt` den Spieltagsstart, `mvud` die zweite Uhr.
+    Vor P0-1 hat das DTO nur `it` gelesen und alles andere verworfen (D1).
+    """
+    payload = {
+        "nps": 8,
+        "tv": 148767974,
+        "mvud": "2026-09-23T20:00:00Z",
+        "dt": "2026-10-09T18:30:00Z",
+        "day": 5,
+        "sn": "26/27",
+        "it": [{"i": "43", "pos": 2, "st": 0, "mv": "6779912", "prc": "6779912", "exs": 16176}],
+    }
+    snapshot = MarketResponseDTO.model_validate(payload).to_domain()
+
+    assert snapshot.team_value == Decimal(148767974)
+    assert snapshot.mv_update_at is not None
+    assert snapshot.mv_update_at.hour == 20  # 20:00 UTC = 22:00 Europe/Berlin
+    assert snapshot.next_matchday_start is not None
+    assert snapshot.next_matchday_start.day == 9
+    assert snapshot.matchday == 5
+    assert snapshot.squad_size == 8
+    assert snapshot.season == "26/27"
+    assert len(snapshot.players) == 1
+
+
+def test_market_snapshot_survives_missing_root_fields() -> None:
+    """Fehlt ein Root-Feld, wird es None/0 — aber nie geraten.
+
+    Ein erfundener Teamwert wäre schlimmer als gar keiner: die 33 %-Regel
+    rechnet dann mit einer Fantasie-Basis.
+    """
+    snapshot = MarketResponseDTO.model_validate({"it": []}).to_domain()
+    assert snapshot.team_value == Decimal(0)
+    assert snapshot.mv_update_at is None
+    assert snapshot.next_matchday_start is None
+
+
+def test_market_player_keeps_the_raw_expiry_seconds() -> None:
+    """`exs` bleibt roh — die Uhr gehört in den Kontext, nicht in die DTO-Schicht.
+
+    Mit `datetime.now()` im DTO war der USER-JSON nicht reproduzierbar und der
+    Payload-Snapshot bei jedem Lauf rot (Plan §6/P0-0.4).
+    """
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "75", "pos": 1, "mv": "500000", "prc": "500000", "exs": 3600}]}
+    ).it[0]
+    mp = dto.to_market_player()
+
+    assert mp.expires_in_s == 3600
+    now = datetime(2026, 9, 23, 16, 0, tzinfo=UTC)
+    assert mp.expires_at(now) == datetime(2026, 9, 23, 17, 0, tzinfo=UTC)
+
+
+def test_own_listing_without_exs_has_no_expiry() -> None:
+    """Eigene Listings tragen kein `exs` (Plan §8/F5) — sie laufen nicht ab.
+
+    `None` muss „unbefristet" heißen, nicht „schon abgelaufen".
+    """
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "1809", "pos": 3, "mv": "8811078", "prc": "9200000"}]}
+    ).it[0]
+    mp = dto.to_market_player()
+
+    assert mp.expires_in_s is None
+    assert mp.expires_at(datetime.now(UTC)) is None

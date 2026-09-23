@@ -8,10 +8,10 @@ from app.application.decision_engine import (
     DecisionEngine,
     HoldOnlyDecisionEngine,
 )
-from app.application.run_tick_uc import RunTickUseCase
+from app.application.run_tick_uc import RunTickUseCase, _max_negative_allowed
 from app.application.setup_service import SetupService, SmtpFormInput
 from app.domain.exceptions import TransportError
-from app.domain.models import LeagueMe, Squad
+from app.domain.models import LeagueMe, Matchday, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import FernetVault
 from app.infrastructure.persistence.models import TradeLogRow
@@ -275,3 +275,112 @@ def _as_utc(value: datetime) -> datetime:
 # nicht meckert — Protokoll wird über Fake-Impls implizit erfüllt.
 _ = DecisionEngine
 _ = TradeLogRow
+
+
+# -- P0-1: Teamwert & Markt-Metadaten ------------------------------------
+
+
+def test_max_negative_allowed_with_a_real_team_value() -> None:
+    """Die 33 %-Regel gegen den echten Teamwert aus der Cassette.
+
+    Vor P0-1 lief diese Rechnung jeden Tick gegen `team_value=0` und gab damit
+    0 zurück — das LLM hat daraus wörtlich geschlossen, es dürfe nicht kaufen
+    (Plan §6/P0-1). Bei 148,77 Mio Teamwert und 380k Minus sind rund 49 Mio
+    Spielraum erlaubt.
+    """
+    limit = _max_negative_allowed(team_value=Decimal(148_767_974), cash=Decimal(-380_069))
+    assert limit == Decimal(-48_968_009)
+
+
+def test_max_negative_allowed_ignores_positive_cash_in_the_basis() -> None:
+    """Nur ein *negativer* Kontostand verkleinert die Basis, Guthaben nicht."""
+    with_cash = _max_negative_allowed(team_value=Decimal(100_000_000), cash=Decimal(5_000_000))
+    no_cash = _max_negative_allowed(team_value=Decimal(100_000_000), cash=Decimal(0))
+    assert with_cash == no_cash == Decimal(-33_000_000)
+
+
+def test_max_negative_allowed_stays_zero_without_a_team_value() -> None:
+    """Fehlt der Teamwert, ist 0 die konservative Antwort — kein Minus."""
+    assert _max_negative_allowed(team_value=Decimal(0), cash=Decimal(1_000_000)) == Decimal(0)
+
+
+class _MatchdayCountingKickbase(FakeKickbase):
+    """Zählt `list_matchdays()`-Aufrufe — das ist der eingesparte HTTP-Call."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.matchday_calls = 0
+
+    async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]:
+        self.matchday_calls += 1
+        return [
+            Matchday(
+                number=9,
+                starts_at=datetime.now(UTC) + timedelta(days=30),
+                ends_at=datetime.now(UTC) + timedelta(days=30, hours=2),
+                is_current=False,
+            )
+        ]
+
+
+async def test_tick_takes_the_matchday_start_from_the_market_root(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """`dt` steht im Market-Payload — der Extra-Call entfällt (ein Request weniger).
+
+    Das ist kein kosmetischer Gewinn: der Tick läuft gegen ein Rate-Limit, und
+    jeder gesparte Call ist Budget für die Anreicherung.
+    """
+    expected = datetime.now(UTC) + timedelta(days=3)
+    kb = _MatchdayCountingKickbase(next_matchday_start=expected)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    assert kb.matchday_calls == 0, "list_matchdays() lief trotz `dt` im Market-Root"
+    assert engine.contexts[0].next_matchday_start == expected
+
+
+async def test_tick_falls_back_to_list_matchdays_when_dt_is_stale(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Zwischen Anpfiff und Payload-Update zeigt `dt` in die Vergangenheit.
+
+    Dann ist die Liste die verlässlichere Quelle — sonst hielte der Bot einen
+    längst angepfiffenen Spieltag für „gleich" und triebe Deadline-Panik.
+    """
+    kb = _MatchdayCountingKickbase(next_matchday_start=datetime.now(UTC) - timedelta(hours=2))
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    assert kb.matchday_calls == 1
+    assert engine.contexts[0].next_matchday_start > datetime.now(UTC)
+
+
+async def test_tick_passes_team_value_and_mv_update_into_the_context(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Beide Root-Felder müssen bis in den Entscheidungs-Kontext durchkommen."""
+    mv_update = datetime.now(UTC) + timedelta(hours=4)
+    kb = FakeKickbase(team_value=Decimal(148_767_974), mv_update_at=mv_update)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    context = engine.contexts[0]
+    assert context.team_value == Decimal(148_767_974)
+    assert context.mv_update_at == mv_update
+    assert context.max_negative_allowed < 0

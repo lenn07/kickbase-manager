@@ -111,7 +111,7 @@ def _context(
         MarketPlayer(
             player=p,
             price=p.market_value,
-            expires_at=NOW + timedelta(hours=6),
+            expires_in_s=6 * 3600,
             seller_id=None,
             offers=(),
         )

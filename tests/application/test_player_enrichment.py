@@ -76,7 +76,7 @@ def _market_player(pid: str, *, market_value: int = 10_000_000) -> MarketPlayer:
     return MarketPlayer(
         player=_player(pid, market_value=market_value),
         price=Decimal(market_value),
-        expires_at=datetime.now(UTC) + timedelta(hours=6),
+        expires_in_s=6 * 3600,
         seller_id="other",
         offers=(),
     )

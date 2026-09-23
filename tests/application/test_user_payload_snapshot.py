@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -46,15 +45,12 @@ from tests.infrastructure.kickbase.vcr_config import (
 
 SNAPSHOT_PATH = Path(__file__).parent / "snapshots" / "user_payload.json"
 
-# Feste Uhrzeit für den gesamten Kontext. Ohne sie wäre der Payload nicht
-# reproduzierbar: `MarketPlayerDTO.to_market_player()` rechnet `exs` (Sekunden
-# bis Ablauf) gegen `datetime.now(UTC)` in eine absolute Zeit um, und
-# `_offer_entry()` greift ebenfalls auf die Wall-Clock zu. Beide Stellen werden
-# hier deterministisch gemacht — siehe `_market_with_fixed_expiry` und
-# `_normalise`.
+# Feste Uhrzeit für den gesamten Kontext. Seit P0-1 rechnet die DTO-Schicht
+# `exs` nicht mehr gegen die Wall-Clock (`MarketPlayer.expires_in_s` ist roh,
+# `expires_at(now)` braucht eine Uhr) — der Payload ist damit allein über
+# `context.now` reproduzierbar. Einzige verbliebene Ausnahme: `_offer_entry()`,
+# siehe `_normalise`.
 NOW = datetime(2026, 9, 23, 16, 0, 0, tzinfo=UTC)
-# `dt` aus dem Market-Root der Cassette = Start des nächsten Spieltags.
-NEXT_MATCHDAY_START = datetime(2026, 10, 9, 18, 30, 0, tzinfo=UTC)
 
 
 def _build_context() -> DecisionContext:
@@ -65,7 +61,11 @@ def _build_context() -> DecisionContext:
 
     squad = SquadResponseDTO.model_validate(squad_raw).to_domain(FAKE_LEAGUE_ID, FAKE_USER_ID)
     league_me = LeagueMeDTO.model_validate(league_me_raw).to_domain(FAKE_LEAGUE_ID)
-    market = _market_with_fixed_expiry(market_raw)
+    # Seit P0-1 trägt der Snapshot die Root-Felder mit: `tv` (Mannschaftswert),
+    # `mvud` (nächstes MW-Update) und `dt` (Spieltagsstart) kommen damit aus
+    # derselben Quelle wie die Listings, statt im Test hart gesetzt zu werden.
+    snapshot = MarketResponseDTO.model_validate(market_raw).to_domain()
+    market = snapshot.players
     history = [p.to_domain() for p in MarketValueResponseDTO.model_validate(history_raw).it]
 
     enrichment = _enrich(squad, market, history)
@@ -81,38 +81,21 @@ def _build_context() -> DecisionContext:
         max_trade_pct=0.25,
         min_cash_reserve=1_000_000,
         blacklist=(),
-        team_value=squad.team_value,
+        team_value=snapshot.team_value,
         open_bids_total=open_bids_total,
         now=NOW,
-        next_matchday_start=NEXT_MATCHDAY_START,
+        next_matchday_start=snapshot.next_matchday_start,
+        mv_update_at=snapshot.mv_update_at,
         interval_min=120,
         buy_history=_buy_history(squad),
         own_listings=_own_listings(market),
         enrichment=enrichment,
         recent_actions=_recent_actions(),
         max_negative_allowed=_max_negative_allowed(
-            team_value=squad.team_value, cash=league_me.budget
+            team_value=snapshot.team_value, cash=league_me.budget
         ),
         current_balance_after_open_bids=league_me.budget - open_bids_total,
     )
-
-
-def _market_with_fixed_expiry(market_raw: dict[str, Any]) -> tuple[MarketPlayer, ...]:
-    """Ersetzt die Wall-Clock-Ablaufzeit durch `NOW + exs`.
-
-    `to_market_player()` kennt nur die absolute Zeit, nicht mehr die Sekunden —
-    deshalb wird `exs` hier aus dem Roh-Payload nachgereicht.
-    """
-    items = MarketResponseDTO.model_validate(market_raw).it
-    raw_items = market_raw.get("it", [])
-    out: list[MarketPlayer] = []
-    for dto, raw in zip(items, raw_items, strict=True):
-        expires_in_s = raw.get("exs")
-        expires_at = (
-            NOW + timedelta(seconds=int(expires_in_s)) if expires_in_s is not None else None
-        )
-        out.append(replace(dto.to_market_player(), expires_at=expires_at))
-    return tuple(out)
 
 
 class _StaticHistoryGateway:
@@ -156,7 +139,7 @@ def _own_listings(market: tuple[MarketPlayer, ...]) -> dict[str, ListingRecord]:
             player_id=mp.player.id,
             listing_price=mp.price,
             listed_at=NOW - timedelta(hours=2, minutes=28),
-            expires_at=mp.expires_at,
+            expires_at=mp.expires_at(NOW),
             has_offers=bool(mp.offers),
         )
     return listings
@@ -271,14 +254,37 @@ def test_own_listing_is_visible(payload: dict[str, Any]) -> None:
 # entfernen.
 
 
-@pytest.mark.xfail(strict=True, reason="P0-1: team_value wird nie befüllt (Defekt D1)")
 def test_gap_team_value_is_filled(payload: dict[str, Any]) -> None:
+    """Geschlossen mit P0-1 (Defekt D1). Bleibt als Regressionswächter stehen.
+
+    `tv` steht im Market-Root; der Wert darf nie wieder aus einem Default-0-Feld
+    kommen. Ein LLM, das `team_value: 0` liest, hält sich für handlungsunfähig —
+    empirisch belegt im Tick vom 2026-09-23 (Plan §6/P0-1).
+    """
     assert payload["budget"]["team_value"] > 0
 
 
-@pytest.mark.xfail(strict=True, reason="P0-1: max_negative_allowed bleibt 0 (Defekt D1)")
 def test_gap_max_negative_allowed_is_negative(payload: dict[str, Any]) -> None:
+    """Geschlossen mit P0-1 (Defekt D1). Die 33 %-Regel muss Spielraum ausweisen."""
     assert payload["budget"]["max_negative_allowed"] < 0
+    # Basis der 33 %-Regel ist `team_value + min(0, cash)` — ein bestehendes
+    # Kontominus verkleinert sie. Gegenrechnen, damit ein Vorzeichen-, Faktor-
+    # oder Basisfehler auffällt statt still durchzulaufen.
+    budget = payload["budget"]
+    basis = budget["team_value"] + min(0, budget["cash"])
+    assert abs(budget["max_negative_allowed"] - -round(basis * 0.33)) <= 1
+
+
+def test_both_clocks_are_in_the_payload(payload: dict[str, Any]) -> None:
+    """Der Bot braucht zwei Uhren, nicht eine.
+
+    Die Spieltags-Deadline entscheidet über Regel-Compliance, das tägliche
+    Marktwert-Update (22:00 Berlin) über jede Trading-Entscheidung. Vor P0-1
+    kannte der Prompt nur die erste.
+    """
+    assert payload["next_matchday_start_iso"]
+    assert payload["mv_update_at_iso"]
+    assert payload["minutes_until_mv_update"] is not None
 
 
 def test_market_players_always_have_a_start_probability(payload: dict[str, Any]) -> None:
