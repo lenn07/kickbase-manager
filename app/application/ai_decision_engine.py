@@ -31,6 +31,7 @@ from app.application.master_prompt_loader import (
     MasterPromptError,
     get_cached_system_prompt,
 )
+from app.domain.lineup import FORMATIONS, LINEUP_SIZE, Lineup
 from app.domain.models import (
     MarketOffer,
     MarketPlayer,
@@ -49,7 +50,15 @@ _TOOL_DESCRIPTION = (
     "Alle Regeln aus dem System-Prompt gelten. Keine Freitexte, kein Chat."
 )
 
-_PROMPT_ACTIONS = ("BUY", "SELL_LIST", "SELL_INSTANT", "ACCEPT_OFFER", "DECLINE_OFFER", "HOLD")
+_PROMPT_ACTIONS = (
+    "BUY",
+    "SELL_LIST",
+    "SELL_INSTANT",
+    "ACCEPT_OFFER",
+    "DECLINE_OFFER",
+    "SET_LINEUP",
+    "HOLD",
+)
 _PROMPT_INTENTS = ("SQUAD_FILL", "PROFIT", "POINTS", "DEBT_RELIEF", "NONE")
 
 _INPUT_SCHEMA: dict[str, Any] = {
@@ -89,6 +98,20 @@ _INPUT_SCHEMA: dict[str, Any] = {
             ],
         },
         "risk_flags": {"type": "array", "items": {"type": "string"}},
+        "lineup": {
+            "type": "object",
+            "description": (
+                "Nur bei SET_LINEUP: gewünschte Aufstellung. `formation` muss eine der "
+                "Formationen aus `lineup.allowed_formations` sein, `player_ids` enthält die "
+                "Startelf in Slot-Reihenfolge (Torwart zuerst). Höchstens 11 IDs, alle aus dem "
+                "eigenen Kader. Der Code prüft das und verwirft ungültige Aufstellungen."
+            ),
+            "properties": {
+                "formation": {"type": "string"},
+                "player_ids": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["formation", "player_ids"],
+        },
     },
     "required": [
         "action",
@@ -110,6 +133,7 @@ _ACTION_MAP: dict[str, TradeAction] = {
     "SELL_INSTANT": TradeAction.SELL,
     "ACCEPT_OFFER": TradeAction.ACCEPT_OFFER,
     "DECLINE_OFFER": TradeAction.DECLINE_OFFER,
+    "SET_LINEUP": TradeAction.SET_LINEUP,
     "HOLD": TradeAction.HOLD,
 }
 
@@ -206,7 +230,30 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
         price=price if action in {TradeAction.BUY, TradeAction.LIST_ON_MARKET} else None,
         offer_id=offer_id,
         intent=intent,
+        lineup=_parse_lineup(tool_input) if action is TradeAction.SET_LINEUP else None,
     )
+
+
+def _parse_lineup(tool_input: dict[str, Any]) -> Lineup:
+    """Liest den `lineup`-Block. Wirft, wenn er fehlt oder unbrauchbar ist.
+
+    Inhaltliche Prüfung (Formation gültig, IDs im Kader, Positionen passen)
+    macht der Executor — hier geht es nur um die Form. Ein `SET_LINEUP` ohne
+    Aufstellung ist ein verlorener Tick und muss als solcher auffallen.
+    """
+    raw = tool_input.get("lineup")
+    if not isinstance(raw, dict):
+        raise _InvalidDecisionError("SET_LINEUP ohne `lineup`-Block")
+    formation = _clean_optional_str(raw.get("formation"))
+    if not formation:
+        raise _InvalidDecisionError("SET_LINEUP ohne Formation")
+    raw_ids = raw.get("player_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise _InvalidDecisionError("SET_LINEUP ohne Spieler-IDs")
+    player_ids = tuple(str(pid).strip() for pid in raw_ids if str(pid).strip())
+    if not player_ids:
+        raise _InvalidDecisionError("SET_LINEUP mit ausschließlich leeren Spieler-IDs")
+    return Lineup(formation=formation, player_ids=player_ids)
 
 
 _PRICE_REQUIRED = {TradeAction.BUY, TradeAction.LIST_ON_MARKET}
@@ -218,6 +265,8 @@ _PLAYER_REQUIRED = {
     TradeAction.DECLINE_OFFER,
 }
 _OFFER_REQUIRED = {TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}
+# `SET_LINEUP` betrifft die ganze Elf, nicht einen Spieler — `player_id` und
+# `price` bleiben leer, geprüft wird stattdessen der `lineup`-Block.
 
 
 def _validate_action_shape(
@@ -360,6 +409,7 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         "squad_size": len(context.squad.players),
         "starting_xi_count": starting_xi_count,
         "market": [_market_entry(mp, context, now) for mp in context.market],
+        "lineup": _lineup_block(context, now),
         "incoming_offers": _incoming_offers(context),
         "recent_actions": [_recent_action(a) for a in context.recent_actions],
         "constraints": {
@@ -370,6 +420,28 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         },
     }
     return payload
+
+
+def _lineup_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
+    """Alles, was das Modell für eine gültige `SET_LINEUP`-Aktion braucht.
+
+    Ohne `allowed_formations` müsste es die Positionskontingente raten; ohne
+    `empty_slots` kann es nicht abschätzen, was Nichtstun kostet — 100 Punkte
+    pro Slot, also der teuerste Posten im ganzen Payload.
+    """
+    lineup = context.lineup
+    placed = len(lineup.player_ids) if lineup else 0
+    deadline = context.lineup_deadline
+    return {
+        "formation": lineup.formation if lineup else None,
+        "player_ids": list(lineup.player_ids) if lineup else [],
+        "placed_count": placed,
+        "empty_slots": max(0, LINEUP_SIZE - placed),
+        "points_at_risk": max(0, LINEUP_SIZE - placed) * 100,
+        "allowed_formations": sorted(FORMATIONS),
+        "deadline_iso": _to_iso(deadline) if deadline else None,
+        "minutes_until_deadline": _minutes_until(now, deadline),
+    }
 
 
 def _budget_block(context: DecisionContext) -> dict[str, Any]:

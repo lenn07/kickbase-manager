@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
+from app.domain.lineup import Lineup
 from app.domain.models import (
     League,
     LeagueMe,
@@ -88,6 +89,18 @@ class KickbaseGateway(Protocol):
         Kostet einen Request **pro Spieler**. Aufrufer müssen die Menge
         begrenzen; der `PlayerEnricher` holt sie nur für Kader + Shortlist und
         nur dann, wenn `prob` fehlt (Plan §9, Rate-Limit/Ban).
+        """
+        ...
+
+    async def get_lineup(self, league_id: str) -> Lineup:
+        """Aktuelle Aufstellung: Formation + besetzte Slots in Slot-Reihenfolge."""
+        ...
+
+    async def set_lineup(self, league_id: str, lineup: Lineup) -> None:
+        """Aufstellung schreiben. **Die einzige Aktion, die direkt Punkte bewegt.**
+
+        Aufrufer müssen vorher `validate_lineup()` bestehen — der Executor tut
+        das, unabhängig davon, was das Sprachmodell behauptet.
         """
         ...
 

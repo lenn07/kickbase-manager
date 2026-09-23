@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Protocol
 
 from app.application.player_enrichment import PlayerEnrichment
+from app.domain.lineup import Lineup
 from app.domain.models import LeagueMe, MarketPlayer, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 
@@ -108,6 +109,13 @@ class DecisionContext:
     max_negative_allowed: Decimal = Decimal(0)
     # Kontostand nach Abzug aller offenen Gebote (Worst-Case-Bedeckung).
     current_balance_after_open_bids: Decimal = Decimal(0)
+    # Aktuelle Aufstellung laut Kickbase (Formation + besetzte Slots). Ohne die
+    # Formation kann das Modell keine gültige `SET_LINEUP`-Aktion formulieren —
+    # es wüsste nicht, wie viele Verteidiger überhaupt erlaubt sind.
+    lineup: Lineup | None = None
+    # Aufstellungs-Deadline (`lis` aus `/lineup/overview`, in der Praxis der
+    # Spieltagsstart). Ab hier friert Kickbase die Elf ein.
+    lineup_deadline: datetime | None = None
 
 
 class DecisionEngine(Protocol):

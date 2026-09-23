@@ -11,6 +11,7 @@ from app.application.decision_engine import (
 from app.application.run_tick_uc import RunTickUseCase, _max_negative_allowed
 from app.application.setup_service import SetupService, SmtpFormInput
 from app.domain.exceptions import TransportError
+from app.domain.lineup import Lineup
 from app.domain.models import (
     LeagueMe,
     MarketPlayer,
@@ -474,3 +475,156 @@ async def test_own_listing_without_bids_stays_marked_as_quiet(
     listing = engine.contexts[0].own_listings["1809"]
     assert listing.has_offers is False
     assert listing.offer_count == 0
+
+
+# -- P0-4: Startelf-Guard im Tick -----------------------------------------
+
+
+def _lineup_player(pid: str, position: Position) -> SquadPlayer:
+    return SquadPlayer(
+        player=Player(
+            id=pid,
+            first_name="",
+            last_name=pid,
+            team_id="2",
+            position=position,
+            status=PlayerStatus.FIT,
+            market_value=Decimal(5_000_000),
+            average_points=100.0,
+        )
+    )
+
+
+class _GuardKickbase(FakeKickbase):
+    """Kader für ein volles 3-5-2, aber nur drei besetzte Slots."""
+
+    def __init__(self, *, placed: int = 3, **kwargs: object) -> None:
+        self._squad_players = [
+            _lineup_player("gk1", Position.GOALKEEPER),
+            *[_lineup_player(f"def{i}", Position.DEFENDER) for i in range(1, 4)],
+            *[_lineup_player(f"mid{i}", Position.MIDFIELDER) for i in range(1, 6)],
+            *[_lineup_player(f"fwd{i}", Position.FORWARD) for i in range(1, 3)],
+        ]
+        ids = tuple(sp.player.id for sp in self._squad_players)
+        super().__init__(  # type: ignore[arg-type]
+            lineup=Lineup(formation="3-5-2", player_ids=ids[:placed]), **kwargs
+        )
+
+    async def get_squad(self, league_id: str, manager_id: str) -> Squad:
+        return Squad(league_id=league_id, manager_id=manager_id, players=tuple(self._squad_players))
+
+
+async def test_guard_writes_the_lineup_before_the_model_is_asked(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Drei leere Slots sind 800 verschenkte Punkte — das ist keine Ermessensfrage."""
+    kb = _GuardKickbase(placed=3)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+    settings_row = SettingsRepository(db_session).get_or_default(1)
+    settings_row.dry_run = False
+    SettingsRepository(db_session).upsert(settings_row)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        lineup_writes_enabled=True,
+    ).run()
+
+    assert len(kb.lineups_written) == 1
+    assert len(kb.lineups_written[0].player_ids) == 11
+    rows = TradeLogRepository(db_session).list_recent(user_id=1, limit=10)
+    guard_rows = [r for r in rows if r.action == "SET_LINEUP"]
+    assert len(guard_rows) == 1
+    assert guard_rows[0].executed
+    assert guard_rows[0].context["source"] == "lineup_guard"
+    assert guard_rows[0].context["slots_before"] == 3
+
+
+async def test_guard_stays_out_of_the_way_when_the_lineup_is_complete(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Ein Guard, der jeden Tick schreibt, ist nur Rauschen und Rate-Limit-Last."""
+    kb = _GuardKickbase(placed=11)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        lineup_writes_enabled=True,
+    ).run()
+
+    assert kb.lineups_written == []
+    rows = TradeLogRepository(db_session).list_recent(user_id=1, limit=10)
+    assert not [r for r in rows if r.action == "SET_LINEUP"]
+
+
+async def test_guard_respects_the_kill_switch(db_session: Session, vault: FernetVault) -> None:
+    """Default-aus: die Aufstellung wird vorgemerkt und geloggt, nicht geschrieben.
+
+    Genau das ist der Shadow-Modus aus dem Plan — man sieht eine Woche lang,
+    was der Guard getan hätte, bevor er es tut.
+    """
+    kb = _GuardKickbase(placed=3)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    assert kb.lineups_written == []
+    rows = TradeLogRepository(db_session).list_recent(user_id=1, limit=10)
+    guard_rows = [r for r in rows if r.action == "SET_LINEUP"]
+    assert len(guard_rows) == 1
+    assert not guard_rows[0].executed
+    # Die geplante Aufstellung steht trotzdem im Log — sonst könnte man sie
+    # nicht gegen die App vergleichen.
+    assert len(guard_rows[0].context["player_ids"]) == 11
+
+
+async def test_guard_does_not_consume_the_tick(db_session: Session, vault: FernetVault) -> None:
+    """Der Guard läuft zusätzlich, nicht anstelle der Modell-Entscheidung."""
+    kb = _GuardKickbase(placed=3)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("Markt ruhig"))
+    outcome = await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        lineup_writes_enabled=True,
+    ).run()
+
+    assert len(engine.contexts) == 1, "Das Modell muss trotzdem gefragt werden"
+    assert outcome.decision is not None
+    assert outcome.decision.action is TradeAction.HOLD
+
+
+async def test_lineup_reaches_the_decision_context(db_session: Session, vault: FernetVault) -> None:
+    """Ohne Formation kann das Modell keine gültige `SET_LINEUP`-Aktion bauen."""
+    kb = _GuardKickbase(placed=11)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("ok"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    context = engine.contexts[0]
+    assert context.lineup is not None
+    assert context.lineup.formation == "3-5-2"

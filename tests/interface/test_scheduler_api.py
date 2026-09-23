@@ -24,7 +24,7 @@ from tests.application.conftest import FakeKickbase, FakeSmtp
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
-    async def fake_tick_wire(engine: Engine, vault):  # type: ignore[no-untyped-def]
+    async def fake_tick_wire(engine: Engine, vault, settings):  # type: ignore[no-untyped-def]
         with Session(engine) as db:
             uc = RunTickUseCase(
                 session=db,

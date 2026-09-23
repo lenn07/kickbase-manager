@@ -59,7 +59,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
 - [x] **P0-2** Gebote parsen (Offers-Array) — `ofc`-Teil umgesetzt, Array-Teil belegt entkoppelt
 - [x] **P0-3** Marktspieler-Leistungsdaten + `prob`
-- [ ] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`)
+- [x] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`) — Code fertig, DoD-Shadow läuft
 - [ ] **P0-5** Master-Prompt korrigieren
 
 ### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **offen**
@@ -753,6 +753,33 @@ Contract-Test auf die POST-Body-Form.
 **DoD:** **Eine volle Woche `dry_run`**, geloggte Aufstellungen gegen die App verglichen.
 Erste Write-Aktion, die direkt Punkte beeinflusst.
 
+> **[Plan-Ergänzung 2026-09-23, vierte] „Genau 11 IDs" macht den Guard genau dann unwirksam,
+> wenn er gebraucht wird.**
+>
+> Schritt 5 verlangt als Vorvalidierung „genau 11 IDs, alle im Kader, Formation gültig,
+> Positionszählung passt". Der echte Kader hat aber **acht** Spieler (§9.1, Befund 3) — bei
+> weniger als elf gibt es keine vollständige Formation, und jede `SET_LINEUP`-Aktion wäre
+> abgelehnt worden. Ausgerechnet in der Lage mit drei leeren Slots (−300 Punkte) hätte das
+> Paket also nichts bewirkt. Dass der Zustand möglich ist, belegt Kickbase selbst:
+> `lineup/overview` meldet `t="3-5-2"` **und** `lpc=8`.
+> **Umgesetzt:** `validate_lineup` verlangt **höchstens** elf und eine Verteilung, die die
+> Formation nicht *überschreitet*. `best_lineup` füllt so viele Slots wie möglich; der Guard
+> schweigt, wenn mehr nicht geht (die restlichen Slots löst nur ein Kauf, und der ist eine
+> Modell-Entscheidung).
+>
+> **Zweiter Befund: `best_lineup` hätte gesperrte Spieler aufgestellt.** Der Plan lässt die
+> Auswahl über `prob × erwartete Punkte` laufen — beides aus der Anreicherung. Die fällt aber
+> bei einem API-Fehler komplett aus (`_enrich_players` liefert dann `{}`), und dann gewinnt der
+> verletzte Stammspieler mit 100 Punkten gegen den fitten Ersatz mit 60. **Umgesetzt:**
+> `CANNOT_PLAY_STATUSES` als Untergrenze im Score — der Status steht im Kaderdatensatz und ist
+> immer da. Gesperrte werden nicht gefiltert, nur ans Ende sortiert: bei einem Kader, der sonst
+> nicht voll wird, sind 0 Punkte immer noch besser als −100.
+>
+> **Formationen sind nur zu einem Zehntel verifiziert.** Belegt ist allein `3-5-2` (aus der
+> Cassette); die neun übrigen stammen aus den öffentlichen Kickbase-Systemen und sind gegen die
+> API ungeprüft. Der Guard behält deshalb die von Kickbase gemeldete Formation bei und wechselt
+> nur, wenn eine andere **mehr Slots besetzt** bekommt. Das ist im Shadow-Lauf mitzuprüfen.
+
 #### P0-5 — Master-Prompt korrigieren  *(zuletzt in Phase 1!)*
 **Erst wenn P0-1…P0-4 gemerged sind.** Edits: siehe §4.1 (Tabelle enthält alle Stellen).
 Zusätzlich:
@@ -1011,6 +1038,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-1 | Team-Value & Markt-Metadaten, `MarketSnapshot`, `Squad.team_value`/`budget` entfernt | **D1 geschlossen:** `team_value` 0 -> 148.767.974, `max_negative_allowed` 0 -> -48.968.009 im Payload. **Loop-Stopp aus dem Plan geprueft:** `mvud` ist der *naechste* Update-Zeitpunkt (Cassette 16:09 Z -> `mvud` 20:00 Z), §3.1 stimmt, P1-10 kann darauf bauen. `dt` aus dem Market-Root deckt sich exakt mit dem bisherigen `list_matchdays()`-Ergebnis (2026-10-09T18:30Z) -> **ein HTTP-Call weniger pro Tick**, Liste bleibt Fallback fuer veraltetes `dt`. Die in P0-0.4 vorgemerkte Zeitquelle ist mit umgezogen: `MarketPlayer` traegt jetzt das rohe `exs`, `expires_at(now)` rechnet damit — der Snapshot-Workaround `_market_with_fixed_expiry` konnte ersatzlos entfallen. Dashboard zeigte `squad.team_value` (immer 0) und laeuft jetzt ueber den Snapshot — bei **gleicher** Call-Zahl, weil `nps` die Kadergroesse gleich mitliefert. |
 | 2026-09-23 | P0-2 | **Ergaenzung:** `ofc` als `offer_count` im Payload, Kontext-Validierung der LLM-IDs, Diagnose-Hook fuer das ungeklaerte Gebots-Array | `has_offers` haing am `offers`-Tupel, das bis F1 immer leer ist — ein Listing mit vier Bietern galt als „keine Gebote" und waere in den Sofortverkauf gelaufen. Jetzt aus `ofc`. **Der Plan verliess sich an zwei Stellen auf Disziplin:** „nicht scharf schalten" war ein Merkzettel (jede `offer_id` des Modells ist zwangslaeufig erfunden, der Executor haette sie abgesetzt — einziger Schutz war `dry_run`, das am 23.09. auf `0` stand), und das Rest-Verfahren fuer F1 haing an einem manuell getimten Skriptlauf waehrend eines offenen Gebots. Beides jetzt als Code. Zweiter `ofc`-Call ueber `/leagues/{l}/squad` ist ueberfluessig: eigene Listings stehen mit `ofc` im `/market`-Payload. |
 | 2026-09-23 | P0-3 | **Ergaenzung:** Leistungsdaten durchgereicht, Startelf-Quellenkette mit Herkunftsangabe, `PlayerStatus.UNKNOWN`, `_avg_points_proxy` korrigiert (D13) | **Beide Gap-Assertions waren nicht erfuellbar** — Gap 4 verlangt Werte fuer 4 Spieler, fuer die Kickbase keine liefert; Gap 3 misst Streuung in einer Cassette ohne `prob`. Mit `xfail(strict=True)` waeren beide dauerhaft „gruen" geblieben und das Phase-1-DoD haette nie zugeschlagen. Neu gefasst: Gap 4 rechnet die Erwartung aus der Cassette, Gap 3 laeuft gegen die Archiv-Stichprobe mit `prob`. **Neuer Defekt D13:** `_avg_points_proxy` filterte `> 0` — die beiden Spieler mit negativem Saison-Ø (−4, −60) galten als datenlos. **Kostendeckel:** `sl` haette ~29 Requests/Tick gekostet (§9 Ban-Risiko); jetzt nur fuer die Auswahl, die ohnehin Historien bekommt, und nur wo `prob` fehlt — in der Spieltagswoche null Zusatz-Calls. Payload-Effekt: `avg_points_last5` 1/21 -> 17/21 gefuellt, `start_probability_next` 3 -> 4 distinkte Werte mit ausgewiesener Quelle (10x `lineup_prediction`, 11x `injury_status_heuristic`). |
+| 2026-09-23 | P0-4 | **Ergaenzung:** `app/domain/lineup.py`, Startelf-Guard, `SET_LINEUP`, Executor-Vorvalidierung, Kill-Switch `KB_LINEUP_WRITES_ENABLED` | **„Genau 11 IDs" haette den Guard unwirksam gemacht:** der echte Kader hat 8 Spieler, also gibt es keine vollstaendige Formation — ausgerechnet bei 3 leeren Slots (-300 Punkte) waere jede Aktion abgelehnt worden. Jetzt „hoechstens 11, Formation nicht ueberschritten". **Zweiter Befund:** `best_lineup` haette gesperrte Spieler aufgestellt, sobald die Anreicherung ausfaellt (`_enrich_players` liefert dann `{}`) — der Status ist jetzt Untergrenze im Score. Payload zeigt neu `lineup` mit `empty_slots: 3`, `points_at_risk: 300`, `allowed_formations`. Von den 10 Formationen ist nur `3-5-2` gegen die API verifiziert; der Guard behaelt die gemeldete bei, solange keine andere mehr Slots besetzt. |
 
 ---
 

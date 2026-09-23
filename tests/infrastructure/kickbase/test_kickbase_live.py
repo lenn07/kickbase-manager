@@ -11,6 +11,7 @@ Die Cassettes wurden mit fake IDs geschrieben (siehe vcr_config.py):
 from __future__ import annotations
 
 import pytest
+from app.domain.lineup import FORMATIONS
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.kickbase.config import KickbaseClientConfig
 
@@ -189,3 +190,20 @@ async def test_get_player_detail_replays_the_lineup_prediction() -> None:
     # Die Herkunft wandert mit ins USER-JSON: eine Prognose ohne Quelle kann
     # das Modell nicht gewichten.
     assert detail.prediction_source
+
+
+async def test_get_lineup_replays_the_incomplete_starting_eleven() -> None:
+    """Die Cassette hält den teuersten Zustand des Bots fest.
+
+    `t="3-5-2"`, `lpc=8` — drei leere Slots, also 300 Punkte, die am nächsten
+    Spieltag ohne Gegenleistung verloren gehen (Plan §9.1, Befund 3).
+    """
+    async with HttpxKickbaseClient(config=_fast_config()) as client:
+        with make_vcr("login").use_cassette("login.yaml"):
+            await client.login("redacted@example.com", "REDACTED_PASSWORD")
+        with make_vcr("lineup_overview").use_cassette("lineup_overview.yaml"):
+            lineup = await client.get_lineup(FAKE_LEAGUE_ID)
+
+    assert lineup.formation in FORMATIONS
+    assert lineup.player_ids
+    assert not lineup.is_complete

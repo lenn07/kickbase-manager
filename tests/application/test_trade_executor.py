@@ -5,6 +5,8 @@ from decimal import Decimal
 import pytest
 from app.application.trade_executor import TradeExecutor
 from app.domain.exceptions import ConflictError
+from app.domain.lineup import Lineup
+from app.domain.models import Player, PlayerStatus, Position, SquadPlayer
 from app.domain.trade import TradeAction, TradeDecision
 
 from tests.application.conftest import FakeKickbase
@@ -165,3 +167,130 @@ async def test_buy_without_price_raises() -> None:
         await executor.execute(
             "L1", TradeDecision(action=TradeAction.BUY, reason="x", player_id="p1")
         )
+
+
+# -- P0-4: Aufstellung -----------------------------------------------------
+
+
+def _lineup_squad() -> list[SquadPlayer]:
+    def _sp(pid: str, position: Position) -> SquadPlayer:
+        return SquadPlayer(
+            player=Player(
+                id=pid,
+                first_name="",
+                last_name=pid,
+                team_id="2",
+                position=position,
+                status=PlayerStatus.FIT,
+                market_value=Decimal(5_000_000),
+                average_points=100.0,
+            )
+        )
+
+    return [
+        _sp("gk1", Position.GOALKEEPER),
+        *[_sp(f"def{i}", Position.DEFENDER) for i in range(1, 4)],
+        *[_sp(f"mid{i}", Position.MIDFIELDER) for i in range(1, 6)],
+        *[_sp(f"fwd{i}", Position.FORWARD) for i in range(1, 3)],
+    ]
+
+
+def _lineup_decision(lineup: Lineup | None) -> TradeDecision:
+    return TradeDecision(
+        action=TradeAction.SET_LINEUP,
+        reason="Startelf auffüllen",
+        lineup=lineup,
+    )
+
+
+class _LineupKickbase(FakeKickbase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.written: list[Lineup] = []
+
+    async def set_lineup(self, league_id: str, lineup: Lineup) -> None:
+        self.written.append(lineup)
+
+
+async def test_valid_lineup_is_written_when_writes_are_enabled() -> None:
+    squad = _lineup_squad()
+    kb = _LineupKickbase()
+    executor = TradeExecutor(kb, dry_run=False, squad=squad, lineup_writes_enabled=True)
+    lineup = Lineup(formation="3-5-2", player_ids=tuple(sp.player.id for sp in squad))
+
+    result = await executor.execute("L1", _lineup_decision(lineup))
+
+    assert result.executed
+    assert kb.written == [lineup]
+    assert result.response_ref == "3-5-2"
+
+
+async def test_lineup_is_blocked_while_the_kill_switch_is_off() -> None:
+    """Default-aus: `POST /lineup` bewegt direkt Punkte (Plan §9)."""
+    squad = _lineup_squad()
+    kb = _LineupKickbase()
+    executor = TradeExecutor(kb, dry_run=False, squad=squad)
+    lineup = Lineup(formation="3-5-2", player_ids=tuple(sp.player.id for sp in squad))
+
+    result = await executor.execute("L1", _lineup_decision(lineup))
+
+    assert not result.executed
+    assert kb.written == []
+    assert "KB_LINEUP_WRITES_ENABLED" in result.reason
+
+
+async def test_invalid_lineup_never_reaches_kickbase() -> None:
+    """Der eigentliche Zweck der Vorvalidierung: kein Fehlerpfad nach draussen."""
+    squad = _lineup_squad()
+    kb = _LineupKickbase()
+    executor = TradeExecutor(kb, dry_run=False, squad=squad, lineup_writes_enabled=True)
+    # Vier Verteidiger in einem 3-5-2 — Kickbase würde das ablehnen.
+    lineup = Lineup(formation="3-5-2", player_ids=("gk1", "def1", "def2", "def3", "fremder"))
+
+    result = await executor.execute("L1", _lineup_decision(lineup))
+
+    assert not result.executed
+    assert kb.written == []
+    assert result.error is not None
+    assert "Nicht im Kader" in result.error
+
+
+async def test_invalid_lineup_is_caught_even_in_dry_run() -> None:
+    """Sonst fällt der Fehler erst auf, wenn er echte Punkte kostet.
+
+    Die Vorvalidierung läuft deshalb **vor** der Dry-Run-Abzweigung: der
+    Shadow-Lauf soll genau solche Fälle sichtbar machen.
+    """
+    squad = _lineup_squad()
+    kb = _LineupKickbase()
+    executor = TradeExecutor(kb, dry_run=True, squad=squad, lineup_writes_enabled=True)
+    lineup = Lineup(formation="3-5-2", player_ids=("gk1", "gk1"))
+
+    result = await executor.execute("L1", _lineup_decision(lineup))
+
+    assert not result.executed
+    assert result.error is not None
+    assert "mehrfach" in result.error
+
+
+async def test_set_lineup_without_a_lineup_is_an_error() -> None:
+    kb = _LineupKickbase()
+    executor = TradeExecutor(kb, dry_run=False, squad=_lineup_squad(), lineup_writes_enabled=True)
+
+    result = await executor.execute("L1", _lineup_decision(None))
+
+    assert not result.executed
+    assert result.error is not None
+
+
+async def test_dry_run_does_not_write_a_valid_lineup() -> None:
+    squad = _lineup_squad()
+    kb = _LineupKickbase()
+    executor = TradeExecutor(kb, dry_run=True, squad=squad, lineup_writes_enabled=True)
+    lineup = Lineup(formation="3-5-2", player_ids=tuple(sp.player.id for sp in squad))
+
+    result = await executor.execute("L1", _lineup_decision(lineup))
+
+    assert not result.executed
+    assert kb.written == []
+    assert "Dry-Run" in result.reason

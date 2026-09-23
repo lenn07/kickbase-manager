@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     default_interval_min: int = 120
 
+    # Aufstellungs-Writes (P0-4). Default aus: `POST /lineup` ist die einzige
+    # Aktion, die unmittelbar Punkte bewegt — eine falsch geschriebene Elf holt
+    # kein späterer Tick zurück. Erst einschalten, wenn der Shadow-Lauf die
+    # geloggten Aufstellungen gegen die App bestätigt hat (Plan §9).
+    lineup_writes_enabled: bool = False
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "kb.db"

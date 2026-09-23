@@ -22,6 +22,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
+from app.domain.lineup import DEFAULT_FORMATION, Lineup
 from app.domain.models import (
     League,
     LeagueMe,
@@ -344,6 +345,48 @@ class PlayerDetailDTO(BaseModel):
             player_id=self.id or player_id,
             is_predicted_starter=self.is_predicted_starter,
             prediction_source=self.prediction_source,
+        )
+
+
+# ---------- Lineup ----------
+
+
+class LineupSlotDTO(BaseModel):
+    """Ein aufgestellter Spieler in `lineup/overview.lp[]`."""
+
+    model_config = _DTO_CONFIG
+
+    id: str = Field(validation_alias="pi")
+    position: int = Field(default=0, validation_alias="pos")
+    # `lo` = Slot 0..10. Bestimmt die Reihenfolge, in der Kickbase die
+    # Aufstellung erwartet.
+    lineup_order: int | None = Field(default=None, validation_alias="lo")
+
+
+class LineupOverviewDTO(BaseModel):
+    """`GET /v4/leagues/{l}/lineup/overview`.
+
+    `t` ist die aktuell gewählte Formation, `lis` die Aufstellungs-Deadline
+    (= Spieltagsstart) und `lpc` die Zahl besetzter Slots. In der Cassette:
+    `t="3-5-2"`, `lpc=8` — drei leere Slots, also -300 Punkte.
+    """
+
+    model_config = _DTO_CONFIG
+
+    formation: str = Field(default="", validation_alias="t")
+    deadline: datetime | None = Field(default=None, validation_alias="lis")
+    placed_count: int = Field(default=0, validation_alias="lpc")
+    lp: list[LineupSlotDTO] = Field(default_factory=list)
+
+    def to_domain(self) -> Lineup:
+        ordered = sorted(
+            self.lp,
+            # Slots ohne `lo` hinten anstellen, statt die Reihenfolge zu raten.
+            key=lambda slot: (slot.lineup_order is None, slot.lineup_order or 0),
+        )
+        return Lineup(
+            formation=self.formation or DEFAULT_FORMATION,
+            player_ids=tuple(slot.id for slot in ordered),
         )
 
 

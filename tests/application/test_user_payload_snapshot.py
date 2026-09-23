@@ -33,6 +33,7 @@ from app.domain.models import MarketPlayer, MarketValuePoint, PlayerDetail, Squa
 from app.domain.trade import TradeAction, TradeIntent
 from app.infrastructure.kickbase.dto import (
     LeagueMeDTO,
+    LineupOverviewDTO,
     MarketResponseDTO,
     MarketValueResponseDTO,
     PlayerDetailDTO,
@@ -68,6 +69,10 @@ def _build_context() -> DecisionContext:
     # derselben Quelle wie die Listings, statt im Test hart gesetzt zu werden.
     snapshot = MarketResponseDTO.model_validate(market_raw).to_domain()
     market = snapshot.players
+    # Die echte Aufstellung aus der Cassette: Formation 3-5-2, **8 von 11**
+    # Slots besetzt. Genau der Zustand, der am nächsten Spieltag 300 Punkte
+    # kostet — er gehört in den Snapshot, nicht in eine Handannahme.
+    lineup = LineupOverviewDTO.model_validate(load_cassette_payload("lineup_overview")).to_domain()
     history = [p.to_domain() for p in MarketValueResponseDTO.model_validate(history_raw).it]
 
     enrichment = _enrich(squad, market, history)
@@ -97,6 +102,8 @@ def _build_context() -> DecisionContext:
             team_value=snapshot.team_value, cash=league_me.budget
         ),
         current_balance_after_open_bids=league_me.budget - open_bids_total,
+        lineup=lineup,
+        lineup_deadline=snapshot.next_matchday_start,
     )
 
 

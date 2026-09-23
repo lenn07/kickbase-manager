@@ -21,6 +21,7 @@ from app.domain.exceptions import (
     TransportError,
 )
 from app.domain.gateways import SessionStore
+from app.domain.lineup import Lineup
 from app.domain.models import (
     League,
     LeagueMe,
@@ -36,6 +37,7 @@ from app.infrastructure.kickbase.dto import (
     BidResponseDTO,
     LeagueMeDTO,
     LeagueSelectionDTO,
+    LineupOverviewDTO,
     LoginResponseDTO,
     MarketResponseDTO,
     MarketValueResponseDTO,
@@ -159,6 +161,22 @@ class HttpxKickbaseClient:
     async def decline_offer(self, league_id: str, player_id: str, offer_id: str) -> None:
         path = f"/v4/leagues/{league_id}/market/{player_id}/offers/{offer_id}/decline"
         await self._request("POST", path)
+
+    # -- Aufstellung ---------------------------------------------------
+
+    async def get_lineup(self, league_id: str) -> Lineup:
+        # `/lineup/overview` statt `/lineup`: nur dort stehen Formation (`t`)
+        # und Deadline (`lis`). `/lineup` liefert die Spieler ohne das System,
+        # und ohne Formation lässt sich keine gültige Aufstellung schreiben.
+        data = await self._request("GET", f"/v4/leagues/{league_id}/lineup/overview")
+        return LineupOverviewDTO.model_validate(data).to_domain()
+
+    async def set_lineup(self, league_id: str, lineup: Lineup) -> None:
+        # Body-Form laut API-Doku: `{"type": "<formation>", "players": [...]}`.
+        # Die Reihenfolge der IDs ist die Slot-Reihenfolge (`lo` 0..10).
+        path = f"/v4/leagues/{league_id}/lineup"
+        payload = {"type": lineup.formation, "players": list(lineup.player_ids)}
+        await self._request("POST", path, json=payload)
 
     async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
         path = f"/v4/leagues/{league_id}/players/{player_id}"

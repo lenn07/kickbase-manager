@@ -15,6 +15,7 @@ from app.domain.exceptions import (
     TransportError,
 )
 from app.domain.gateways import KickbaseGateway, SessionStore
+from app.domain.lineup import FORMATIONS, Lineup
 from app.domain.models import Session as KbSession
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
 from app.infrastructure.kickbase.config import KickbaseClientConfig
@@ -494,3 +495,85 @@ async def test_get_market_notes_when_offers_are_not_in_the_payload_at_all(
 
     messages = [r.getMessage() for r in caplog.records]
     assert any("nicht im /market-Payload" in m for m in messages)
+
+
+# -- P0-4: Aufstellung ----------------------------------------------------
+
+
+async def test_get_lineup_reads_formation_and_slots() -> None:
+    """Ohne die Formation lässt sich keine gültige Aufstellung schreiben.
+
+    Deshalb `/lineup/overview` statt `/lineup`: nur dort stehen `t` (System)
+    und `lis` (Deadline).
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        assert request.url.path == "/v4/leagues/L1/lineup/overview"
+        return httpx.Response(
+            200,
+            json={
+                "t": "3-5-2",
+                "lis": "2026-10-09T18:30:00Z",
+                "lpc": 3,
+                "lp": [
+                    {"pi": "mid1", "pos": 3, "lo": 4},
+                    {"pi": "gk1", "pos": 1, "lo": 0},
+                    {"pi": "def1", "pos": 2, "lo": 1},
+                ],
+            },
+        )
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        lineup = await client.get_lineup("L1")
+
+    assert lineup.formation == "3-5-2"
+    # Slot-Reihenfolge, nicht Payload-Reihenfolge: Kickbase erwartet die IDs
+    # in der Reihenfolge der Slots.
+    assert lineup.player_ids == ("gk1", "def1", "mid1")
+
+
+async def test_set_lineup_posts_type_and_players() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        seen["method"] = request.method
+        seen["path"] = request.url.path
+        seen["body"] = request.content
+        return httpx.Response(200, json={})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        await client.set_lineup("L1", Lineup(formation="3-5-2", player_ids=("gk1", "def1")))
+
+    assert seen["method"] == "POST"
+    assert seen["path"] == "/v4/leagues/L1/lineup"
+    body = seen["body"]
+    assert isinstance(body, bytes)
+    assert b'"type":"3-5-2"' in body
+    assert b'"players":["gk1","def1"]' in body
+
+
+async def test_get_lineup_without_a_formation_falls_back_to_the_default() -> None:
+    """Ein leeres `t` darf nicht zu einer leeren Formation führen.
+
+    `validate_lineup` würde die sonst als unbekannt ablehnen, und der Guard
+    käme nie zum Schreiben — ausgerechnet dann, wenn noch nichts aufgestellt
+    ist.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        return httpx.Response(200, json={"lp": []})
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        lineup = await client.get_lineup("L1")
+
+    assert lineup.formation in FORMATIONS
+    assert lineup.player_ids == ()
