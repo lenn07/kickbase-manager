@@ -48,7 +48,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 ### Phase 0 — Discovery & Guardrails · Status: **offen**
 - [x] **P0-0.1** Endpoint-Discovery erweitern (`scripts/inspect_endpoints.py`)
-- [ ] **P0-0.2** Die 3 offenen Fragen beantworten (→ §8)
+- [x] **P0-0.2** Die 5 offenen Fragen beantworten (-> §8) — F4/F5 geklärt, F1–F3 eingegrenzt
 - [ ] **P0-0.3** Cassettes neu aufnehmen (inkl. aktivem Listing + Gebot)
 - [ ] **P0-0.4** Payload-Snapshot-Test bauen
 - [ ] **P0-0.5** Contract-Drift-Checker (`scripts/check_contract.py`)
@@ -79,7 +79,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 | Phase | Messbar fertig, wenn … |
 |---|---|
-| **0** | `pytest` grün · Snapshot-Datei existiert · alle 3 Fragen in §8 beantwortet |
+| **0** | `pytest` grün · Snapshot-Datei existiert · alle 5 Fragen in §8 beantwortet **oder** mit belegtem Rest-Verfahren + entkoppeltem Folgepaket abgeschlossen (siehe §8.0) |
 | **1** | Die 4 Gap-Assertions aus P0-0.4 sind grün · Eval-Suite grün · 7 Tage Shadow (`dry_run=true`) ohne Executor-Fehler im `trade_log` |
 | **2** | HTTP-Calls/Tick gesunken (Messung im Log) · `avg_points_last5` ist echte L5 · keine hartkodierten Limits mehr in `kb_rules.py` · Ticks feuern in den Fenstern aus P1-10 |
 | **3** | USER-JSON enthält Gegnerstärke + Ligarang · Overbid ist formelbasiert · Deadline-Tick kann ≥ 2 Aktionen ausführen |
@@ -239,7 +239,7 @@ kein garantierter Zuschlag). Listing = Plan A mit Puffer, Sofortverkauf = garant
 | Feld | Bedeutung | Bot heute |
 |---|---|---|
 | `tv` | **Mannschaftswert** | ignoriert → `team_value` ist 0 (P0-1) |
-| `mvud` | Zeitpunkt MW-Update (20:00 UTC = 22:00 Berlin) | ignoriert (P0-1 / P1-10) |
+| `mvud` | **nächster** MW-Update-Zeitpunkt (20:00 UTC = 22:00 Berlin) — F4 beantwortet | ignoriert (P0-1 / P1-10) |
 | `dt` | **Start des nächsten Spieltags** | ignoriert; stattdessen extra `list_matchdays()`-Call (P0-1) |
 | `day` | Spieltagsnummer | ignoriert (P2-14: `matchdays_left`) |
 | `nps` | Anzahl Spieler im eigenen Kader | ignoriert |
@@ -250,15 +250,15 @@ Verifizierte Keys: `i, fn, n, tid, pos, st, mv, mvt, p, ap, ofc, exs, prc, isn, 
 
 | Feld | Bedeutung | Bot heute |
 |---|---|---|
-| `prob` | **Startelf-Wahrscheinlichkeit, 5 Stufen** (Cassette: `1`=6×, `2`=2×, `3`=2×, `4`=3×, `5`=9×; `1` bei Guirassy/Baku, `5` bei 500k-Ersatzkeeper ⇒ **vermutlich 1 = sicher Startelf**, in P0-0.2 zu bestätigen) | ignoriert; stattdessen pauschal 0.85 aus Verletzungsstatus (P0-3) |
+| `prob` | **Startelf-Wahrscheinlichkeit, 5 Stufen**, `1` = sicherste Startelf (Median-MW fällt monoton von 25,4 Mio bei `1` auf 3,6 Mio bei `5`). ⚠️ **Nur in der Spieltagswoche vorhanden** — am 23.09. (16 Tage bis Anpfiff) in 0 von 20 Items. | ignoriert; stattdessen pauschal 0.85 aus Verletzungsstatus (P0-3) |
 | `p` / `ap` | Gesamt-/Ø-Punkte (in 14 von 22 Items vorhanden) | **hart auf 0 gesetzt** (P0-3) |
 | `ofc` | **Anzahl Gebote** auf dieses Listing | ignoriert (P0-3 / P2-13) |
-| `exs` | Sekunden bis Listing-Ablauf | genutzt ✅ |
+| `exs` | Sekunden bis Listing-Ablauf — **nur bei fremden/Kickbase-Listings**; eigene Listings tragen es nicht (F5) | genutzt ✅ |
 | `prc` | Listing-Preis (bei Kickbase-Listings == `mv`) | genutzt ✅ |
 | `mvt` | MW-Trendrichtung (0/1/2) | ignoriert |
 | `isn` | „ist neu auf dem Markt" | ignoriert |
 | `u` | Seller — String **oder** Objekt `{i, n, …}`; fehlt bei Kickbase-Listings | genutzt ✅ |
-| **Offers-Array** | Feldname **unbekannt** — Cassette hatte überall `ofc: 0` | **P0-0.2 klären**, dann P0-2 |
+| **Offers-Array** | Feldname **unbekannt**; eingegrenzt: GET `/market/{p}/offers` -> 405 (nur POST), GET `/market/{p}` -> 405 (nur DELETE) ⇒ kann nur im `/market`-Payload stehen, sichtbar ab `ofc > 0` (F1). `/leagues/{l}/squad` liefert `ofc` je eigenem Spieler als billigeren Trigger. | **braucht ein echtes Gebot**, dann P0-2 |
 
 ### 3.3 `GET /v4/leagues/{l}/managers/{m}/squad` — Item-Felder
 Verifizierte Keys: `pi, pn, tid, lo, lst, pos, st, stl, p, ap, iotm, sdmvt, tfhmvt, mvgl, mvt, mv, prc, pim`
@@ -280,14 +280,15 @@ sähe fit aus. (P0-3)
 ### 3.4 Ungenutzte Endpunkte mit hohem Wert
 | Endpunkt | Liefert | Paket |
 |---|---|---|
-| `GET/POST /v4/leagues/{l}/lineup` | Aufstellung lesen **und setzen**. POST-Body: `{"type":"4-4-2","players":["1235", …]}` | P0-4 |
-| `GET /v4/leagues/{l}/settings` | Liga-Settings (`amd`, `isp`, `gpm`, `lnm`, `mpst`, `mppu`) | P1-9 |
-| `GET /v4/leagues/{l}/me` | `b` (Cash), `tpc[]` = **Spieler je Verein** (`{tid, npt}`) | P1-9 |
+| `GET/POST /v4/leagues/{l}/lineup` | Aufstellung lesen **und setzen**. POST-Body: `{"type":"4-4-2","players":["1235", …]}` . `/lineup/overview` liefert die Formation als `t` (z. B. `"3-5-2"`), die Deadline als `lis`, `lpc` = Zahl aufgestellter Spieler | P0-4 |
+| ~~`GET /v4/leagues/{l}/settings`~~ | **existiert nicht** (HTTP 500 `NotFound`). Ersatz: `/me` liefert `isp`, `gpm`, `lnm`, `mgm`, `mgc`, `mppu`; `/leagues/{l}/squad` liefert `mppu` | P1-9 |
+| `GET /v4/leagues/{l}/me` | `b` (Cash), `tpc[]` = **Spieler je Verein** (`{tid, npt}`), `mppu` = **Kaderlimit** (hier 16), `gpm`/`isp` = Modus-Flags | P1-9 |
 | `GET /v4/leagues/{l}/players/{p}/performance` | `it[].ph[]` mit `day, p` (Punkte), `mp` (**Minuten**), `md`, `t1/t2`, `st` | P1-8 |
-| `GET /v4/leagues/{l}/players/{p}` | `sl` (Startelf-Prognose, Quelle `plpt`=„Ligainsider"), `mdsum[]` (**kommende Spiele**), `g`, `a`, `y`, `r`, `sec` | P2-11 |
+| `GET /v4/leagues/{l}/players/{p}` | `sl` (Startelf-Prognose als **bool**, Quelle `plpt`=„Ligainsider"), `mdsum[]` (**kommende Spiele**), `g`, `a`, `y`, `r`, `sec` | P0-3 / P2-11 |
 | `GET /v4/leagues/{l}/ranking` | `us[]` mit `sp` (Saisonpunkte), `mdp`, `spl` (Platz), `tv`, **`lp[]` = Aufstellungen der Rivalen** | P2-12 |
 | `GET /v4/competitions/1/table` | `tid, tn, cp, cpl, mc, gd, mdp, sp` → Gegnerstärke/FDR | P2-11 |
 | `GET /v4/leagues/{l}/managers/{m}/transfer` | Transferhistorie: `pi, tty, trp` (Preis), `dt`, `othnm` | P1-6 (Fallback) |
+| `GET /v4/leagues/{l}/squad` | zweite Kader-Sicht mit **`ofc` je eigenem Spieler** (= eingegangene Gebote) + `mppu` | P0-2 (Trigger) / P1-9 |
 | `GET /v4/leagues/{l}/activitiesFeed` | Aktivitäten → Budgets der Gegner schätzen | P2-12 (optional) |
 | `GET /v4/bonus/collect` | täglicher Login-Bonus — ⚠️ **GET, aber wirkt wie ein Write** | P2-15 |
 
@@ -383,9 +384,12 @@ addopts = "-ra --strict-markers --strict-config --cov=app --cov-report=term-miss
 Zusätzlich `scripts/dump_keys.py`: gibt je Datei Key-Sets + Beispielwerte aus.
 **DoD:** `tmp/inspect/*.json` für alle Endpunkte vorhanden, Key-Übersicht ausgegeben.
 
-#### P0-0.2 — Die 3 offenen Fragen beantworten
+#### P0-0.2 — Die 5 offenen Fragen beantworten
 Siehe §8. Ergebnisse **dort eintragen** und in `docs/api_notes.md` dokumentieren.
-**DoD:** §8 enthält keine offene Frage mehr.
+Auswertung läuft über `scripts/answer_open_questions.py` — wertet F1–F5 gegen
+`tmp/inspect/*.json` + Cassetten aus und schreibt das `mvud`-Verlaufsprotokoll.
+**DoD:** §8 enthält keine Frage mehr ohne Antwort **oder** ohne die drei Punkte aus §8.0
+(ausgeschlossene Möglichkeiten belegt · Rest-Verfahren automatisiert · abhängiges Paket entkoppelt).
 
 #### P0-0.3 — Cassettes neu aufnehmen
 `scripts/record_cassettes.py` um die neuen Endpunkte erweitern, dann live aufnehmen.
@@ -449,6 +453,14 @@ benennen, §3.1 korrigieren. Das entscheidet die Timing-Logik in P1-10.
 
 #### P0-2 — Gebote parsen
 **Behebt:** D2, D3 · **Blockiert durch:** P0-0.2 (Feldname), P0-0.3 (Cassette mit Gebot)
+
+> **[Plan-Ergänzung 2026-09-23]** Der Feldname bleibt unbekannt, bis ein echtes Gebot eingeht
+> (§8/F1). Damit das Paket nicht wartet: Schritt 0 vorziehen — `ofc` aus dem Market-Item **und**
+> aus `GET /v4/leagues/{l}/squad` übernehmen und als `offer_count` ins USER-JSON schreiben.
+> Der Bot weiß damit *dass* Gebote vorliegen, bevor er weiß, *wie sie heißen*; der Prompt kann
+> darauf schon reagieren (Listing halten statt Sofortverkauf). `ACCEPT_OFFER`/`DECLINE_OFFER`
+> bleiben gesperrt, solange keine echte `offer_id` im Payload steht.
+
 1. `MarketPlayerDTO` um das Offers-Array erweitern → `tuple[MarketOffer, ...]`;
    `dto.py:237` (`offers=()`) ersetzen.
 2. `_open_bids_total` und `_incoming_offers` funktionieren danach **ohne weitere Änderung**.
@@ -461,19 +473,30 @@ benennen, §3.1 korrigieren. Das entscheidet die Timing-Logik in P1-10.
 ⚠️ Vorher **nicht scharf schalten** — Accept mit erfundener ID ist ein Fehlerpfad.
 
 #### P0-3 — Marktspieler-Leistungsdaten + `prob`
-**Behebt:** D4, D5, D6 · **Blockiert durch:** P0-0.2 (`prob`-Richtung)
+**Behebt:** D4, D5, D6 · **Blockiert durch:** nichts mehr (siehe Ergänzung)
+
+> **[Plan-Ergänzung 2026-09-23]** Zwei Befunde aus Phase 0 ändern dieses Paket:
+> 1. **`prob` fehlt außerhalb der Spieltagswoche komplett** (0 von 20 Items am 23.09.,
+>    22 von 22 am 31.08.). Ein Mapping allein auf `prob` liefert 11 von 14 Tagen `None`.
+>    ⇒ Quellen-Kette statt Einzelquelle: `prob` (wenn da) → `sl` aus
+>    `GET /v4/leagues/{l}/players/{p}` (bool, ganzjährig) → Status-Heuristik → `None`
+>    + `missing_data`-Flag. Welche Stufe gegriffen hat, gehört als `start_probability_source`
+>    ins USER-JSON — sonst kann das LLM die Verlässlichkeit nicht gewichten.
+> 2. **F3 ist durch Sammeln nicht abschließbar.** `_to_status()` darf Unbekanntes nicht auf
+>    `questionable` umbiegen (das ist auch geraten), sondern braucht einen echten
+>    `UNKNOWN`-Zustand + `missing_data`-Flag. Schritt 5 unten entsprechend lesen.
 1. `MarketPlayerDTO`: `p, ap, prob, ofc, isn, dt` übernehmen;
    `to_market_player()` setzt `average_points`/`total_points` statt `0.0`/`0`.
 2. `MarketPlayer` um `start_probability_raw: int | None`, `offer_count: int`, `is_new: bool`,
    `listed_at: datetime | None`.
 3. `player_enrichment.py`: `_START_PROBABILITY_BY_STATUS` wird **Fallback**; primär:
    ```python
-   # Richtung erst nach P0-0.2 fixieren! 1 = sicher Startelf (zu bestätigen)
+   # F2 beantwortet: 1 = sicherste Startelf (Median-MW fällt monoton 25,4 Mio -> 3,6 Mio).
    _PROB_TO_PROBABILITY = {1: 0.95, 2: 0.80, 3: 0.55, 4: 0.30, 5: 0.05}
    ```
    `missing_data:start_probability_next_heuristic` nur noch ohne `prob` setzen.
 4. `_market_entry` um `offer_count` erweitern (Grundlage P2-13).
-5. `_to_status()`: Unbekanntes auf `UNKNOWN_2`/`questionable` mappen statt `FIT`, plus Log-Warnung.
+5. `_to_status()`: Unbekanntes auf einen expliziten `UNKNOWN`-Zustand mappen (nicht `FIT`, auch nicht `questionable`), `injury_status: "unknown"` + `missing_data`-Flag, plus Log-Warnung.
 
 **Tests:** Unit `prob`-Mapping inkl. Fallback · Snapshot: kein Marktspieler mehr mit
 `avg_points_last5: null`, wenn `ap` vorhanden · Regression: `st=128` **nicht** „fit/0.85".
@@ -614,46 +637,99 @@ Phase 0 (Discovery + Snapshot + Eval-Gerüst)
 ```
 
 **Kritischer Pfad:** Phase 0 → P0-1 → P0-3 → P0-5.
-**Harte Blocker:** P0-2 und P0-3 brauchen P0-0.2. P0-5 braucht P0-1…P0-4.
+**Harte Blocker:** P0-2 braucht ein echtes Gebot im Payload (§8/F1) — der `ofc`-Teil ist davon entkoppelt. P0-3 ist seit der Ergänzung in §6 nicht mehr blockiert. P0-5 braucht P0-1…P0-4.
 
 ---
 
-## 8. Offene Fragen (Phase 0 beantwortet sie — Antworten hier eintragen!)
+## 8. Offene Fragen — Stand nach Phase 0
+
+> Auswertung reproduzierbar: `python -m scripts.answer_open_questions`.
+> Vollständige Belege in `docs/api_notes.md` §4.
+
+### 8.0 Ergänzung 2026-09-23 — wie Phase 0 trotz offener Fragen abschließt
+
+> **[Plan-Ergänzung]** Der ursprüngliche Plan sprach an drei Stellen von „3 offenen Fragen",
+> §8 listet aber fünf (F1–F5). F4 blockiert P1-10 und beeinflusst P0-1 — es wäre still
+> durchgerutscht. Korrigiert auf 5.
+>
+> Zweitens: **F1, F2 und F5 sind nicht durch Datenlesen beantwortbar.** Sie verlangen eine
+> Aktion im Spiel (Spieler listen, auf ein fremdes Gebot warten) bzw. einen Blick in die App —
+> beides kann kein Skript erledigen. Nach dem ursprünglichen DoD („alle Fragen beantwortet")
+> bliebe Phase 0 dauerhaft offen und würde P0-2 und P0-3 mitblockieren, also die halbe Phase 1.
+>
+> **Regel ab jetzt:** eine Frage gilt als *abgeschlossen*, wenn entweder die Antwort feststeht
+> **oder** (a) belegt ist, welche Möglichkeiten ausgeschlossen sind, (b) das Rest-Verfahren
+> benannt und automatisiert ist, und (c) das abhängige Paket so umgebaut ist, dass es ohne die
+> Antwort nicht falsch entscheidet. Punkt (c) ist die eigentliche Absicherung — siehe die
+> Entkopplungs-Hinweise bei P0-2 und P0-3.
+
+**Was noch dich braucht (nicht automatisierbar):**
+
+| # | Deine Aktion | Danach | Schaltet frei |
+|---|---|---|---|
+| F1 | Einen eigenen Spieler listen und warten, bis in der App ein Gebot eingeht (`ofc > 0`) | `python -m scripts.inspect_endpoints` → schreibt `tmp/inspect/offers_found.json` | P0-2 |
+| F2 | In der App die Aufstellungsansicht öffnen, die 5 Startelf-Icons mit `prob` von 3–4 bekannten Spielern vergleichen | Ergebnis in §8/F2 eintragen | endgültige Bestätigung für P0-3 |
+| F5 | Dasselbe Listing nach > 72 h erneut ansehen: noch da? | `python -m scripts.answer_open_questions` | nur Prompt-Formulierung |
+
+---
 
 ### F1 — Wie heißt das Offers-Array im Market-Payload?
-**Status:** ❓ offen
-**Verfahren:** Einen günstigen Spieler zum MW listen → 2–6 h warten, bis Kickbase selbst bietet →
-`/v4/leagues/{l}/market` inspizieren. `ofc > 0` ist das Signal. Struktur des Eintrags festhalten
-(Feldnamen für Offer-ID, Bieter-ID, Preis, Ablauf).
-**Antwort:** _(hier eintragen)_
+**Status:** 🟡 eingegrenzt, Antwort braucht ein echtes Gebot
+**Belegt:** `GET /v4/leagues/{l}/market/{p}/offers` → **405**, `Allow: POST`.
+`GET /v4/leagues/{l}/market/{p}` → **405**, `Allow: DELETE`. Es gibt also keinen Lese-Endpunkt
+für Gebote; das Array kann nur im `/market`-Payload selbst liegen und erscheint erst bei
+`ofc > 0`. Zusätzlich liefert `GET /v4/leagues/{l}/squad` ein `ofc` **je eigenem Spieler** —
+der billigere Trigger, um überhaupt zu erkennen, dass ein Gebot vorliegt.
+**Rest-Verfahren:** automatisiert — `scripts/inspect_endpoints.py` schreibt jeden Market-Eintrag
+mit `ofc > 0` nach `tmp/inspect/offers_found.json` und listet dessen Keys.
 **Blockiert:** P0-2
 
 ### F2 — Ist `prob=1` die höchste oder niedrigste Startelf-Wahrscheinlichkeit?
-**Status:** ❓ offen (Indiz: Cassette hatte `1` bei Guirassy/Baku, `5` bei einem 500k-Ersatzkeeper
-⇒ vermutlich **1 = sicher Startelf**)
-**Verfahren:** Gegen die App-Anzeige (5 Icons, Legende in der Aufstellungs-Ansicht) für
-3–4 bekannte Spieler verifizieren. **Nicht raten** — ein invertiertes Mapping wäre schlimmer als keins.
-**Antwort:** _(hier eintragen)_
-**Blockiert:** P0-3
+**Status:** 🟢 beantwortet (starke Evidenz), App-Gegenprobe offen
+**Antwort:** **`1` = sicherste Startelf.** Median-Marktwert je Stufe (Cassette 31.08., n=22):
+`1` → 25,4 Mio (n=6) · `2` → 12,2 Mio (n=2) · `3` → 13,3 Mio (n=2) · `4` → 10,3 Mio (n=3) ·
+`5` → 3,6 Mio (n=9). Stufe 1 enthält Guirassy/Baku/Maza, Stufe 5 den 500k-Ersatzkeeper sowie
+alle Spieler mit `st != 0`. Die Delle bei 2/3 ist bei n=2 bedeutungslos.
+**⚠️ Wichtiger Nebenbefund:** im Lauf vom 23.09. fehlt `prob` in **allen 20** Market-Items.
+Unterschied: 31.08. = 4 Tage bis Anpfiff, 23.09. = 16 Tage (Länderspielpause).
+**Arbeitshypothese:** `prob` existiert nur in der Spieltagswoche.
+→ **Konsequenz für P0-3:** `prob` darf nicht die einzige Quelle sein. `sl` (bool) aus
+`GET /v4/leagues/{l}/players/{p}` ist ganzjährig verfügbar und wird Primärquelle; `prob` bleibt
+der billige Massen-Indikator, wenn vorhanden. Fehlen beide → `None` + `missing_data`-Flag,
+niemals ein erfundener Default.
+**Blockiert:** nichts mehr (P0-3 ist über die Fallback-Kette entkoppelt)
 
 ### F3 — Welche `st`-Werte existieren real?
-**Status:** ❓ offen
-**Verfahren:** Über alle Kader-/Markt-Dumps die vorkommenden `st`-Werte sammeln und den Spielern
-in der App zuordnen. `PlayerStatus` kennt 0/1/2/4/8/16/32/64; in der API-Doku taucht `128` auf.
-**Antwort:** _(hier eintragen)_
-**Blockiert:** P0-3 (D6)
+**Status:** 🟡 Stichprobe zu klein für eine abschließende Enum-Aussage — Paket entkoppelt
+**Antwort:** real beobachtet wurden nur **0** (69×), **2** (4×) und **4** (2×), über Live-Dumps
+und Cassette. `128` kam **nicht** vor. Die Stichprobe (8 eigene Spieler, 42 Marktspieler, eine
+Liga, zwei Zeitpunkte) trägt keine Vollständigkeitsaussage. `stl` war überall leer.
+**Konsequenz für P0-3 (D6):** die Frage ist durch Sammeln nicht abschließbar. Statt auf eine
+vollständige Enum-Liste zu warten, muss `_to_status()` unbekannte Werte auf einen expliziten
+`UNKNOWN`-Zustand + `missing_data`-Flag abbilden — **nie auf `FIT`**. Damit ist das Paket
+unabhängig von der Antwort korrekt.
+**Blockiert:** nichts mehr
 
 ### F4 — Ist `mvud` der *nächste* oder der *letzte* MW-Update-Zeitpunkt?
-**Status:** ❓ offen (Cassette: `2026-08-31T20:00:00Z`, aufgenommen am 31.08. ⇒ mehrdeutig)
-**Verfahren:** Zwei Abrufe im Abstand von > 24 h vergleichen.
-**Antwort:** _(hier eintragen)_
-**Blockiert:** P1-10 (Fenster-Logik), beeinflusst P0-1
+**Status:** 🟢 beantwortet
+**Antwort:** **der nächste.** Zwei Beobachtungen, beide mit `mvud` in der Zukunft:
+31.08. 11:01 Z → `mvud` 31.08. 20:00 Z (+9,0 h) · 23.09. 16:09 Z → `mvud` 23.09. 20:00 Z (+3,9 h).
+Wäre es der letzte Zeitpunkt, müsste er am 23.09. auf den 22.09. zeigen. 20:00 UTC = 22:00 Berlin
+deckt sich mit der dokumentierten Update-Zeit. Protokoll wächst in `tmp/mvud_log.json`.
+**Rest-Unsicherheit:** welchen Wert `mvud` zwischen 20:00 und 24:00 UTC zeigt, ist ungeprüft —
+für P1-10 irrelevant, solange der Scheduler `mvud` als Ziel nimmt und nach Ablauf neu lädt.
+**Blockiert:** nichts mehr
 
 ### F5 — Wie lange laufen *eigene* Listings maximal?
-**Status:** ❓ offen (Kickbase-Listings empirisch 0,8–33 h; Community nennt für eigene Listings ~72 h)
-**Verfahren:** Eigenes Listing anlegen, `exs` direkt danach ablesen.
-**Antwort:** _(hier eintragen)_
-**Blockiert:** nichts hart, aber relevant für die Prompt-Formulierung „Listing vs. Sofortverkauf"
+**Status:** 🟢 im Kern beantwortet
+**Antwort:** **Eigene Listings tragen kein `exs`.** Fremd-/Kickbase-Listings: 19 von 19 mit
+`exs`, Spanne **0,3 h – 43,7 h** (§2.3 nannte 0,8–33 h — Spanne ist also weiter). Das eigene
+Listing (Spieler 1809, gelistet 23.09. 13:31 Z, `prc` 9,2 Mio bei `mv` 8,81 Mio) hat nur `dt`
+= Listing-Zeitpunkt. **Deutung:** es läuft nicht automatisch ab, sondern blockiert den
+Kaderplatz, bis es angenommen oder per `DELETE /market/{p}` zurückgezogen wird.
+**Für den Prompt (P0-5):** Listing = Plan A ohne Zeitdruck, aber ohne Zuschlagsgarantie;
+Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus muss.
+**Blockiert:** nichts
 
 ---
 
@@ -678,6 +754,7 @@ in der App zuordnen. `PlayerStatus` kennt 0/1/2/4/8/16/32/64; in der API-Doku ta
 |---|---|---|---|
 | 2026-09-23 | — | Plan erstellt | Recherche + Code-Audit abgeschlossen; 12 Defekte (§4), 5 offene Fragen (§8) |
 | 2026-09-23 | P0-0.1 | Discovery auf 16 Endpunkte erweitert, `scripts/dump_keys.py` neu | `/v4/leagues/{l}/settings` **existiert nicht** (HTTP 500 `NotFound`) — die Liga-Settings stehen in `/me` + `/leagues/{l}/squad`. GET auf `/market/{pid}/offers` → 405 (nur POST), GET `/market/{pid}` → 405 (nur DELETE) ⇒ das Gebots-Array kann nur im `/market`-Payload stecken. |
+| 2026-09-23 | P0-0.2 | F1-F5 gegen echte Payloads ausgewertet, `scripts/answer_open_questions.py` + `docs/api_notes.md` neu | **F4 beantwortet:** `mvud` ist der *nächste* Update-Zeitpunkt. **F5:** eigene Listings tragen kein `exs` - sie laufen nicht ab. **F2:** `prob=1` = sicherste Startelf, aber `prob` fehlt außerhalb der Spieltagswoche komplett -> P0-3 braucht eine Quellen-Kette. **F3:** nur st 0/2/4 real gesehen, kein 128 - nicht abschließbar, D6 unabhängig lösen. **F1:** kein Lese-Endpunkt für Gebote (405), braucht ein echtes Gebot. |
 
 ---
 

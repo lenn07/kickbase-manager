@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 # Interne Metafelder, die inspect_endpoints selbst hinzufügt.
-_META_KEYS = frozenset({"_status", "_path", "_non_json_body"})
+_META_KEYS = frozenset({"_status", "_path", "_fetched_at", "_non_json_body"})
 
 _MAX_DEPTH = 4
 _SAMPLE_CHARS = 60
