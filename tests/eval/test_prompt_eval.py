@@ -22,10 +22,9 @@ from __future__ import annotations
 import asyncio
 import os
 from collections import Counter
-from typing import Any
 
 import pytest
-from app.application.ai_decision_engine import AiDecisionEngine
+from app.application.ai_decision_engine import AiDecisionConfig, AiDecisionEngine
 from app.domain.trade import TradeAction, TradeDecision
 from app.infrastructure.llm.anthropic_client import (
     AnthropicClient,
@@ -38,21 +37,6 @@ from tests.eval.scenarios import SCENARIOS, Scenario
 RUNS_PER_SCENARIO = 3
 
 pytestmark = pytest.mark.eval
-
-
-class _DeterministicLlm:
-    """Legt `temperature=0` auf jeden Decision-Call.
-
-    Der Produktivpfad bleibt beim API-Default — nur die Eval fährt
-    deterministisch, damit ein roter Lauf eine Prompt-Regression bedeutet und
-    nicht Sampling-Rauschen.
-    """
-
-    def __init__(self, inner: AnthropicClient) -> None:
-        self._inner = inner
-
-    async def submit_decision(self, **kwargs: Any) -> dict[str, Any]:
-        return await self._inner.submit_decision(temperature=0.0, **kwargs)
 
 
 # `AiDecisionEngine` fängt jeden LLM-Fehler ab und liefert ein HOLD mit diesem
@@ -98,7 +82,25 @@ def _reject_fallbacks(scenario: Scenario, decisions: list[TradeDecision]) -> Non
 
 @pytest.fixture(scope="module")
 def engine(api_key: str) -> AiDecisionEngine:
-    return AiDecisionEngine(llm=_DeterministicLlm(AnthropicClient()), api_key=api_key)
+    """Die Eval fährt den **Produktivpfad**, ohne Sonderkonfiguration.
+
+    Bis P0-5 lag hier ein Wrapper, der `temperature=0` aufsetzte, weil der
+    Produktivpfad am API-Default lief. Das war doppelt falsch: der Bot traf
+    seine echten Entscheidungen weiter mit Sampling, und die Eval hätte den
+    Verlust der Einstellung nie gemeldet — sie stellte sie ja selbst her.
+    Jetzt steht `temperature=0` in `AiDecisionConfig`, und der Test unten
+    bewacht sie.
+    """
+    return AiDecisionEngine(llm=AnthropicClient(), api_key=api_key)
+
+
+def test_eval_measures_a_deterministic_path() -> None:
+    """Ohne `temperature=0` messen drei Läufe je Szenario Sampling, nicht Treue.
+
+    Läuft vor jedem bezahlten Szenario — ein Lauf, der nur Rauschen misst, ist
+    das Geld nicht wert (Plan §9, „Prompt-Regression durch Sampling").
+    """
+    assert AiDecisionConfig().temperature == 0.0
 
 
 def _describe(decisions: list[TradeDecision]) -> str:
