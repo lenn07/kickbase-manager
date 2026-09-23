@@ -118,7 +118,9 @@ class HttpxKickbaseClient:
 
     async def get_market(self, league_id: str) -> MarketSnapshot:
         data = await self._request("GET", f"/v4/leagues/{league_id}/market")
-        return MarketResponseDTO.model_validate(data).to_domain()
+        response = MarketResponseDTO.model_validate(data)
+        _report_unknown_offer_fields(response)
+        return response.to_domain()
 
     async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str:
         path = f"/v4/leagues/{league_id}/market/{player_id}/offers"
@@ -320,6 +322,45 @@ class HttpxKickbaseClient:
         if HTTPStatus.INTERNAL_SERVER_ERROR <= code < _SERVER_ERROR_CEILING:
             raise TransportError(msg)
         raise KickbaseError(msg)
+
+
+def _report_unknown_offer_fields(response: MarketResponseDTO) -> None:
+    """Meldet unbekannte Felder auf Listings, auf die geboten wurde.
+
+    Der Feldname des Gebots-Arrays ist offen (Plan §8/F1): er taucht erst auf,
+    wenn `ofc > 0`, und dafür muss ein echtes Gebot vorliegen. Das
+    Rest-Verfahren im Plan ist ein manueller Skriptlauf — der müsste zufällig
+    laufen, *während* ein Gebot offen ist, und Gebote laufen ab. Deshalb schaut
+    der Produktiv-Tick selbst hin: Er entscheidet nichts anders, er hält den
+    Fund nur fest, sobald er ihn sieht.
+
+    Die Warnung geht bewusst auf WARNING — sie landet damit auch im
+    Dashboard-Log-Stream, nicht nur in der Container-Ausgabe.
+    """
+    for item in response.it:
+        if item.offer_count <= 0:
+            continue
+        unknown = item.unknown_fields()
+        if not unknown:
+            _log.info(
+                "Listing %s hat %d Gebot(e), aber keine unbekannten Felder — "
+                "das Gebots-Array steht also nicht im /market-Payload.",
+                item.id,
+                item.offer_count,
+            )
+            continue
+        _log.warning(
+            "UNBEKANNTE FELDER auf Listing %s mit %d Gebot(en) — Kandidaten für das "
+            "Gebots-Array (Optimizing-Plan §8/F1): %s",
+            item.id,
+            item.offer_count,
+            {key: _shorten(value) for key, value in unknown.items()},
+        )
+
+
+def _shorten(value: object, limit: int = 300) -> str:
+    text = repr(value)
+    return text if len(text) <= limit else text[:limit] + "…"
 
 
 _SERVER_ERROR_CEILING = 600

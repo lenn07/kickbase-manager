@@ -57,7 +57,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 ### Phase 1 — P0: Bot handlungsfähig machen · Status: **in Arbeit**
 - [x] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
-- [ ] **P0-2** Gebote parsen (Offers-Array)
+- [x] **P0-2** Gebote parsen (Offers-Array) — `ofc`-Teil umgesetzt, Array-Teil belegt entkoppelt
 - [ ] **P0-3** Marktspieler-Leistungsdaten + `prob`
 - [ ] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`)
 - [ ] **P0-5** Master-Prompt korrigieren
@@ -623,6 +623,34 @@ benennen, §3.1 korrigieren. Das entscheidet die Timing-Logik in P1-10.
 **DoD:** `ACCEPT_OFFER` ist im Shadow-Run mindestens einmal mit echter `offer_id` gewählt worden.
 ⚠️ Vorher **nicht scharf schalten** — Accept mit erfundener ID ist ein Fehlerpfad.
 
+> **[Plan-Ergänzung 2026-09-23, zweite] Zwei Stellen, an denen der Plan sich auf Disziplin
+> verlässt statt auf Code.**
+>
+> **1. „Vorher nicht scharf schalten" war ein Merkzettel, kein Mechanismus.** Der Master-Prompt
+> bietet `ACCEPT_OFFER`/`DECLINE_OFFER` im Aktionsraum an, `incoming_offers` ist bis zur Klärung
+> von F1 **immer leer** — also ist jede `offer_id`, die das Modell nennt, zwangsläufig erfunden,
+> und der Executor hätte sie abgesetzt. Der Schutz war allein `dry_run=true`, und genau das stand
+> am 23.09. auf `0` (§9.1). **Umgesetzt:** `_validate_against_context()` prüft jede vom Modell
+> genannte ID gegen den Kontext, den es bekommen hat — unbekannte `offer_id` ⇒ HOLD mit
+> Begründung. Dieselbe Prüfung fängt `BUY` auf einen Spieler, der nicht am Markt ist, und
+> `SELL`/`SELL_LIST` für einen, der nicht im Kader steht. Die Sperre ist kein Verbot, sondern
+> eine Deckungsprüfung: sobald echte Gebote im Payload stehen, öffnet sie sich von selbst
+> (durch einen Test belegt).
+>
+> **2. Das Rest-Verfahren für F1 war nicht auslösbar.** §8/F1 verweist auf einen manuellen
+> `inspect_endpoints`-Lauf — der müsste zufällig laufen, *während* ein Gebot offen ist, und
+> Gebote laufen ab. Realistisch hätte niemand den Moment erwischt. **Umgesetzt:**
+> `MarketPlayerDTO` läuft als einziges DTO mit `extra="allow"`, und `get_market()` meldet bei
+> `ofc > 0` die unbekannten Felder des Listings als WARNING (landet damit auch im
+> Dashboard-Log-Stream). Steht dort kein unbekanntes Feld, ist auch das ein Befund und wird
+> als INFO protokolliert: dann liegt das Array nicht im `/market`-Payload und F1 braucht eine
+> andere Quelle. Der Tick entscheidet dadurch nichts anders — er hält den Fund nur fest.
+>
+> **Nicht umgesetzt (bewusst): der zweite `ofc`-Aufruf über `GET /leagues/{l}/squad`.** Er ist
+> überflüssig — eigene Listings stehen mitsamt `ofc` im `/market`-Payload (in der Cassette:
+> Spieler 1809, `ofc: 0`, `u`-Objekt), und `_load_own_listings` liest sie ohnehin von dort.
+> Ein zweiter Call pro Tick für dieselbe Zahl wäre gegen §9 (Rate-Limit) gerechnet worden.
+
 #### P0-3 — Marktspieler-Leistungsdaten + `prob`
 **Behebt:** D4, D5, D6 · **Blockiert durch:** nichts mehr (siehe Ergänzung)
 
@@ -934,6 +962,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | — | Kontroll-Tick nach Key-Erneuerung (`POST /api/scheduler/trigger`, dry_run=1) | Voller pfad gruen: echter modell-call in ~20 s, HOLD mit schluessiger begruendung, trade_log id 5 mit `dry_run: true`. **D1 empirisch belegt:** das LLM nennt `max_negative_allowed=0` selbst als kaufblocker, obwohl real ~49 Mio minus erlaubt waeren. |
 | 2026-09-23 | P0-0.6 | Eval-Suite erstmals mit gueltigem key ausgefuehrt | 6/6 gruen, 12 calls, 2:44 min, kein fallback. der aktuelle master-prompt besteht alle drei szenarien trotz der fehler aus §4.1. ausgabe der gewaehlten aktionen nachgeruestet (`-s`), sonst verschenkt ein bezahlter lauf seinen befund. |
 | 2026-09-23 | P0-1 | Team-Value & Markt-Metadaten, `MarketSnapshot`, `Squad.team_value`/`budget` entfernt | **D1 geschlossen:** `team_value` 0 -> 148.767.974, `max_negative_allowed` 0 -> -48.968.009 im Payload. **Loop-Stopp aus dem Plan geprueft:** `mvud` ist der *naechste* Update-Zeitpunkt (Cassette 16:09 Z -> `mvud` 20:00 Z), §3.1 stimmt, P1-10 kann darauf bauen. `dt` aus dem Market-Root deckt sich exakt mit dem bisherigen `list_matchdays()`-Ergebnis (2026-10-09T18:30Z) -> **ein HTTP-Call weniger pro Tick**, Liste bleibt Fallback fuer veraltetes `dt`. Die in P0-0.4 vorgemerkte Zeitquelle ist mit umgezogen: `MarketPlayer` traegt jetzt das rohe `exs`, `expires_at(now)` rechnet damit — der Snapshot-Workaround `_market_with_fixed_expiry` konnte ersatzlos entfallen. Dashboard zeigte `squad.team_value` (immer 0) und laeuft jetzt ueber den Snapshot — bei **gleicher** Call-Zahl, weil `nps` die Kadergroesse gleich mitliefert. |
+| 2026-09-23 | P0-2 | **Ergaenzung:** `ofc` als `offer_count` im Payload, Kontext-Validierung der LLM-IDs, Diagnose-Hook fuer das ungeklaerte Gebots-Array | `has_offers` haing am `offers`-Tupel, das bis F1 immer leer ist — ein Listing mit vier Bietern galt als „keine Gebote" und waere in den Sofortverkauf gelaufen. Jetzt aus `ofc`. **Der Plan verliess sich an zwei Stellen auf Disziplin:** „nicht scharf schalten" war ein Merkzettel (jede `offer_id` des Modells ist zwangslaeufig erfunden, der Executor haette sie abgesetzt — einziger Schutz war `dry_run`, das am 23.09. auf `0` stand), und das Rest-Verfahren fuer F1 haing an einem manuell getimten Skriptlauf waehrend eines offenen Gebots. Beides jetzt als Code. Zweiter `ofc`-Call ueber `/leagues/{l}/squad` ist ueberfluessig: eigene Listings stehen mit `ofc` im `/market`-Payload. |
 
 ---
 

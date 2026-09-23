@@ -11,7 +11,17 @@ from app.application.decision_engine import (
 from app.application.run_tick_uc import RunTickUseCase, _max_negative_allowed
 from app.application.setup_service import SetupService, SmtpFormInput
 from app.domain.exceptions import TransportError
-from app.domain.models import LeagueMe, Matchday, Squad
+from app.domain.models import (
+    LeagueMe,
+    MarketPlayer,
+    MarketSnapshot,
+    Matchday,
+    Player,
+    PlayerStatus,
+    Position,
+    Squad,
+    SquadPlayer,
+)
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import FernetVault
 from app.infrastructure.persistence.models import TradeLogRow
@@ -384,3 +394,83 @@ async def test_tick_passes_team_value_and_mv_update_into_the_context(
     assert context.team_value == Decimal(148_767_974)
     assert context.mv_update_at == mv_update
     assert context.max_negative_allowed < 0
+
+
+# -- P0-2: Gebote auf eigenen Listings -----------------------------------
+
+
+class _ListingKickbase(FakeKickbase):
+    """Liefert ein eigenes Listing mit `ofc` — wie der echte Market-Payload."""
+
+    def __init__(self, *, offer_count: int, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._offer_count = offer_count
+
+    async def get_squad(self, league_id: str, manager_id: str) -> Squad:
+        player = Player(
+            id="1809",
+            first_name="Marius",
+            last_name="Wolf",
+            team_id="13",
+            position=Position.MIDFIELDER,
+            status=PlayerStatus.FIT,
+            market_value=Decimal(8_811_078),
+            average_points=111.0,
+            total_points=444,
+        )
+        return Squad(
+            league_id=league_id,
+            manager_id=manager_id,
+            players=(SquadPlayer(player=player, lineup_order=8),),
+        )
+
+    async def get_market(self, league_id: str) -> MarketSnapshot:
+        squad = await self.get_squad(league_id, "u1")
+        listing = MarketPlayer(
+            player=squad.players[0].player,
+            price=Decimal(9_200_000),
+            expires_in_s=None,  # eigene Listings tragen kein `exs` (F5)
+            seller_id="u1",
+            offer_count=self._offer_count,
+        )
+        return MarketSnapshot(players=(listing,), team_value=self.team_value)
+
+
+async def test_own_listing_reports_incoming_bids_through_the_counter(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """`has_offers` muss aus `ofc` kommen, nicht aus dem leeren `offers`-Tupel.
+
+    Am Tupel hing der Stale-Fallback: ein Listing mit vier Bietern hätte als
+    „keine Gebote" gegolten und wäre in den Sofortverkauf gelaufen — der
+    Bieterwettbewerb wäre verschenkt gewesen.
+    """
+    kb = _ListingKickbase(offer_count=4)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("beobachten"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    listing = engine.contexts[0].own_listings["1809"]
+    assert listing.has_offers is True
+    assert listing.offer_count == 4
+
+
+async def test_own_listing_without_bids_stays_marked_as_quiet(
+    db_session: Session, vault: FernetVault
+) -> None:
+    kb = _ListingKickbase(offer_count=0)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("beobachten"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    listing = engine.contexts[0].own_listings["1809"]
+    assert listing.has_offers is False
+    assert listing.offer_count == 0

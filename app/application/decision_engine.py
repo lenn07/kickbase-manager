@@ -42,6 +42,10 @@ class ListingRecord:
     listed_at: datetime | None
     expires_at: datetime | None
     has_offers: bool
+    # Wie viele Gebote (`ofc`). `has_offers` sagt nur ob, das hier sagt wie
+    # stark — der Unterschied zwischen „einer beißt an" und „vier bieten sich
+    # hoch" entscheidet, ob man das Listing hält oder den Preis nachzieht.
+    offer_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)

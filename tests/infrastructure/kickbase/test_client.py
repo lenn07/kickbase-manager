@@ -396,3 +396,101 @@ async def test_login_saves_session_to_store() -> None:
 
     assert store.saves
     assert store.saves[-1].token == "tkn-1"
+
+
+# -- P0-2: Diagnose für das ungeklärte Gebots-Array -----------------------
+
+
+def _market_response(item: dict[str, object]) -> dict[str, object]:
+    return {"tv": 148767974, "mvud": "2026-09-23T20:00:00Z", "day": 5, "it": [item]}
+
+
+async def test_get_market_warns_about_unknown_fields_on_a_listing_with_offers(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Beim ersten echten Gebot muss der Feldname des Arrays sichtbar werden.
+
+    Sonst hängt F1 an einem manuell getimten Skriptlauf — der müsste zufällig
+    laufen, *während* ein Gebot offen ist. Der Tick sieht den Payload ohnehin;
+    er soll den Fund festhalten, ohne deshalb anders zu entscheiden.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        return httpx.Response(
+            200,
+            json=_market_response(
+                {
+                    "i": "1809",
+                    "pos": 3,
+                    "mv": 8811078,
+                    "prc": 9200000,
+                    "ofc": 2,
+                    "ofs": [{"i": "o1", "prc": 9300000}],
+                }
+            ),
+        )
+
+    with caplog.at_level("INFO"):
+        async with _client(httpx.MockTransport(handler)) as client:
+            await client.login("a@b.de", "pw")
+            snapshot = await client.get_market("L1")
+
+    assert snapshot.players[0].offer_count == 2
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings, "Ein unbekanntes Feld auf einem Listing mit Geboten muss auffallen"
+    assert "ofs" in warnings[0].getMessage()
+    assert "1809" in warnings[0].getMessage()
+
+
+async def test_get_market_stays_quiet_when_nobody_has_bid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Ohne Gebot sagt ein unbekanntes Feld nichts über das Gebots-Array.
+
+    Eine Warnung pro Tick, die nie etwas bedeutet, wird nach zwei Tagen
+    ignoriert — dann geht der echte Fund darin unter.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        return httpx.Response(
+            200,
+            json=_market_response(
+                {"i": "43", "pos": 2, "mv": 6779912, "prc": 6779912, "ofc": 0, "irgendwas": 1}
+            ),
+        )
+
+    with caplog.at_level("INFO"):
+        async with _client(httpx.MockTransport(handler)) as client:
+            await client.login("a@b.de", "pw")
+            await client.get_market("L1")
+
+    assert not [r for r in caplog.records if r.levelname == "WARNING"]
+
+
+async def test_get_market_notes_when_offers_are_not_in_the_payload_at_all(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Auch das ist ein Befund: `ofc > 0`, aber kein einziges unbekanntes Feld.
+
+    Dann steht das Gebots-Array nicht im `/market`-Payload, und F1 braucht eine
+    andere Quelle — das muss man erfahren, nicht raten.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        return httpx.Response(
+            200, json=_market_response({"i": "1809", "pos": 3, "mv": 8811078, "ofc": 1})
+        )
+
+    with caplog.at_level("INFO"):
+        async with _client(httpx.MockTransport(handler)) as client:
+            await client.login("a@b.de", "pw")
+            await client.get_market("L1")
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("nicht im /market-Payload" in m for m in messages)

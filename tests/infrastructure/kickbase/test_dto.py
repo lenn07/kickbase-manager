@@ -244,3 +244,67 @@ def test_own_listing_without_exs_has_no_expiry() -> None:
 
     assert mp.expires_in_s is None
     assert mp.expires_at(datetime.now(UTC)) is None
+
+
+# -- P0-2: Gebote ---------------------------------------------------------
+
+
+def test_market_item_carries_the_offer_count() -> None:
+    """`ofc` ist bis zur Klärung von F1 die einzige echte Gebots-Information."""
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "1809", "pos": 3, "mv": "8811078", "prc": "9200000", "ofc": 3}]}
+    ).it[0]
+    mp = dto.to_market_player()
+
+    assert mp.offer_count == 3
+    assert mp.has_offers is True
+    # Das Array bleibt leer — der Feldname ist ungeklärt, und ein geratenes
+    # Array würde `ACCEPT_OFFER` mit erfundener ID freischalten.
+    assert mp.offers == ()
+
+
+def test_listing_without_offers_reports_none() -> None:
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "43", "pos": 2, "mv": "6779912", "prc": "6779912", "ofc": 0}]}
+    ).it[0]
+    mp = dto.to_market_player()
+
+    assert mp.offer_count == 0
+    assert mp.has_offers is False
+
+
+def test_unknown_fields_surface_the_offer_array_candidate() -> None:
+    """Der Feldname des Gebots-Arrays soll sich beim ersten echten Gebot zeigen.
+
+    Ohne `extra="allow"` würde pydantic ihn still verschlucken, und F1 bliebe
+    von einem manuell getimten Skriptlauf abhängig — während ein Gebot offen
+    ist, und Gebote laufen ab.
+    """
+    dto = MarketResponseDTO.model_validate(
+        {
+            "it": [
+                {
+                    "i": "1809",
+                    "pos": 3,
+                    "mv": "8811078",
+                    "prc": "9200000",
+                    "ofc": 1,
+                    "ofs": [{"i": "o1", "u": "8012345", "prc": 9300000}],
+                }
+            ]
+        }
+    ).it[0]
+
+    unknown = dto.unknown_fields()
+    assert "ofs" in unknown
+    assert unknown["ofs"][0]["prc"] == 9300000
+    # Bekannte Felder tauchen nicht als „unbekannt" auf.
+    assert "prc" not in unknown
+    assert "ofc" not in unknown
+
+
+def test_known_fields_alone_leave_nothing_unknown() -> None:
+    dto = MarketResponseDTO.model_validate(
+        {"it": [{"i": "43", "fn": "Mitchell", "n": "Weiser", "tid": "10", "pos": 2, "st": 0}]}
+    ).it[0]
+    assert dto.unknown_fields() == {}
