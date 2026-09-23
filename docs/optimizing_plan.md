@@ -47,7 +47,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 ## 1. Fortschritts-Board
 
 ### Phase 0 — Discovery & Guardrails · Status: **offen**
-- [ ] **P0-0.1** Endpoint-Discovery erweitern (`scripts/inspect_endpoints.py`)
+- [x] **P0-0.1** Endpoint-Discovery erweitern (`scripts/inspect_endpoints.py`)
 - [ ] **P0-0.2** Die 3 offenen Fragen beantworten (→ §8)
 - [ ] **P0-0.3** Cassettes neu aufnehmen (inkl. aktivem Listing + Gebot)
 - [ ] **P0-0.4** Payload-Snapshot-Test bauen
@@ -677,6 +677,7 @@ in der App zuordnen. `PlayerStatus` kennt 0/1/2/4/8/16/32/64; in der API-Doku ta
 | Datum | Paket | Was | Erkenntnis / Entscheidung |
 |---|---|---|---|
 | 2026-09-23 | — | Plan erstellt | Recherche + Code-Audit abgeschlossen; 12 Defekte (§4), 5 offene Fragen (§8) |
+| 2026-09-23 | P0-0.1 | Discovery auf 16 Endpunkte erweitert, `scripts/dump_keys.py` neu | `/v4/leagues/{l}/settings` **existiert nicht** (HTTP 500 `NotFound`) — die Liga-Settings stehen in `/me` + `/leagues/{l}/squad`. GET auf `/market/{pid}/offers` → 405 (nur POST), GET `/market/{pid}` → 405 (nur DELETE) ⇒ das Gebots-Array kann nur im `/market`-Payload stecken. |
 
 ---
 
