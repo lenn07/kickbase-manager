@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
+from datetime import datetime
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
@@ -33,6 +34,41 @@ class SessionStore(Protocol):
     async def save_session(self, session: Session) -> None: ...
 
     async def load_credentials(self) -> tuple[str, str] | None: ...
+
+
+@runtime_checkable
+class MarketValueCache(Protocol):
+    """Tages-Cache für Marktwert-Historien.
+
+    Der Marktwert ändert sich **einmal am Tag**, um 22:00 Berlin (Plan §2.3),
+    und Kickbase nennt den genauen Zeitpunkt als `mvud` im Market-Root. Eine
+    Historie, die um 14:00 geholt wurde, ist um 16:00 also garantiert
+    unverändert — der zweite Call liefert Byte für Byte dasselbe.
+
+    Bis P1-7 hat der Bot sie trotzdem jeden Tick neu geholt: bei 120-min-Takt
+    zwölfmal pro Tag je Spieler, für elf Datensätze, die sich nicht bewegt
+    haben. Das ist der eigentliche Anteil an Defekt D8 und am Ban-Risiko aus
+    §9 des Plans.
+
+    `valid_until` ist deshalb kein TTL in Minuten, sondern der nächste
+    Update-Zeitpunkt selbst. Kennt der Aufrufer ihn nicht, schreibt er nicht in
+    den Cache — geraten wird hier nichts.
+    """
+
+    def get_many(
+        self, league_id: str, player_ids: Sequence[str], *, now: datetime
+    ) -> dict[str, list[MarketValuePoint]]:
+        """Noch gültige Historien der genannten Spieler. Fehlende fehlen."""
+        ...
+
+    def put(
+        self,
+        league_id: str,
+        player_id: str,
+        points: Sequence[MarketValuePoint],
+        *,
+        valid_until: datetime,
+    ) -> None: ...
 
 
 @runtime_checkable

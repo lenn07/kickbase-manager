@@ -144,7 +144,9 @@ class RunTickUseCase:
             now=now,
         )
         recent_actions = _load_recent_actions(self._trades, user.id)
-        enrichment = await self._enrich_players(league_row.kb_league_id, squad, market)
+        enrichment = await self._enrich_players(
+            league_row.kb_league_id, squad, market, snapshot=snapshot, now=now
+        )
 
         open_bids_total = _open_bids_total(market=market, manager_id=user.kb_user_id)
         max_negative = _max_negative_allowed(team_value=snapshot.team_value, cash=league_me.budget)
@@ -294,11 +296,22 @@ class RunTickUseCase:
         league_id: str,
         squad: Squad,
         market: list[MarketPlayer],
+        *,
+        snapshot: MarketSnapshot,
+        now: datetime,
     ) -> dict[str, PlayerEnrichment]:
         if self._enricher is None:
             return {}
         try:
-            return await self._enricher.enrich(league_id, squad, market)
+            # `mvud` aus dem Market-Root ist die Haltbarkeit des
+            # Historien-Caches: bis dahin ändert Kickbase keinen Marktwert.
+            return await self._enricher.enrich(
+                league_id,
+                squad,
+                market,
+                mv_update_at=snapshot.mv_update_at,
+                now=now,
+            )
         except KickbaseError as exc:
             _log.info("Enrichment fehlgeschlagen (%s) — Prompt läuft ohne Zusatzsignale.", exc)
             return {}

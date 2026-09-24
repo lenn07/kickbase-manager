@@ -409,6 +409,30 @@ def test_every_squad_player_shows_its_entry_price(payload: dict[str, Any]) -> No
     assert sum(1 for p in squad if p.get("bought_intent")) == 1
 
 
+def test_squad_trends_come_from_the_payload_not_the_shared_fake(payload: dict[str, Any]) -> None:
+    """P1-7: die 24-h-/7-d-Trends der Kaderspieler streuen.
+
+    Der `_StaticGateway` gibt **jedem** Spieler dieselbe Marktwert-Serie.
+    Solange die Trends allein daraus kamen, trug jeder Kaderspieler denselben
+    Wert — im Snapshot 0,02 % für alle acht. Seit `tfhmvt`/`sdmvt` aus dem
+    Squad-Payload kommen, sind es echte, verschiedene Zahlen; Marius Wolf
+    steht mit -13,2 % auf sieben Tagen da, wo vorher +0,02 % stand.
+
+    Dass die Werte auseinandergehen, ist deshalb die eigentliche Messung:
+    ohne sie wäre das Paket an dieser Stelle wirkungslos, und der Test würde
+    es nicht merken.
+    """
+    squad = payload["squad"]
+    assert all(p["market_trend_1d_pct"] is not None for p in squad)
+    assert all(p["market_trend_7d_pct"] is not None for p in squad)
+    assert len({p["market_trend_7d_pct"] for p in squad}) > 1, (
+        "Alle Kaderspieler tragen denselben 7-d-Trend — die Payload-Quelle greift nicht."
+    )
+    # Die Fenster ohne Payload-Quelle kommen weiter aus der Historie und
+    # dürfen im Snapshot ruhig gleich sein — der Fake liefert ja eine Serie.
+    assert len({p["market_trend_30d_pct"] for p in squad}) == 1
+
+
 def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> None:
     """Ein Minuswert ist ein Datum — und ein besonders aussagekräftiges.
 

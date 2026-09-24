@@ -64,7 +64,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 ### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **in Arbeit** (seit 2026-09-24)
 - [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
-- [ ] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`)
+- [x] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`) + Historien-Cache
 - [ ] **P1-8** Echte Form & Minuten (`/performance`)
 - [ ] **P1-9** Liga-Settings lesen (Kader-/Vereinslimit, Underpay, Modus)
 - [ ] **P1-10** Scheduler auf Ereignis-Fenster umstellen
@@ -257,7 +257,7 @@ Verifizierte Keys: `i, fn, n, tid, pos, st, mv, mvt, p, ap, ofc, exs, prc, isn, 
 | `ofc` | **Anzahl Gebote** auf dieses Listing | ignoriert (P0-3 / P2-13) |
 | `exs` | Sekunden bis Listing-Ablauf — **nur bei fremden/Kickbase-Listings**; eigene Listings tragen es nicht (F5) | genutzt ✅ |
 | `prc` | Listing-Preis (bei Kickbase-Listings == `mv`) | genutzt ✅ |
-| `mvt` | MW-Trendrichtung (0/1/2) | ignoriert |
+| `mvt` | MW-Trendrichtung (0/1/2) — **nur die Richtung, keine Höhe**; `tfhmvt`/`sdmvt` gibt es im Markt nicht (P1-7) | ignoriert |
 | `isn` | „ist neu auf dem Markt" | ignoriert |
 | `u` | Seller — String **oder** Objekt `{i, n, …}`; fehlt bei Kickbase-Listings | genutzt ✅ |
 | **Offers-Array** | Feldname **unbekannt**; eingegrenzt: GET `/market/{p}/offers` -> 405 (nur POST), GET `/market/{p}` -> 405 (nur DELETE) ⇒ kann nur im `/market`-Payload stehen, sichtbar ab `ofc > 0` (F1). `/leagues/{l}/squad` liefert `ofc` je eigenem Spieler als billigeren Trigger. | **braucht ein echtes Gebot**, dann P0-2 |
@@ -307,7 +307,7 @@ sähe fit aus. (P0-3)
 | D5 | `prob` verworfen, Startelf-Prognose erfunden | `app/application/player_enrichment.py:49-60,137` | Ersatzkeeper und Kapitän bekommen beide `0.85` | P0-3 |
 | D6 | Unbekannte `st`-Werte → `FIT` | `app/infrastructure/kickbase/dto.py` (`_to_status`) | `st=128` erscheint als fit mit 0.85 | P0-3 |
 | D7 | Kaufpreis nur aus eigenem `trade_log` | `app/application/run_tick_uc.py` (`_load_buy_history`) | zugeloste/App-Käufe ohne Kaufpreis ⇒ PROFIT-Exits & Transfer-Erfolge nicht steuerbar | P1-6 ✅ |
-| D8 | 25 History-Calls/Tick für Daten, die im Payload stehen | `app/application/player_enrichment.py:104` | Ban-Risiko; 12 von 22 Marktspielern trotzdem ohne Trend | P1-7 |
+| D8 | 25 History-Calls/Tick für Daten, die im Payload stehen | `app/application/player_enrichment.py:104` | Ban-Risiko; 12 von 22 Marktspielern trotzdem ohne Trend | P1-7 ✅ |
 | D9 | `avg_points_last5` ist in Wahrheit der Saison-Ø | `app/application/player_enrichment.py:221` | Bankdrücker sieht aus wie im Oktober | P1-8 |
 | D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 |
 | D11 | Keine Aufstellungs-Aktion | Gateway/Executor | teuerste Regel (−100/Slot) ohne Ausführungspfad | P0-4 |
@@ -863,6 +863,40 @@ Fallback für fehlendes `prc`: `/managers/{m}/transfer` (`trp`).
 (±0,1 pp) dem aus der History berechneten entsprechen — analog `sdmvt` gegen den 7-d-Trend.
 **DoD:** Requests/Tick im Log messbar gesunken; alle Marktspieler haben 24-h/7-d-Trends.
 
+> **[Plan-Ergänzung 2026-09-24] Beide Hälften des DoD waren so nicht erreichbar.**
+>
+> **(a) `tfhmvt`/`sdmvt` stehen nur im Squad-Payload, nicht im Markt.** Die verifizierten
+> Market-Item-Keys sind `ap, dt, exs, fn, i, iposl, isn, mv, mvt, n, ofc, p, pim, pos, prc, st,
+> tid` — vom Trend trägt das Item nur `mvt`, die *Richtung* (0/1/2) ohne Höhe. „Alle Marktspieler
+> haben 24-h/7-d-Trends" ist mit Payload-Feldern also unmöglich; erreichbar ist es für **alle
+> Kaderspieler**. Für Marktspieler bleibt es bei der Historie, und die bekommt weiter nur die
+> Shortlist — der Rest trägt `null` + `missing_data`-Flag statt einer aus `mvt` geratenen Zahl.
+>
+> **(b) Die Call-Zahl wäre nicht gesunken.** Der Plan lässt die Historie für „Kader + Shortlist"
+> stehen — also genau die Menge, die sie heute schon bekommt (Kader + Top-10). `tfhmvt`/`sdmvt`
+> ersetzen zwar zwei der fünf Kennzahlen, aber `trend_3d`, `trend_30d` und `mv_max_30d` brauchen
+> die Serie weiterhin. Netto: null eingesparte Requests, DoD nicht erfüllbar.
+> **Umgesetzt:** ein **Tages-Cache für Marktwert-Historien**, gültig bis `mvud` (dem nächsten
+> Update-Zeitpunkt aus dem Market-Root, P0-1). Kickbase schreibt Marktwerte einmal täglich fort;
+> bei 120-min-Takt holte der Bot elf von zwölf Malen unveränderte Daten. Der Cache liegt in
+> SQLite (`market_value_cache`, eine Zeile je Liga+Spieler) — dieselbe Infrastruktur, die P1-8
+> für die Performance-Daten ohnehin verlangt. Ohne bekanntes `mvud` wird **nicht** gecacht: eine
+> geratene Haltbarkeit ließe den Bot einen ganzen Marktwert-Zyklus lang die Bewegung verpassen,
+> die er handeln soll. Der Enricher loggt pro Tick „X aus dem Cache, Y per HTTP" — das ist die
+> vom DoD verlangte Messung.
+>
+> **Feldsemantik bestätigt, sogar exakt statt ±0,1 pp:** `tfhmvt` = `mv − mv[−2]` (Upamecano
+> 5.697, Vortageswert 33.691.880), `sdmvt` = `mv − mv[−8]` (7.367, Wert vor 7 Tagen 33.690.210).
+> Beides deckt sich auf den Euro mit der 365-Tage-Serie und damit mit `_trend(1)`/`_trend(7)`.
+>
+> **Vorrang der Quellen:** der Payload-Wert schlägt die Historie für 1 d/7 d. Er stammt aus dem
+> Squad-Call dieses Ticks, die Serie womöglich aus dem Cache von heute Nachmittag.
+>
+> **Shortlist auf `ap` umgestellt** (der Plan fordert „nicht Top-10-nach-MW", nennt aber kein
+> Kriterium): nach Marktwert landeten zuverlässig dieselben Stars in der Liste, während der
+> billige Rohpunkte-Sammler — die PROFIT-These aus §2.6 — nie eine Historie bekam. Spieler ohne
+> `ap` stehen hinten: „keine Daten" rechtfertigt keinen Request.
+
 #### P1-8 — Echte Form & Minuten
 **Behebt:** D9 · `/v4/leagues/{l}/players/{p}/performance` → `ph[].p`, `ph[].mp`, `ph[].day`.
 Daraus: echtes `avg_points_last5`, `minutes_last5`, `starts_last5` (Rotationsrisiko).
@@ -1085,6 +1119,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-5 | Master-Prompt gegen §4.1 korrigiert, `SET_LINEUP` + zweite Uhr aufgenommen, USER-JSON-Beispiel auf den echten Payload gezogen, `temperature=0` im Produktivpfad, 5 neue Eval-Szenarien | Alle 10 Falschaussagen aus §4.1 sind raus (durch Test abgesichert: `test_corrected_claims_are_gone_from_the_prompt`). `temperature` war nur in der Eval gesetzt — der Produktivpfad lief am API-Default, damit war jede Entscheidung unreproduzierbar und ein Prompt-Merge nicht belegbar; jetzt `AiDecisionConfig.temperature = 0.0`. Der Waechter `test_scenarios_have_eleven_players_in_the_starting_xi` haette das SET_LINEUP-Szenario blockiert (es braucht per definitionem eine unvollstaendige Elf) — geloest ueber `Scenario.expects_full_lineup`, das gleichzeitig erzwingt, dass ein solches Szenario `SET_LINEUP` auch erlaubt. Prompt-Umfang: ~3.900 Tokens Cache-Prefix. **Offen:** der bezahlte Eval-Lauf (8 Szenarien x 4 = 32 Calls). |
 | 2026-09-23 | P0-5 | Eval-Suite gegen den korrigierten Prompt ausgefuehrt | **17/17 gruen, 32 calls, 8:00 min**, alle acht szenarien 3/3 einstimmig. `open_lineup_slots` liefert SET_LINEUP und begruendet es mit `empty_slots: 1` / `points_at_risk: 100` — die P0-4-felder werden gelesen, nicht nur mitgeschickt. `bench_player_is_no_bargain` kauft den 140-punkte-mann mit 5 % startelf-chance nicht. **Befund beim start:** der wrapper `_DeterministicLlm` und die neue produktiv-`temperature` kollidierten — die eval mass bis dahin einen pfad, den es in produktion nicht gab. Wrapper entfernt, waechter-test davor. |
 | 2026-09-24 | P1-6 | **Ergaenzung:** Einstand aus `mvgl` zurueckgerechnet statt aus `prc` gelesen, `unrealized_pnl` neu, Default-0 entfernt | **`prc` steht nicht im Squad-Payload** — §3.3 fuehrte es als verifiziert, die Cassette widerspricht. Der Plan-Test (`mv - prc == mvgl`) waere nicht ausfuehrbar gewesen. Umkehrung `buy_price = mv - mvgl` gegen `/transfer` (`trp`) belegt: Saibari 28.000.000, Wolf 11.000.005, beide exakt. **Der im Plan vorgesehene `/transfer`-Fallback faellt weg:** `mvgl` deckt 8/8 Kaderspieler, die Transferhistorie nur 2 — sechs sind zugelost und stehen dort nie, also genau der Fall von D7. Er bleibt Testquelle. `buy_price` hatte Default `Decimal(0)`; ein Einstand von 0 weist den ganzen Marktwert als Gewinn aus (D1 pro Spieler) — jetzt `None` + Flag. Payload: `bought_at_price` 1/8 -> 8/8, `unrealized_pnl` neu. |
+| 2026-09-24 | P1-7 | **Ergaenzung:** `tfhmvt`/`sdmvt` fuer Kaderspieler, Historien-Cache bis `mvud`, Shortlist nach `ap` statt nach Marktwert | **Beide DoD-Haelften waren so nicht erreichbar.** (a) Die Market-Items tragen `tfhmvt`/`sdmvt` **nicht** — nur `mvt`, die Richtung ohne Hoehe. „Alle Marktspieler haben 24-h/7-d-Trends" ist ueber den Payload unmoeglich; erreichbar ist es fuer alle Kaderspieler. (b) Der Plan laesst die Historie fuer „Kader + Shortlist" stehen, also genau die Menge von heute — netto null eingesparte Requests. Der Hebel ist der **Cache**: der Marktwert aendert sich 1x taeglich, `mvud` nennt den Zeitpunkt, bei 120-min-Takt holte der Bot 11 von 12 Malen unveraenderte Daten. Ohne bekanntes `mvud` wird nicht gecacht. **Feldsemantik exakt bestaetigt** (nicht nur ±0,1 pp): `tfhmvt` = `mv - mv[-2]`, `sdmvt` = `mv - mv[-8]`, beide auf den Euro deckungsgleich mit der 365-Tage-Serie. **Payload schlaegt Historie** fuer 1 d/7 d — die Serie kann aus dem Cache kommen, `tfhmvt` ist immer frisch. Payload-Effekt: die Kader-Trends streuen erstmals (vorher 8x 0,02 % aus derselben Fake-Serie); Marius Wolf steht mit -13,2 % auf 7 Tagen da, wo vorher +0,02 % stand. |
 
 ---
 

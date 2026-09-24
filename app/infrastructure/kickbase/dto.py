@@ -182,6 +182,11 @@ class SquadPlayerDTO(BaseModel):
     # `mvgl` = unrealisierter Gewinn/Verlust. Der Squad-Response trägt **kein**
     # `prc` — der Einstand wird daraus zurückgerechnet (siehe `to_squad_player`).
     unrealized_pnl: Decimal | None = Field(default=None, validation_alias="mvgl")
+    # `tfhmvt` = MW-Änderung 24 h in €, `sdmvt` = MW-Änderung 7 d in €.
+    # Beide nur im Squad-Response; die Market-Items tragen stattdessen nur
+    # `mvt` (Richtung 0/1/2, keine Höhe).
+    mv_change_1d: Decimal | None = Field(default=None, validation_alias="tfhmvt")
+    mv_change_7d: Decimal | None = Field(default=None, validation_alias="sdmvt")
 
     def to_squad_player(self) -> SquadPlayer:
         player = Player(
@@ -206,6 +211,8 @@ class SquadPlayerDTO(BaseModel):
                 self.market_value - self.unrealized_pnl if self.unrealized_pnl is not None else None
             ),
             unrealized_pnl=self.unrealized_pnl,
+            mv_change_1d=self.mv_change_1d,
+            mv_change_7d=self.mv_change_7d,
             lineup_order=self.lineup_order,
         )
 

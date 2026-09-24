@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -84,6 +84,30 @@ class SettingsRow(SQLModel, table=True):
     blacklist: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     digest_enabled: bool = Field(default=False)
     digest_hour: int = Field(default=20)
+
+
+class MarketValueCacheRow(SQLModel, table=True):
+    """Gecachte Marktwert-Historie eines Spielers (P1-7).
+
+    Eine Zeile je (Liga, Spieler). `valid_until` ist der nächste
+    Marktwert-Update-Zeitpunkt (`mvud`) — bis dahin ist die Serie garantiert
+    unverändert, denn Kickbase schreibt Marktwerte nur einmal täglich fort.
+
+    `points` hält die Serie als JSON-Liste `[[ISO-Tag, Wert], …]`. Bewusst
+    keine eigene Zeile pro Punkt: die Serie wird immer als Ganzes geholt und
+    als Ganzes ersetzt, und 365 Punkte mal 20 Spieler wären 7.300 Zeilen, die
+    nie einzeln gelesen werden.
+    """
+
+    __tablename__ = "market_value_cache"
+    __table_args__ = (UniqueConstraint("league_id", "player_id", name="uq_mv_cache_league_player"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    league_id: str = Field(index=True)
+    player_id: str = Field(index=True)
+    points: list[list[Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    fetched_at: datetime = Field(default_factory=_now)
+    valid_until: datetime = Field(index=True)
 
 
 class TradeLogRow(SQLModel, table=True):

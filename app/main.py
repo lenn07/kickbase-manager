@@ -32,6 +32,7 @@ from app.infrastructure.notifications.smtp_client import AiosmtplibClient
 from app.infrastructure.persistence.db import init_db, make_engine
 from app.infrastructure.persistence.repositories import (
     CredentialRepository,
+    MarketValueCacheRepository,
     SettingsRepository,
     UserRepository,
 )
@@ -157,7 +158,9 @@ async def _run_tick(engine: Engine, vault: FernetVault, settings: Settings) -> T
         kickbase = HttpxKickbaseClient(session_store=store)
         try:
             decision_engine = _build_decision_engine(db, vault, anthropic)
-            enricher = PlayerEnricher(kickbase)
+            # Der Cache lebt in derselben DB-Session wie der Tick und wird mit
+            # ihr geschlossen — er ist ein Tages-Cache, kein Prozess-State.
+            enricher = PlayerEnricher(kickbase, cache=MarketValueCacheRepository(db))
             uc = RunTickUseCase(
                 session=db,
                 vault=vault,
