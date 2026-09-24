@@ -333,21 +333,35 @@ class LeagueConstraints:
     Was `/me` liefert, ist `mppu` und `tpc[]`; ein Vereinslimit, ein
     Underpay-Flag oder den Wertungsmodus liefert es nicht.
 
-    Für die drei fehlenden gilt §9 des Plans: **`None` + `missing_data`-Flag,
-    nie ein Default.** Ein geratenes Vereinslimit ist in beide Richtungen
-    teuer — zu niedrig blockiert gültige Käufe, zu hoch lässt Kickbase das
-    Gebot ablehnen und der Tick ist verbraucht.
+    Für Unbekanntes gilt §9 des Plans: **`None` + `missing_data`-Flag, nie ein
+    Default.** Ein geratenes Vereinslimit ist in beide Richtungen teuer — zu
+    niedrig blockiert gültige Käufe, zu hoch lässt Kickbase das Gebot ablehnen
+    und der Tick ist verbraucht.
 
-    `club_limit` lässt sich als `KB_CLUB_LIMIT` konfigurieren: der Wert steht
-    in den Admin-Einstellungen der Liga und ist ablesbar, nur eben nicht
-    abrufbar.
+    Alle drei sind deshalb konfigurierbar (`KB_CLUB_LIMIT`,
+    `KB_UNDERPAY_BLOCKED`, `KB_SCORING_MODE`): die Werte stehen in den
+    Admin-Einstellungen der Liga und sind ablesbar, nur eben nicht abrufbar.
+
+    **`club_limit_is_unlimited` trennt zwei Zustände, die sonst beide als
+    `None` erschienen:** „diese Liga begrenzt Spieler pro Verein nicht" und
+    „wir wissen nicht, ob sie begrenzt". Das ist kein Feinschliff — beim
+    ersten darf der Bot frei nachlegen, beim zweiten muss er sich
+    zurückhalten, und ein einzelnes `None` könnte das nicht sagen.
     """
 
     squad_limit: int | None = None
     club_limit: int | None = None
+    # True = die Liga kennt kein Vereinslimit (Admin-Einstellung aus).
+    # `club_limit` ist dann `None` und das ist eine **Antwort**, kein Fehlen.
+    club_limit_is_unlimited: bool = False
     players_per_club: Mapping[str, int] = field(default_factory=dict)
     underpay_blocked: bool | None = None
     scoring_mode: str | None = None
+
+    @property
+    def club_limit_known(self) -> bool:
+        """Ist die Frage nach dem Vereinslimit beantwortet?"""
+        return self.club_limit is not None or self.club_limit_is_unlimited
 
     def squad_room_left(self, squad_size: int, open_bids: int = 0) -> int | None:
         """Wie viele Spieler noch in den Kader passen. `None` = Limit unbekannt.
@@ -360,9 +374,14 @@ class LeagueConstraints:
         return max(0, self.squad_limit - squad_size - open_bids)
 
     def club_room_left(self, team_id: str, open_bids_for_club: int = 0) -> int | None:
-        """Wie viele Spieler dieses Vereins noch gehen. `None` = Limit unbekannt.
+        """Wie viele Spieler dieses Vereins noch gehen.
 
-        Gibt bewusst `None` statt 0 zurück, wenn das Limit fehlt: „ich weiß es
+        `None` heißt „keine Zahl anwendbar" — entweder weil die Liga nicht
+        begrenzt oder weil das Limit unbekannt ist. Welcher der beiden Fälle
+        vorliegt, sagt `club_limit_known`; für die reine Frage „wie viele
+        passen noch rein" ist die Antwort in beiden Fällen dieselbe.
+
+        Gibt bewusst nie 0 zurück, solange kein Limit feststeht: „ich weiß es
         nicht" darf sich nicht wie „keiner mehr" anfühlen — sonst kauft der
         Bot nie wieder einen zweiten Spieler desselben Vereins.
         """

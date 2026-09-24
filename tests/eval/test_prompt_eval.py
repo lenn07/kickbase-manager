@@ -8,6 +8,12 @@ Vor jedem Merge an `docs/master_prompt.md` einmal ausführen:
 `-s` zeigt je Szenario die gewählten Aktionen und die erste Begründung — bei
 einem Prompt-Merge ist das der eigentliche Befund, nicht das grüne Häkchen.
 
+⚠️ **Nicht durch `| tail` oder `| head` schicken.** Der Exit-Code der Pipe ist
+dann der des letzten Glieds, nicht der von pytest: ein Lauf mit roten Tests
+meldet `0` und sieht bestanden aus. Und der abgeschnittene Teil enthält genau
+die Begründungen, für die man bezahlt hat. Wenn die Ausgabe zu lang ist:
+`pytest -m eval -s > eval.log 2>&1; echo $?` und die Datei danach lesen.
+
 Warum drei Läufe pro Szenario: ein einzelner Lauf kann eine Regelverletzung
 verschlucken, die das Modell nur in einem von drei Fällen zeigt. `temperature=0`
 allein reicht nicht — die API garantiert keine Bit-Gleichheit.
@@ -144,6 +150,51 @@ async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Sc
         f"{[a.value for a in unexpected]}\n"
         f"Alle Läufe: {_describe(decisions)}"
     )
+
+    # Manche Regeln verbieten keine Aktionsart, sondern eine Auswahl: „kaufen
+    # ist in Ordnung, **den** zu kaufen nicht". Ohne diese Prüfung liesse sich
+    # so ein Szenario nur als Verbot der ganzen Aktion formulieren — und das
+    # misst dann eine andere Regel als die gemeinte.
+    picked_forbidden = [
+        d.player_id
+        for d in decisions
+        if d.player_id is not None and d.player_id in scenario.forbidden_player_ids
+    ]
+    assert not picked_forbidden, (
+        f"[{scenario.name}] {scenario.description}\n"
+        f"Regel: {scenario.rule}\n"
+        f"Verbotener Spieler gewählt: {picked_forbidden}\n"
+        f"Alle Läufe: {_describe(decisions)}"
+    )
+
+    _assert_bid_is_high_enough(scenario, decisions)
+
+
+def _assert_bid_is_high_enough(scenario: Scenario, decisions: list[TradeDecision]) -> None:
+    """Prüft die Gebotshöhe, wo eine Regel sie vorschreibt.
+
+    Beim Underpay-Block ist weder die Aktion noch die Auswahl falsch, sondern
+    allein der Preis — ein BUY zu 92 % des Marktwerts wird von Kickbase gar
+    nicht erst angenommen und verbrennt den Tick.
+    """
+    if scenario.min_bid_ratio is None:
+        return
+    market_values = {mp.player.id: mp.player.market_value for mp in scenario.context.market}
+    for decision in decisions:
+        if decision.action is not TradeAction.BUY or decision.price is None:
+            continue
+        market_value = market_values.get(decision.player_id or "")
+        if market_value is None or market_value <= 0:
+            continue
+        ratio = float(decision.price) / float(market_value)
+        assert ratio >= scenario.min_bid_ratio, (
+            f"[{scenario.name}] {scenario.description}\n"
+            f"Regel: {scenario.rule}\n"
+            f"Gebot {int(decision.price):,} liegt bei {ratio:.1%} des Marktwerts "
+            f"{int(market_value):,} — verlangt sind mindestens "
+            f"{scenario.min_bid_ratio:.0%}.\n"
+            f"Alle Läufe: {_describe(decisions)}"
+        )
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)

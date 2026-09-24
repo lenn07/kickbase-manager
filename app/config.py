@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,13 +31,36 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     default_interval_min: int = 120
 
-    # Spielerlimit pro Verein (Kickbase-Admin-Einstellung, real 1 bis 11).
-    # Die API liefert es **nicht**: `/leagues/{l}/settings` existiert nicht und
-    # `/me` kennt nur `mppu` (Kaderlimit) und `tpc[]` (aktuelle Verteilung).
-    # Ablesbar ist es in den Admin-Einstellungen der Liga — deshalb hier
-    # konfigurierbar statt geraten. `None` heißt „unbekannt": das Modell
-    # bekommt ein `null` plus Flag und behauptet dann keinen Verstoß (P1-9).
-    club_limit: int | None = None
+    # --- Liga-Einstellungen, die die Kickbase-API nicht herausgibt (P1-9/F6).
+    #
+    # `/leagues/{l}/settings` existiert nicht, und `/me` kennt nur `mppu`
+    # (Kaderlimit) und `tpc[]` (aktuelle Verteilung je Verein). Die folgenden
+    # drei stehen in den Admin-Einstellungen der Liga: ablesbar, nicht
+    # abrufbar. Nicht gesetzt heißt „unbekannt" — das Modell bekommt dann ein
+    # `null` plus Flag und behauptet keinen Verstoß, den es nicht kennt.
+
+    # Spielerlimit pro Verein. Zahl (1..11) **oder** `unlimited`, wenn die Liga
+    # nicht begrenzt. Die beiden sind nicht dasselbe wie „nicht gesetzt":
+    # `unlimited` ist eine Antwort, Weglassen ist keine.
+    club_limit: int | Literal["unlimited"] | None = None
+
+    # Admin-Option „Unterbieten deaktivieren". `True` = **jedes** Gebot unter
+    # Marktwert ist blockiert, nicht nur eins unter Marktwert minus 10 Prozent.
+    underpay_blocked: bool | None = None
+
+    # Wertungsmodus der Liga. `season_points` = Summe aller Spieltagspunkte
+    # gewinnt, `head_to_head` = Duell pro Spieltag (3/1/0). Die beiden
+    # verlangen unterschiedliche Risikoprofile, siehe Master-Prompt §1.
+    scoring_mode: Literal["season_points", "head_to_head"] | None = None
+
+    @property
+    def club_limit_value(self) -> int | None:
+        """Das Limit als Zahl — `None` bei `unlimited` **und** bei „nicht gesetzt"."""
+        return self.club_limit if isinstance(self.club_limit, int) else None
+
+    @property
+    def club_limit_is_unlimited(self) -> bool:
+        return self.club_limit == "unlimited"
 
     # Aufstellungs-Writes (P0-4). Default aus: `POST /lineup` ist die einzige
     # Aktion, die unmittelbar Punkte bewegt — eine falsch geschriebene Elf holt

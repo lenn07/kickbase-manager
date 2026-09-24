@@ -112,11 +112,17 @@ def _build_context() -> DecisionContext:
         current_balance_after_open_bids=league_me.budget - open_bids_total,
         lineup=lineup,
         lineup_deadline=snapshot.next_matchday_start,
-        # Echte Liga-Limits aus der `/me`-Cassette. Das Vereinslimit bleibt
-        # unbekannt — die API liefert es nicht (P1-9).
+        # Kaderlimit und Vereinsverteilung aus der `/me`-Cassette; die drei
+        # übrigen Werte liefert die API nicht und sie stehen deshalb in der
+        # Konfiguration. Hier die echte Liga (§8/F6, am 2026-09-24 in den
+        # Admin-Einstellungen abgelesen): kein Vereinslimit, Unterbieten
+        # deaktiviert, Wertung nach Saisonpunkten.
         constraints=LeagueConstraints(
             squad_limit=league_me.squad_limit,
             players_per_club=league_me.players_per_club,
+            club_limit_is_unlimited=True,
+            underpay_blocked=True,
+            scoring_mode="season_points",
         ),
     )
 
@@ -500,30 +506,42 @@ def test_form_reports_minutes_and_its_own_window(payload: dict[str, Any]) -> Non
     assert 0 < len(with_form) < len(payload["market"])
 
 
-def test_constraints_carry_the_league_limits_and_admit_the_gaps(
-    payload: dict[str, Any],
-) -> None:
-    """P1-9 (Defekt D10): echtes Kaderlimit, ehrliches `null` beim Rest.
+def test_constraints_carry_the_league_limits(payload: dict[str, Any]) -> None:
+    """P1-9 (Defekt D10) + §8/F6: alle fünf Liga-Regeln stehen im Payload.
 
-    Das Kaderlimit ist 16 und kommt aus `mppu`; der Code hatte 15 stehen.
-    Vereinslimit, Underpay-Regel und Wertungsmodus liefert **keine** Response
-    — `GET /leagues/{l}/settings` existiert nicht. Sie stehen trotzdem im
-    Payload, als `null` mit Flag: ein Feld, das gar nicht auftaucht, kann das
-    Modell nicht von einem unterscheiden, das jemand zu lesen vergessen hat.
+    Das Kaderlimit ist 16 und kommt aus `mppu`; der Code hatte 15 stehen. Die
+    drei übrigen liefert **keine** Kickbase-Response — `/leagues/{l}/settings`
+    existiert nicht — sie kommen aus der Konfiguration, nachdem sie in den
+    Admin-Einstellungen abgelesen wurden.
     """
     limits = payload["constraints"]
     assert limits["squad_limit"] == 16
     assert limits["players_per_club"], "tpc[] ist leer — Cassette kaputt?"
     assert limits["squad_slots_left"] == 16 - len(payload["squad"])
 
-    for field_name in ("club_limit", "underpay_blocked", "scoring_mode"):
-        assert limits[field_name] is None
-        assert f"missing_data:constraints.{field_name}" in limits["missing_data_flags"]
-    assert "missing_data:constraints.squad_limit" not in limits["missing_data_flags"]
+    assert limits["underpay_blocked"] is True
+    assert limits["scoring_mode"] == "season_points"
+    assert limits["missing_data_flags"] == [], (
+        "Alle Liga-Regeln sind bekannt — es darf kein Flag übrig bleiben."
+    )
 
     # Die Nutzer-Guardrails dürfen dabei nicht verloren gehen.
     for field_name in ("min_cash_reserve", "max_trade_pct", "blacklist", "interval_min"):
         assert field_name in limits
+
+
+def test_unlimited_is_an_answer_not_a_gap(payload: dict[str, Any]) -> None:
+    """„Kein Vereinslimit" und „Limit unbekannt" dürfen nicht gleich aussehen.
+
+    Beide erscheinen als `club_limit: null`. Nur im zweiten Fall muss sich der
+    Bot zurückhalten; im ersten darf er frei nachlegen. Unterscheidbar ist das
+    allein über `club_limit_is_unlimited` und das Flag — fällt eines von
+    beiden weg, liest das Modell eine bewusste Liga-Einstellung als Datenlücke.
+    """
+    limits = payload["constraints"]
+    assert limits["club_limit"] is None
+    assert limits["club_limit_is_unlimited"] is True
+    assert "missing_data:constraints.club_limit" not in limits["missing_data_flags"]
 
 
 def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> None:

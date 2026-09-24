@@ -66,7 +66,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
 - [x] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`) + Historien-Cache
 - [x] **P1-8** Echte Form & Minuten (`/performance`) + Spieltags-Cache
-- [x] **P1-9** Liga-Limits lesen — `mppu`/`tpc` echt, drei Felder ohne Quelle (§8/F6)
+- [x] **P1-9** Liga-Limits — `mppu`/`tpc` aus der API, drei Felder per ENV (§8/F6 beantwortet)
 - [x] **P1-10** Scheduler auf Ereignis-Fenster umstellen + Tick-Lock
 
 ### Phase 3 — P2: Top-Niveau · Status: **offen**
@@ -83,8 +83,17 @@ prüfen — offene Fragen blockieren manche Pakete.
 |---|---|
 | **0** | `pytest` grün · Snapshot-Datei existiert · Eval-Gerüst lauffähig · alle 5 Fragen in §8 beantwortet **oder** mit belegtem Rest-Verfahren + entkoppeltem Folgepaket abgeschlossen (siehe §8.0) |
 | **1** | Die 4 Gap-Assertions aus P0-0.4 sind grün · Eval-Suite grün · 7 Tage Shadow (`dry_run=true`) ohne Executor-Fehler im `trade_log` |
-| **2** | HTTP-Calls/Tick gesunken (Messung im Log) · `avg_points_last5` ist echte L5 · keine hartkodierten Limits mehr in `kb_rules.py` · Ticks feuern in den Fenstern aus P1-10 |
+| **2** | HTTP-Calls/Tick gesunken (Messung im Log: „X aus dem Cache, Y per HTTP") · `avg_points_last5` ist echte L5 · das Kaderlimit im **aktiven** Pfad kommt aus `mppu` statt aus einer Konstante ⟵ *[korrigiert, siehe unten]* · Ticks feuern in den Fenstern aus P1-10 |
 | **3** | USER-JSON enthält Gegnerstärke + Ligarang · Overbid ist formelbasiert · Deadline-Tick kann ≥ 2 Aktionen ausführen |
+
+> **[Plan-Ergänzung 2026-09-24] Das Phase-2-DoD verlangte etwas, das §4.2 verbietet.**
+> Ursprünglich stand dort „keine hartkodierten Limits mehr in `kb_rules.py`". §4.2 führt dieselbe
+> Datei als toten Code mit „nicht anfassen, nicht erweitern" — beides zusammen ist nicht
+> erfüllbar. Aufgelöst zugunsten von §4.2: D10 wirkt dort, wo er schadet, nämlich im aktiven
+> AI-Pfad über `constraints.squad_limit` im USER-JSON. Die Konstante `_MAX_SQUAD_SIZE = 15` bleibt
+> im Heuristik-Pfad stehen, bis dieser entfernt oder reaktiviert wird; sie wird von keinem Tick
+> gelesen. Wer den Pfad reaktiviert, muss sie als Erstes ersetzen — dieser Absatz ist die Notiz
+> dazu.
 
 ---
 
@@ -1102,7 +1111,7 @@ Phase 0 (Discovery + Snapshot + Eval-Gerüst)
 | F1 | Einen eigenen Spieler listen und warten, bis in der App ein Gebot eingeht (`ofc > 0`) | `python -m scripts.inspect_endpoints` → schreibt `tmp/inspect/offers_found.json` | P0-2 |
 | F2 | In der App die Aufstellungsansicht öffnen, die 5 Startelf-Icons mit `prob` von 3–4 bekannten Spielern vergleichen | Ergebnis in §8/F2 eintragen | endgültige Bestätigung für P0-3 |
 | F5 | Dasselbe Listing nach > 72 h erneut ansehen: noch da? | `python -m scripts.answer_open_questions` | nur Prompt-Formulierung |
-| F6 | In der App *Liga → Admin-Einstellungen* öffnen: Spielerlimit pro Verein, Underpay-Option, Wertungsmodus ablesen | Vereinslimit als `KB_CLUB_LIMIT` setzen, Rest in §8/F6 eintragen | nichts (Paket ist entkoppelt), verbessert nur die Prompt-Qualität |
+| ~~F6~~ | ✅ erledigt 2026-09-24 — abgelesen: kein Vereinslimit, Unterbieten deaktiviert, Saisonpunkte | in `.env` gesetzt (`KB_CLUB_LIMIT` / `KB_UNDERPAY_BLOCKED` / `KB_SCORING_MODE`) | — |
 
 ---
 
@@ -1165,20 +1174,43 @@ Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus mus
 **Blockiert:** nichts
 
 ### F6 — Wo stehen Vereinslimit, Underpay-Regel und Wertungsmodus?
-**Status:** 🔴 offen · **[Ergänzung 2026-09-24, aus P1-9]**
-**Belegt ausgeschlossen:** `GET /v4/leagues/{l}/settings` → HTTP 500 `NotFound`. Keiner der 16
-Discovery-Dumps trägt ein Feld, das sich einem der drei Werte zuordnen ließe. `/me` liefert
-`mppu` (Kaderlimit, 16) und `tpc[]` (Spieler je Verein) — mehr nicht.
-**Kandidaten, alle unverifiziert:** `clpc` (Vereinslimit?) steht in `/ranking` auf 11, in
-`/lineup/overview` aber auf 0 bei acht aufgestellten Spielern — zwei Bedeutungen in zwei
-Endpunkten, als Beleg untauglich. `upe` (`/me`, `false`) für Underpay. `gpm: 1` / `isp: false`
-für den Modus.
-**Rest-Verfahren:** in der App unter *Liga → Admin-Einstellungen* ablesen. Vereinslimit dann als
-`KB_CLUB_LIMIT` setzen; Underpay und Modus in §8/F6 eintragen und im Prompt nachziehen.
-**Paket entkoppelt (§8.0/c):** alle drei stehen als `null` + `missing_data:constraints.*` im
-Payload. `club_room_left()` gibt ohne Limit `None` zurück, nicht 0 — der Bot behauptet damit
-keinen Verstoß, den er nicht kennt, und blockiert sich auch nicht selbst.
-**Blockiert:** nichts. Betrifft die Prompt-Formulierung und P2-12 (Risikoprofil bei H2H).
+**Status:** 🟢 beantwortet (2026-09-24, vom Nutzer in den Admin-Einstellungen abgelesen)
+· **[Ergänzung 2026-09-24, aus P1-9]**
+
+**Antwort für diese Liga:**
+
+| Einstellung | Wert | ENV |
+|---|---|---|
+| Spielerlimit pro Verein | **keins** | `KB_CLUB_LIMIT=unlimited` |
+| Unterbieten | **deaktiviert** ⇒ jedes Gebot < Marktwert blockiert | `KB_UNDERPAY_BLOCKED=true` |
+| Wertungsmodus | **Saisonpunkte** | `KB_SCORING_MODE=season_points` |
+
+**Belegt ausgeschlossen (die API liefert sie nicht):** `GET /v4/leagues/{l}/settings` → HTTP 500
+`NotFound`. Keiner der 16 Discovery-Dumps trägt ein Feld, das sich einem der drei Werte zuordnen
+ließe. `/me` liefert `mppu` (Kaderlimit, 16) und `tpc[]` (Spieler je Verein) — mehr nicht.
+Kandidaten, alle unverifiziert geblieben: `clpc` steht in `/ranking` auf 11, in
+`/lineup/overview` aber auf 0 bei acht aufgestellten Spielern (zwei Bedeutungen, als Beleg
+untauglich); `upe` (`/me`, `false`) für Underpay; `gpm: 1` / `isp: false` für den Modus.
+⚠️ **`upe: false` deckt sich *nicht* mit der abgelesenen Antwort** (Unterbieten ist deaktiviert) —
+wer es später als Quelle nehmen will, muss die Richtung erst gegen eine zweite Liga prüfen.
+
+**Zwei Zustände, nicht einer.** „Diese Liga begrenzt nicht" und „wir wissen nicht, ob sie
+begrenzt" erschienen beide als `club_limit: null`. Beim ersten darf der Bot frei nachlegen, beim
+zweiten muss er sich zurückhalten — deshalb trägt der Payload zusätzlich
+`club_limit_is_unlimited`, und das `missing_data`-Flag steht nur noch im zweiten Fall.
+
+**Konsequenz für den Prompt (wichtigste Änderung):** `underpay_blocked: true` heißt, dass es in
+dieser Liga **keine** Gebote unter Marktwert gibt — nicht einmal bis −10 %. Ein Gebot darunter
+wird nicht erst beim Transferzeitpunkt abgelehnt, sondern gar nicht erst angenommen: der Tick ist
+weg, ohne dass irgendetwas passiert. §3 des Master-Prompts ist entsprechend dreiwertig gefasst
+(`true` / `false` / `null`), neues Eval-Szenario `underpay_is_blocked` prüft die Gebotshöhe.
+
+**Auch ohne Vereinslimit bleibt die Portfolio-Regel:** Ergebnis und Gegentore korrelieren
+innerhalb eines Teams perfekt (§2.4). Vier Spieler eines Clubs sind eine gehebelte Wette auf ein
+Spiel, ob die Liga es erlaubt oder nicht. Der Prompt sagt das jetzt ausdrücklich, statt sich auf
+ein Limit zu verlassen, das es hier nicht gibt.
+
+**Blockiert:** nichts mehr. P2-12 (Risikoprofil) kann auf `scoring_mode` bauen.
 
 ---
 
@@ -1242,6 +1274,8 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-24 | P1-8 | **Ergaenzung:** `/performance` angebunden, Fenster ueber gespielte Spieltage, `minutes_last5`/`starts_last5`/`form_matchdays_counted` neu, Spieltags-Cache bis `next_matchday_start` | **Drei Stellen haetten nach Planwortlaut nicht funktioniert.** (a) `mp` kommt als String mit Apostroph (`"96'"`) — ein int-Feld waere mit ValidationError ausgestiegen und haette die ganze Anreicherung mitgerissen. (b) Die Response traegt 11 Saisons *und* alle kommenden Spieltage; „die letzten fuenf Eintraege" haette ueber die Zukunft gemittelt. Filter `mdst == 2` trennt exakt (291 mit Minuten / 30 ohne). (c) Der Plan-Test „< 5 Spieltage ⇒ `None`" haette am 4. Spieltag **jeden** Spieler ohne Form gelassen — D9 mit neuem Etikett. Jetzt wird das kuerzere Fenster gerechnet und als `form_matchdays_counted` + Partial-Flag ausgewiesen. `starts_last5` aus `st` (5=Startelf, Median 90 min gegen 22 bei `st=3`), Unbekanntes zaehlt nicht als Start. Cache-Grenze ist `next_matchday_start`: waehrend eines laufenden Spieltags wird nicht geschrieben, sonst saehe der Bot die Live-Punkte nicht. Payload: `avg_points_last5` ist echte Form, `minutes_last5`/`starts_last5` neu bei 8/8 Kader + 10/21 Markt. |
 | 2026-09-24 | P1-9 | **Ergaenzung:** `mppu`/`tpc` gelesen, `LeagueConstraints` neu, drei Felder ohne Quelle als `null` + Flag, `KB_CLUB_LIMIT` als Konfigurationsweg | **Der Pakettext nennt einen Endpunkt, den es nicht gibt.** `/leagues/{l}/settings` → HTTP 500 `NotFound` (steht schon in §3.4 und im P0-0.1-Log, P1-9 fuehrte ihn trotzdem als Quelle inkl. „Contract auf die Settings-Response"). Abrufbar: `mppu` = **16** (Code hatte 15) und `tpc[]`. **Nicht abrufbar:** Vereinslimit, Underpay, Modus — alle 16 Discovery-Dumps geprueft. `clpc` als Kandidat verworfen: 11 in `/ranking`, 0 in `/lineup/overview` bei 8 aufgestellten. Neue offene Frage **F6**. Der geforderte Unit-Test bekam eine zweite Haelfte: ohne bekanntes Limit darf **kein** Verstoss behauptet werden — `club_room_left()` gibt `None` statt 0, sonst kauft der Bot nie wieder einen zweiten Spieler desselben Vereins. `kb_rules.py` blieb unangetastet (Widerspruch zu §4.2 zugunsten von §4.2 aufgeloest). |
 | 2026-09-24 | P1-10 | **Ergaenzung:** Ereignis-Fenster (`set_windows`), Tick-Lock ueber alle Ausloeser, `market_meta`-Tabelle fuer die Uhren | **Zwei Annahmen des Pakets tragen nicht.** (a) Der Pakettext haelt den Doppellauf fuer geloest („`max_instances=1`, `coalesce=True` sind bereits gesetzt") — `max_instances` wirkt aber **pro Job**, und Fenster sind eigene Jobs. Das 21:45-Fenster und der Intervall-Job koennen auf dieselbe Minute fallen und liefen dann parallel: zwei Entscheidungen auf derselben Lage. Jetzt ein `asyncio.Lock` ueber alle Ausloeser; die beiden Tests sind ohne das Lock nachweislich rot. (b) Der Scheduler kennt `next_matchday_start` nicht — der entsteht erst im Tick, und `IntervalTrigger(120)` feuert erstmals nach zwei Stunden. Nach einem Neustart am Freitagabend waere genau das Deadline-Fenster weg. Jetzt haelt `market_meta` beide Uhren; der Tick schreibt, der Scheduler liest beim Start und zieht nach jedem Tick nach. Abgelaufene `DateTrigger` werden vorher gefiltert (APScheduler verwirft sie sonst still), `misfire_grace_time=300` fuer verschlafene Fenster. `interval_min` bleibt Nutzer-Einstellung und wird nicht automatisch auf 180 gesetzt. |
+| 2026-09-24 | P1-Prompt | Master-Prompt auf die Phase-2-Felder gezogen; **§8/F6 beantwortet** (Nutzer hat die Admin-Einstellungen abgelesen) | Die drei Felder ohne API-Quelle sind jetzt echt: **kein Vereinslimit**, **Unterbieten deaktiviert**, **Saisonpunkte** — als `KB_CLUB_LIMIT=unlimited` / `KB_UNDERPAY_BLOCKED=true` / `KB_SCORING_MODE=season_points`. `underpay_blocked: true` ist die inhaltlich groesste Aenderung: in dieser Liga gibt es **gar keine** Gebote unter Marktwert, auch nicht bis -10 %. **Neuer Zustand noetig:** „begrenzt nicht" und „unbekannt" erschienen beide als `club_limit: null` — jetzt trennt `club_limit_is_unlimited` sie, und das missing_data-Flag steht nur noch im zweiten Fall. `upe: false` aus `/me` widerspricht der abgelesenen Antwort und taugt damit weiterhin nicht als Quelle. Drittes neues Eval-Szenario `underpay_is_blocked` prueft die **Gebotshoehe** (weder Aktionsart noch Auswahl sind dort falsch, nur der Preis). Payload: alle `missing_data:constraints.*`-Flags sind weg. |
+| 2026-09-24 | P1-Prompt | Eval gegen den Phase-2-Prompt: **2 von 23 rot**, korrigiert, dann **23/23 gruen** (33 + 18 + 33 calls, 10:31 min im Schlusslauf) | **Der Lauf hat einen echten Regelverstoss gefunden, den kein statischer Test zeigt.** `instant_sale_before_deadline` lieferte dreimal einstimmig HOLD mit der Begruendung „Konto -6M aber innerhalb Limit" — das Modell hielt die **33 %-Grenze** fuer massgeblich, wo die **Anpfiff-Regel** gilt (Konto >= 0, sonst 0 Punkte fuer den ganzen Spieltag). Ursache war die eigene §1.1-Erweiterung dieses Pakets: vier neue Absaetze zu Kaderlimits haben die Konto-Regel im selben Abschnitt verdraengt. P0-5 war mit demselben Szenario noch gruen — also eine **Regression durch den Prompt-Nachzug**, nicht durch Sampling. Fix: beide Stellen sagen jetzt ausdruecklich, dass `max_negative_allowed` **zwischen** den Spieltagen gilt und zum Anpfiff null ist; `debt_before_kickoff` lief als Kontrolle mit und blieb unveraendert. **Zweiter Befund war ein Szenario-Fehler, kein Prompt-Fehler:** `injured_starter` stammt aus P0-0.6 und kannte `SET_LINEUP` nicht. Das Modell nimmt den Verletzten (5 % Startelf) aus der Elf statt ihn zu verkaufen — bei 3 Tagen bis Anpfiff die bessere Aktion. Szenario erweitert, Begruendung im Docstring, damit „zu eng gefasst" von „gruengeredet" unterscheidbar bleibt. **Die drei neuen Szenarien belegen, dass die Phase-2-Felder gelesen werden:** `joker_is_no_starter` kauft den Durchspieler und nennt „88 Min/Spiel, 5/5 Starts" (P1-8), `squad_is_full` haelt bei 14/14 trotz 40 Mio Cash (P1-9), `underpay_is_blocked` bietet zum vollen Marktwert (§8/F6). **Auswertungs-Fallstrick:** der erste Lauf lief durch `| tail -80` — der Exit-Code kam von `tail`, ein Lauf mit zwei roten Tests meldete `0`. Warnung steht jetzt im Eval-Docstring. |
 
 ---
 

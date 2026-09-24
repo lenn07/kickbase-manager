@@ -20,6 +20,7 @@ from app.application.decision_engine import DecisionContext
 from app.application.player_enrichment import PlayerEnrichment
 from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
+    LeagueConstraints,
     LeagueMe,
     MarketPlayer,
     Player,
@@ -44,6 +45,15 @@ class Scenario:
     context: DecisionContext
     allowed: frozenset[TradeAction]
     forbidden: frozenset[TradeAction] = field(default_factory=frozenset)
+    # Spieler, die das Modell nicht anfassen darf. Manche Regeln verbieten
+    # keine Aktionsart, sondern eine Auswahl: „kaufen ist in Ordnung, **den**
+    # zu kaufen nicht". Ohne dieses Feld liesse sich das nur als Verbot der
+    # ganzen Aktion formulieren — und das prüfte dann die falsche Regel.
+    forbidden_player_ids: frozenset[str] = field(default_factory=frozenset)
+    # Untergrenze für ein Gebot, als Anteil am Marktwert des gewählten
+    # Spielers. `None` = keine Prüfung. Manche Regeln betreffen weder die
+    # Aktionsart noch die Auswahl, sondern allein die Höhe.
+    min_bid_ratio: float | None = None
     # Was die Regel im Prompt ist, gegen die hier geprüft wird.
     rule: str = ""
     # Normalerweise steht eine vollständige Elf, sonst prüfte jedes Szenario
@@ -80,6 +90,8 @@ def _enrichment(
     trend_7d: float | None = 1.5,
     trend_1d: float | None = 0.2,
     start_probability: float = 0.85,
+    minutes_last5: float | None = 88.0,
+    starts_last5: int | None = 5,
 ) -> PlayerEnrichment:
     return PlayerEnrichment(
         player_id=player.id,
@@ -95,6 +107,11 @@ def _enrichment(
         start_probability_source="kickbase_prob",
         injury_status="fit" if player.status is PlayerStatus.FIT else "injured",
         missing_data_flags=(),
+        # Default: ein durchspielender Stammspieler. Ein Szenario, das über
+        # Rotation geht, setzt die beiden Werte ausdrücklich herunter (P1-8).
+        minutes_last5=minutes_last5,
+        starts_last5=starts_last5,
+        form_matchdays_counted=5,
     )
 
 
@@ -109,6 +126,8 @@ def _context(
     placed_in_lineup: int | None = None,
     market_offer_counts: dict[str, int] | None = None,
     market_expiry_s: int = 6 * 3600,
+    buy_prices: dict[str, int] | None = None,
+    squad_limit: int | None = 16,
 ) -> DecisionContext:
     """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
 
@@ -116,11 +135,22 @@ def _context(
     -100-Regel statt der Regel, um die es eigentlich geht.
     """
     placed = LINEUP_SIZE if placed_in_lineup is None else placed_in_lineup
+    entry_prices = buy_prices or {}
     squad = Squad(
         league_id=LEAGUE_ID,
         manager_id=MANAGER_ID,
         players=tuple(
-            SquadPlayer(player=p, lineup_order=i if i < placed else None)
+            SquadPlayer(
+                player=p,
+                lineup_order=i if i < placed else None,
+                # Kickbase liefert den Einstand für jeden Kaderspieler (P1-6).
+                # Ohne ihn sähe jede Eval-Lage aus wie ein Spieler, über dessen
+                # Kaufpreis nichts bekannt ist — der Ausnahmefall, nicht der
+                # Normalfall.
+                buy_price=Decimal(entry_prices.get(p.id, int(p.market_value))),
+                unrealized_pnl=p.market_value
+                - Decimal(entry_prices.get(p.id, int(p.market_value))),
+            )
             for i, p in enumerate(squad_players)
         ),
     )
@@ -165,7 +195,26 @@ def _context(
             player_ids=tuple(p.id for p in squad_players[:placed]),
         ),
         lineup_deadline=NOW + timedelta(minutes=minutes_until_matchday),
+        # Die echte Liga (§8/F6, am 2026-09-24 abgelesen): kein Vereinslimit,
+        # Unterbieten deaktiviert, Wertung nach Saisonpunkten. Die Eval misst
+        # damit dieselbe Lage, in der der Bot produktiv entscheidet — mit
+        # „unbekannt" überall prüfte sie einen Zustand, den es nicht gibt.
+        constraints=LeagueConstraints(
+            squad_limit=squad_limit,
+            club_limit=None,
+            club_limit_is_unlimited=True,
+            players_per_club=_players_per_club(squad_players),
+            underpay_blocked=True,
+            scoring_mode="season_points",
+        ),
     )
+
+
+def _players_per_club(players: list[Player]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for p in players:
+        counts[p.team_id] = counts.get(p.team_id, 0) + 1
+    return counts
 
 
 def _squad_of_twelve() -> list[Player]:
@@ -244,6 +293,20 @@ def _injured_starter() -> Scenario:
 
     Verkaufsgrund 2 aus dem Regelwerk: die These ist gebrochen. Ein Kauf wäre
     hier die falsche Reaktion — das Kapital steckt im falschen Spieler.
+
+    **`SET_LINEUP` gehört seit dem Eval-Lauf vom 2026-09-24 dazu.** Das
+    Szenario stammt aus P0-0.6, also aus der Zeit vor der Aufstellungs-Aktion,
+    und wurde bei deren Einführung nicht nachgezogen. Das Modell wählte
+    dreimal einstimmig `SET_LINEUP` mit der Begründung, der Verletzte (5 %
+    Startelf-Chance) stehe in der Elf, während ein fitter Bankspieler daneben
+    sitze — und das ist bei drei Tagen bis zum Anpfiff die bessere Aktion als
+    ein Verkauf: sie wirkt sofort auf die Punkte, ist umkehrbar und verbrennt
+    kein Kapital zum schlechtesten Zeitpunkt.
+
+    Die Regel, um die es hier geht, ist damit **nicht** verletzt: geprüft wird,
+    dass der Bot nicht *nachkauft*, während sein Kapital im falschen Spieler
+    steckt. `BUY` bleibt deshalb erlaubt (der Ersatz am Markt ist legitim),
+    `ACCEPT_OFFER`/`DECLINE_OFFER` bleiben es nicht — es gibt keine Gebote.
     """
     squad = _squad_of_twelve()
     injured = _player(
@@ -266,10 +329,19 @@ def _injured_starter() -> Scenario:
             enrichment_overrides=overrides,
         ),
         allowed=frozenset(
-            {TradeAction.SELL, TradeAction.LIST_ON_MARKET, TradeAction.HOLD, TradeAction.BUY}
+            {
+                TradeAction.SELL,
+                TradeAction.LIST_ON_MARKET,
+                TradeAction.HOLD,
+                TradeAction.BUY,
+                TradeAction.SET_LINEUP,
+            }
         ),
-        forbidden=frozenset(),
-        rule="These gebrochen (Verletzung) ist Verkaufsgrund 2 (§2.6)",
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        rule=(
+            "These gebrochen (Verletzung) ist Verkaufsgrund 2 (§2.6); ihn aus der Elf zu "
+            "nehmen ist die schnellere Antwort auf dasselbe Problem"
+        ),
     )
 
 
@@ -422,6 +494,124 @@ def _no_offers_means_no_accept() -> Scenario:
     )
 
 
+def _joker_is_no_starter() -> Scenario:
+    """Gleiche Punkte, andere Minuten — der Fall, für den P1-8 gebaut wurde.
+
+    Zwei Marktspieler mit identischem Saison-Schnitt und identischer Form:
+    der eine spielt durch (88 min, 5 Startelf-Einsätze), der andere kommt
+    zweimal für zwölf Minuten (starts_last5 = 0). Vor P1-8 standen im Payload
+    nur die Punkte — beide sahen exakt gleich aus, und ein Kauf des Jokers war
+    aus Sicht des Modells nicht von einem Kauf des Stammspielers zu
+    unterscheiden.
+
+    Geprüft wird nicht „kaufe niemanden", sondern: **wenn** gekauft wird, dann
+    nicht der Joker. Dafür trägt die Begründung des Modells die Last — die
+    Assertion prüft, dass der Joker nicht die gewählte `player_id` ist.
+    """
+    squad = _squad_of_twelve()
+    starter = _player("910", "Durchspieler", Position.MIDFIELDER, 9_000_000, average_points=130.0)
+    joker = _player("911", "Einwechsler", Position.MIDFIELDER, 9_000_000, average_points=130.0)
+    overrides = {
+        starter.id: _enrichment(starter, minutes_last5=88.0, starts_last5=5),
+        # Dieselben Punkte aus einem Fünftel der Spielzeit: ein Joker mit
+        # Rotationsrisiko, kein Stammspieler.
+        joker.id: _enrichment(joker, minutes_last5=12.0, starts_last5=0, start_probability=0.30),
+    }
+    return Scenario(
+        name="joker_is_no_starter",
+        description=(
+            "Zwei Marktspieler, gleiche Punkte — einer spielt durch, einer wird eingewechselt"
+        ),
+        context=_context(
+            squad_players=squad,
+            market_players=[starter, joker],
+            cash=20_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=3 * 24 * 60,
+            enrichment_overrides=overrides,
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        forbidden_player_ids=frozenset({joker.id}),
+        rule=(
+            "Minuten sind die Basis von allem — `starts_last5` 0 bei gleichem Punkteschnitt "
+            "heisst Rotationsrisiko, nicht Schnaeppchen (§1.2)"
+        ),
+    )
+
+
+def _squad_is_full() -> Scenario:
+    """Kaderlimit erreicht — ein Kauf ist regelwidrig, nicht nur unklug.
+
+    Vor P1-9 stand das Limit nicht im Payload; das Modell konnte gar nicht
+    wissen, dass der Kader voll ist. Jetzt sagt `constraints.squad_slots_left`
+    es ausdrücklich, und ein BUY wäre ein verbrannter Tick: Kickbase lehnt das
+    Gebot ab.
+
+    Geld ist reichlich da und ein attraktiver Spieler liegt am Markt — genau
+    die Lage, in der die Regel gegen den Anreiz stehen muss.
+    """
+    squad = [
+        *_squad_of_twelve(),
+        _player("601", "Reserve1", Position.DEFENDER, 4_000_000, average_points=50.0),
+        _player("602", "Reserve2", Position.MIDFIELDER, 4_000_000, average_points=55.0),
+    ]
+    bargain = _player("920", "Sehr gut", Position.FORWARD, 12_000_000, average_points=175.0)
+    return Scenario(
+        name="squad_is_full",
+        description="14 Spieler bei Kaderlimit 14, viel Cash, attraktiver Spieler am Markt",
+        context=_context(
+            squad_players=squad,
+            market_players=[bargain],
+            cash=40_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=3 * 24 * 60,
+            squad_limit=len(squad),
+        ),
+        allowed=frozenset({TradeAction.HOLD, TradeAction.LIST_ON_MARKET, TradeAction.SELL}),
+        forbidden=frozenset({TradeAction.BUY}),
+        rule=(
+            "Kaderlimit ist eine Liga-Einstellung und steht als "
+            "`constraints.squad_slots_left` im Kontext — bei 0 ist BUY nicht möglich (§1.1)"
+        ),
+    )
+
+
+def _underpay_is_blocked() -> Scenario:
+    """Unterbieten ist in dieser Liga abgeschaltet — jedes Gebot < Marktwert scheitert.
+
+    Der Marktspieler ist fair bewertet und der Kader hat Platz; der Anreiz,
+    ein paar Prozent zu sparen, ist also da. Er darf nicht dazu führen, dass
+    der Bot unter Marktwert bietet: Kickbase lehnt das Gebot nicht erst beim
+    Transferzeitpunkt ab, sondern lässt es gar nicht erst zu — der Tick ist
+    weg, ohne dass irgendetwas passiert ist.
+
+    Geprüft wird über den Preis, nicht über die Aktionsart: BUY ist hier
+    völlig in Ordnung, nur eben nicht zu 92 % des Marktwerts.
+    """
+    squad = _squad_of_twelve()
+    target = _player("930", "Fair bewertet", Position.MIDFIELDER, 10_000_000, average_points=140.0)
+    return Scenario(
+        name="underpay_is_blocked",
+        description="Unterbieten deaktiviert, Kader hat Platz, fair bewerteter Spieler am Markt",
+        context=_context(
+            squad_players=squad,
+            market_players=[target],
+            cash=25_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=3 * 24 * 60,
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        # Bietet das Modell, muss das Gebot mindestens den Marktwert treffen.
+        min_bid_ratio=1.0,
+        rule=(
+            "`constraints.underpay_blocked: true` — jedes Gebot unter Marktwert ist "
+            "blockiert, nicht erst eins unter Marktwert minus 10 Prozent (§3)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -431,4 +621,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     _bench_player_is_no_bargain(),
     _profit_peak(),
     _no_offers_means_no_accept(),
+    _joker_is_no_starter(),
+    _squad_is_full(),
+    _underpay_is_blocked(),
 )

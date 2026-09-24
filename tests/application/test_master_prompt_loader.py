@@ -99,7 +99,28 @@ def test_prompt_covers_the_rules_that_came_with_phase_one() -> None:
         "offer_count",  # P0-2, Konkurrenz beim Overbid
         "allowed_formations",
         "Head-to-Head",  # Wertungsmodus
-        "Unterbieten deaktivieren",  # Underpay-Block
+        "underpay_blocked",  # Underpay-Block, seit §8/F6 als Feld statt als Prosa
+    ):
+        assert expected in prompt, f"Der Prompt erwähnt {expected!r} nicht"
+
+
+def test_prompt_covers_the_fields_that_came_with_phase_two() -> None:
+    """Dasselbe für Phase 2 — ein Feld, das der Prompt nicht nennt, wird nicht gelesen.
+
+    Der Payload ist in Phase 2 um acht Felder gewachsen. Jedes davon kostet
+    Tokens in jedem Tick; eines, das im Prompt nicht vorkommt, zahlt man,
+    ohne etwas dafür zu bekommen.
+    """
+    prompt = load_system_prompt()
+    for expected in (
+        "bought_at_price",  # P1-6
+        "unrealized_pnl",  # P1-6
+        "minutes_last5",  # P1-8
+        "starts_last5",  # P1-8
+        "form_matchdays_counted",  # P1-8
+        "squad_slots_left",  # P1-9
+        "club_limit_is_unlimited",  # P1-9 / §8/F6
+        "scoring_mode",  # P1-9 / §8/F6
     ):
         assert expected in prompt, f"Der Prompt erwähnt {expected!r} nicht"
 

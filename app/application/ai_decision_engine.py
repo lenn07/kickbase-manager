@@ -441,7 +441,11 @@ def _constraints_block(context: DecisionContext) -> dict[str, Any]:
     missing: list[str] = []
     if limits.squad_limit is None:
         missing.append("missing_data:constraints.squad_limit")
-    if limits.club_limit is None:
+    # `club_limit: null` allein wäre zweideutig — es hieße mal „diese Liga
+    # begrenzt nicht" und mal „wir wissen es nicht". Das Flag steht deshalb
+    # nur im zweiten Fall, und `club_limit_is_unlimited` sagt den ersten
+    # ausdrücklich.
+    if not limits.club_limit_known:
         missing.append("missing_data:constraints.club_limit")
     if limits.underpay_blocked is None:
         missing.append("missing_data:constraints.underpay_blocked")
@@ -459,6 +463,7 @@ def _constraints_block(context: DecisionContext) -> dict[str, Any]:
         "squad_limit": limits.squad_limit,
         "squad_slots_left": limits.squad_room_left(squad_size),
         "club_limit": limits.club_limit,
+        "club_limit_is_unlimited": limits.club_limit_is_unlimited,
         "players_per_club": dict(limits.players_per_club),
         "underpay_blocked": limits.underpay_blocked,
         "scoring_mode": limits.scoring_mode,
