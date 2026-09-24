@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import pytest
 from app.infrastructure.logging.redaction import RedactionFilter, install_redaction_filter
@@ -86,3 +87,37 @@ def test_install_ist_idempotent() -> None:
     second = install_redaction_filter(logger)
     assert first is second
     assert sum(isinstance(f, RedactionFilter) for f in logger.filters) == 1
+
+
+def test_redaction_reaches_records_from_child_loggers(capsys) -> None:  # type: ignore[no-untyped-def]
+    """Der Test, der bis 2026-09-24 gefehlt hat — und deshalb nichts absicherte.
+
+    Die übrigen Tests hier rufen den Filter direkt auf. Damit prüfen sie die
+    Muster, aber nicht die Verdrahtung: Python wendet **Logger**-Filter nur auf
+    Records an, die direkt auf diesem Logger entstehen. Beim Propagieren laufen
+    die Handler der Vorfahren, ihre Filter nicht.
+
+    Die Anwendung loggt ausschließlich über `app.*`-Kind-Logger. Ein Filter am
+    Root-Logger sah deshalb nie einen einzigen Record — die Maskierung lief
+    vollständig ins Leere, während jeder Test grün blieb.
+    """
+    root = logging.getLogger()
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    root.addHandler(handler)
+    previous_level = root.level
+    root.setLevel(logging.INFO)
+    try:
+        install_redaction_filter(root)
+        logging.getLogger("app.somewhere.deep").warning(
+            "Authorization: Bearer sk-ant-api03-supersecret-value und password=hunter2"
+        )
+        printed = capsys.readouterr().out
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(previous_level)
+
+    assert "sk-ant-api03-supersecret-value" not in printed
+    assert "hunter2" not in printed
+    assert "Bearer ***" in printed
+    assert "password=***" in printed

@@ -62,7 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     metrics = get_metrics()
     scheduler = _build_scheduler(engine, vault, settings) if settings.scheduler_enabled else None
     log_broadcaster = LogBroadcaster()
-    log_handler = _install_log_handler(log_broadcaster, level_name=settings.log_level)
+    log_handlers = _install_log_handler(log_broadcaster, level_name=settings.log_level)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -81,7 +81,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if scheduler is not None:
                 await scheduler.shutdown()
             metrics.scheduler_running.set(0)
-            logging.getLogger().removeHandler(log_handler)
+            for handler in log_handlers:
+                logging.getLogger().removeHandler(handler)
             engine.dispose()
 
     app = FastAPI(
@@ -110,18 +111,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 def _install_log_handler(
     broadcaster: LogBroadcaster, *, level_name: str = "INFO"
-) -> BroadcastLogHandler:
-    handler = BroadcastLogHandler(broadcaster)
-    handler.setFormatter(logging.Formatter("%(message)s"))
+) -> list[logging.Handler]:
+    """Hängt Dashboard-Broadcast **und** stdout an den Root-Logger.
+
+    Der stdout-Handler fehlte bis 2026-09-24, obwohl der Kommentar hier schon
+    von „Broadcast + stdout" sprach. Folge: `docker logs` zeigte nur
+    uvicorn-Zeilen, und jede App-Meldung — Scheduler-Fenster, Cache-Trefferrate,
+    Kickbase-Fehler, der Warnhinweis auf ein unbekanntes Gebots-Array — war
+    **nur** im Dashboard sichtbar, live und flüchtig. Auf einem Raspberry Pi
+    ohne Bildschirm ist `docker logs` aber der erste Griff bei jeder Störung,
+    und nach einem Neustart ist der Broadcast-Puffer ohnehin leer.
+
+    Der Redaction-Filter sitzt am Root und gilt damit für beide Ziele: Tokens
+    und API-Keys sind in stdout genauso maskiert wie im Dashboard.
+    """
     root = logging.getLogger()
-    # Redaction MUSS vor Handler-Emission greifen, damit Broadcast + stdout die
-    # maskierte Fassung sehen. Am Root-Logger installiert wirkt der Filter für
-    # alle Kind-Logger, die per Default an den Root propagieren.
+    broadcast_handler = BroadcastLogHandler(broadcaster)
+    broadcast_handler.setFormatter(logging.Formatter("%(message)s"))
+    root.addHandler(broadcast_handler)
+
+    # Zeitstempel und Logger-Name gehören dazu: im Dashboard liefert die UI den
+    # Kontext, in `docker logs` tut das niemand.
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+    )
+    root.addHandler(stream_handler)
+
+    # Redaction **nach** den Handlern installieren: der Filter hängt an ihnen,
+    # nicht am Logger — sonst sieht er keinen Record aus `app.*` (siehe
+    # `install_redaction_filter`). Beide Ziele bekommen damit die maskierte
+    # Fassung, stdout wie Dashboard.
     install_redaction_filter(root)
-    root.addHandler(handler)
+
     level = logging.getLevelNamesMapping().get(level_name.upper(), logging.INFO)
     root.setLevel(level)
-    return handler
+    return [broadcast_handler, stream_handler]
 
 
 def _build_scheduler(engine: Engine, vault: FernetVault, settings: Settings) -> KickbaseScheduler:
