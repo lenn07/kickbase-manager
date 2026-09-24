@@ -161,6 +161,35 @@ async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Sc
         f"Alle Läufe: {_describe(decisions)}"
     )
 
+    _assert_bid_is_high_enough(scenario, decisions)
+
+
+def _assert_bid_is_high_enough(scenario: Scenario, decisions: list[TradeDecision]) -> None:
+    """Prüft die Gebotshöhe, wo eine Regel sie vorschreibt.
+
+    Beim Underpay-Block ist weder die Aktion noch die Auswahl falsch, sondern
+    allein der Preis — ein BUY zu 92 % des Marktwerts wird von Kickbase gar
+    nicht erst angenommen und verbrennt den Tick.
+    """
+    if scenario.min_bid_ratio is None:
+        return
+    market_values = {mp.player.id: mp.player.market_value for mp in scenario.context.market}
+    for decision in decisions:
+        if decision.action is not TradeAction.BUY or decision.price is None:
+            continue
+        market_value = market_values.get(decision.player_id or "")
+        if market_value is None or market_value <= 0:
+            continue
+        ratio = float(decision.price) / float(market_value)
+        assert ratio >= scenario.min_bid_ratio, (
+            f"[{scenario.name}] {scenario.description}\n"
+            f"Regel: {scenario.rule}\n"
+            f"Gebot {int(decision.price):,} liegt bei {ratio:.1%} des Marktwerts "
+            f"{int(market_value):,} — verlangt sind mindestens "
+            f"{scenario.min_bid_ratio:.0%}.\n"
+            f"Alle Läufe: {_describe(decisions)}"
+        )
+
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
 async def test_scenario_produces_a_usable_decision(

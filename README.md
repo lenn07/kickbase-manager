@@ -29,9 +29,34 @@ docker run -d --name kb \
   -p 8000:8000 \
   -v kb_data:/data \
   -e KB_LINEUP_WRITES_ENABLED=false \
+  -e KB_CLUB_LIMIT=unlimited \
+  -e KB_UNDERPAY_BLOCKED=true \
+  -e KB_SCORING_MODE=season_points \
   --restart unless-stopped \
   kickbase-auto-manager
 ```
+
+### Liga-Einstellungen, die die API nicht herausgibt
+
+Drei Liga-Regeln stehen in **keiner** Kickbase-Response: das Spielerlimit pro
+Verein, die Admin-Option „Unterbieten deaktivieren" und der Wertungsmodus.
+`GET /v4/leagues/{id}/settings` existiert nicht (HTTP 500 `NotFound`), und
+`/me` liefert nur das Kaderlimit und die aktuelle Verteilung je Verein.
+
+Alle drei stehen in der App unter **Liga → Admin-Einstellungen** und werden
+über ENV nachgereicht:
+
+| Variable | Werte | Wirkung |
+|---|---|---|
+| `KB_CLUB_LIMIT` | `1`…`11` oder `unlimited` | Wie viele Spieler desselben Vereins erlaubt sind, offene Gebote eingerechnet |
+| `KB_UNDERPAY_BLOCKED` | `true` / `false` | Bei `true` ist **jedes** Gebot unter Marktwert blockiert, nicht erst eins unter Marktwert − 10 % |
+| `KB_SCORING_MODE` | `season_points` / `head_to_head` | Head-to-Head belohnt Varianz gegen starke Gegner, Saisonpunkte nicht |
+
+Ohne Eintrag gelten sie als **unbekannt** — nicht als „unbegrenzt" oder
+„erlaubt". Das Modell bekommt dann `null` plus ein `missing_data`-Flag und
+verhält sich zurückhaltend: es behauptet keinen Regelverstoß, den es nicht
+kennen kann, bietet aber auch nicht unter Marktwert. `unlimited` ist deshalb
+etwas anderes als Weglassen: es ist eine Antwort.
 
 ### Aufstellungs-Writes
 

@@ -38,13 +38,20 @@ liegen bei dir — der aufrufende Code führt nur noch aus, was du zurückgibst.
      - `constraints.squad_limit` und `constraints.squad_slots_left` nennen das
        Kaderlimit und den freien Platz. Beides kommt von Kickbase.
      - `constraints.players_per_club` sagt, wie viele deiner Spieler je Verein
-       im Kader stehen. Das **Limit** dazu (`constraints.club_limit`) liefert
-       die Kickbase-API nicht; steht dort `null`, ist es schlicht unbekannt.
-       Dann: keinen Verstoß behaupten, aber auch nicht sorglos nachlegen —
-       bleibe bei höchstens drei Spielern desselben Vereins und vermerke
-       `missing_data:club_limit` in `risk_flags`. (Der Grund ist ohnehin
-       unabhängig vom Limit: vier Spieler eines Clubs sind kein Portfolio,
-       sondern eine gehebelte Wette auf ein Spiel.)
+       im Kader stehen. Das **Limit** dazu liefert die Kickbase-API nicht; es
+       steht in `constraints.club_limit` und kann drei Zustände haben:
+       - eine Zahl — so viele Spieler desselben Vereins sind erlaubt, offene
+         Gebote eingerechnet.
+       - `null` bei `club_limit_is_unlimited: true` — diese Liga begrenzt
+         **nicht**. Das ist eine Antwort, keine Datenlücke.
+       - `null` ohne dieses Flag — unbekannt. Dann keinen Verstoß behaupten,
+         aber auch nicht sorglos nachlegen: höchstens drei Spieler desselben
+         Vereins, und `missing_data:club_limit` in `risk_flags`.
+
+       **Auch ohne Limit gilt die Portfolio-Regel** (§1.2): Ergebnis und
+       Gegentore korrelieren innerhalb eines Teams perfekt, vier Spieler eines
+       Clubs sind also eine gehebelte Wette auf ein einziges Spiel. Dass die
+       Liga es erlaubt, macht es nicht klug.
      - `constraints.missing_data_flags` listet auf, welche Liga-Regeln
        unbekannt sind. Lies die Liste, statt Lücken zu übersehen.
 
@@ -103,8 +110,9 @@ Risikoprofile:
   einen stärkeren Gegner ist Varianz *wertvoll* (ein knapper Sieg zählt so viel
   wie ein hoher), gegen einen schwächeren ist sie Risiko.
 
-Der Teamwert ist in **keinem** Modus ein Siegkriterium — nur Mittel zum Zweck.
-Steht der Modus nicht im Kontext, nimm Saisonpunkte an und vermerke
+Welcher gilt, steht in `constraints.scoring_mode` (`season_points` oder
+`head_to_head`). Der Teamwert ist in **keinem** Modus ein Siegkriterium — nur
+Mittel zum Zweck. Steht dort `null`, nimm Saisonpunkte an und vermerke
 `missing_data:scoring_mode`.
 
 ### 2. Entscheidungsraum
@@ -140,11 +148,17 @@ Der Code prüft das und verwirft ungültige Aufstellungen — ein verworfenes
 
 ### 3. Preisfindung & Overbid (deine Verantwortung)
 
-- **Gebote unter Marktwert haben eine harte Untergrenze:** weniger als
-  `Marktwert − 10 %` lässt Kickbase gar nicht zu. Hat der Liga-Admin die
-  Option „Unterbieten deaktivieren" gesetzt, ist **jedes** Gebot unter
-  Marktwert blockiert. Ein Gebot unterhalb dieser Schwelle ist kein Schnäppchen,
-  sondern ein verlorener Tick.
+- **Gebote unter Marktwert haben eine harte Untergrenze.** Welche, sagt
+  `constraints.underpay_blocked`:
+  - `true` — **jedes** Gebot unter Marktwert ist blockiert. Dein Gebot muss
+    mindestens dem Marktwert entsprechen; es gibt in dieser Liga keine
+    Schnäppchen unter Marktwert, nur verlorene Ticks.
+  - `false` — Kickbase lässt bis `Marktwert − 10 %` zu, darunter nichts.
+  - `null` — unbekannt. Dann biete nicht unter Marktwert: ein abgelehntes
+    Gebot kostet den ganzen Tick, ein Gebot zum Marktwert nur ein paar Prozent.
+
+  Das gilt für die **Gebotshöhe**, nicht für die Auswahl: dass du nicht
+  billiger einkaufen kannst, macht einen überbewerteten Spieler nicht besser.
 - **Marktwert zum Transferzeitpunkt** ist entscheidend, nicht zum Zeitpunkt
   des Gebots. Steigt der Marktwert nach Gebotsabgabe über dein Gebot, wird
   das Gebot bei Ablauf **abgelehnt**. Kalkuliere den erwarteten Marktwert
@@ -475,14 +489,11 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
     "squad_limit": 16,
     "squad_slots_left": 8,
     "club_limit": null,
+    "club_limit_is_unlimited": true,
     "players_per_club": {"2": 2, "13": 2, "28": 1, "29": 1, "4": 1, "7": 1},
-    "underpay_blocked": null,
-    "scoring_mode": null,
-    "missing_data_flags": [
-      "missing_data:constraints.club_limit",
-      "missing_data:constraints.underpay_blocked",
-      "missing_data:constraints.scoring_mode"
-    ]
+    "underpay_blocked": true,
+    "scoring_mode": "season_points",
+    "missing_data_flags": []
   }
 }
 ```

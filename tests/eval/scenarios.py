@@ -50,6 +50,10 @@ class Scenario:
     # zu kaufen nicht". Ohne dieses Feld liesse sich das nur als Verbot der
     # ganzen Aktion formulieren — und das prüfte dann die falsche Regel.
     forbidden_player_ids: frozenset[str] = field(default_factory=frozenset)
+    # Untergrenze für ein Gebot, als Anteil am Marktwert des gewählten
+    # Spielers. `None` = keine Prüfung. Manche Regeln betreffen weder die
+    # Aktionsart noch die Auswahl, sondern allein die Höhe.
+    min_bid_ratio: float | None = None
     # Was die Regel im Prompt ist, gegen die hier geprüft wird.
     rule: str = ""
     # Normalerweise steht eine vollständige Elf, sonst prüfte jedes Szenario
@@ -191,12 +195,17 @@ def _context(
             player_ids=tuple(p.id for p in squad_players[:placed]),
         ),
         lineup_deadline=NOW + timedelta(minutes=minutes_until_matchday),
+        # Die echte Liga (§8/F6, am 2026-09-24 abgelesen): kein Vereinslimit,
+        # Unterbieten deaktiviert, Wertung nach Saisonpunkten. Die Eval misst
+        # damit dieselbe Lage, in der der Bot produktiv entscheidet — mit
+        # „unbekannt" überall prüfte sie einen Zustand, den es nicht gibt.
         constraints=LeagueConstraints(
             squad_limit=squad_limit,
-            # Das Vereinslimit liefert Kickbase nicht (P1-9/F6) — in der Eval
-            # steht deshalb derselbe „unbekannt"-Zustand wie in Produktion.
             club_limit=None,
+            club_limit_is_unlimited=True,
             players_per_club=_players_per_club(squad_players),
+            underpay_blocked=True,
+            scoring_mode="season_points",
         ),
     )
 
@@ -545,6 +554,41 @@ def _squad_is_full() -> Scenario:
     )
 
 
+def _underpay_is_blocked() -> Scenario:
+    """Unterbieten ist in dieser Liga abgeschaltet — jedes Gebot < Marktwert scheitert.
+
+    Der Marktspieler ist fair bewertet und der Kader hat Platz; der Anreiz,
+    ein paar Prozent zu sparen, ist also da. Er darf nicht dazu führen, dass
+    der Bot unter Marktwert bietet: Kickbase lehnt das Gebot nicht erst beim
+    Transferzeitpunkt ab, sondern lässt es gar nicht erst zu — der Tick ist
+    weg, ohne dass irgendetwas passiert ist.
+
+    Geprüft wird über den Preis, nicht über die Aktionsart: BUY ist hier
+    völlig in Ordnung, nur eben nicht zu 92 % des Marktwerts.
+    """
+    squad = _squad_of_twelve()
+    target = _player("930", "Fair bewertet", Position.MIDFIELDER, 10_000_000, average_points=140.0)
+    return Scenario(
+        name="underpay_is_blocked",
+        description="Unterbieten deaktiviert, Kader hat Platz, fair bewerteter Spieler am Markt",
+        context=_context(
+            squad_players=squad,
+            market_players=[target],
+            cash=25_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=3 * 24 * 60,
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        # Bietet das Modell, muss das Gebot mindestens den Marktwert treffen.
+        min_bid_ratio=1.0,
+        rule=(
+            "`constraints.underpay_blocked: true` — jedes Gebot unter Marktwert ist "
+            "blockiert, nicht erst eins unter Marktwert minus 10 Prozent (§3)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -556,4 +600,5 @@ SCENARIOS: tuple[Scenario, ...] = (
     _no_offers_means_no_accept(),
     _joker_is_no_starter(),
     _squad_is_full(),
+    _underpay_is_blocked(),
 )

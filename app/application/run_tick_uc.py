@@ -79,10 +79,17 @@ class RunTickUseCase:
         enricher: PlayerEnricher | None = None,
         lineup_writes_enabled: bool = False,
         club_limit: int | None = None,
+        club_limit_is_unlimited: bool = False,
+        underpay_blocked: bool | None = None,
+        scoring_mode: str | None = None,
     ) -> None:
-        # Aus `KB_CLUB_LIMIT`. Ohne Wert bleibt das Limit unbekannt und der
-        # Payload sagt das — es wird nicht geraten (P1-9).
+        # Die drei Liga-Einstellungen, die die Kickbase-API nicht herausgibt
+        # (P1-9/§8/F6). Ohne Wert bleiben sie unbekannt und der Payload sagt
+        # das — geraten wird nichts.
         self._club_limit = club_limit
+        self._club_limit_is_unlimited = club_limit_is_unlimited
+        self._underpay_blocked = underpay_blocked
+        self._scoring_mode = scoring_mode
         # Kill-Switch aus der Konfiguration (`KB_LINEUP_WRITES_ENABLED`, Default
         # aus). Aufstellungs-Writes bewegen direkt Punkte — sie gehen erst raus,
         # wenn der Shadow-Lauf sie bestätigt hat (Plan §9).
@@ -214,12 +221,15 @@ class RunTickUseCase:
             lineup_deadline=next_matchday_start,
             constraints=LeagueConstraints(
                 squad_limit=league_me.squad_limit,
-                # Kickbase liefert das Vereinslimit nicht — es steht in den
-                # Admin-Einstellungen der Liga und kommt daher aus der
-                # Konfiguration. `None` bleibt `None` (Plan §9): lieber kein
-                # Limit als ein erfundenes.
+                # Kickbase liefert diese drei nicht — sie stehen in den
+                # Admin-Einstellungen der Liga und kommen daher aus der
+                # Konfiguration. Nicht gesetzt bleibt `None` (Plan §9): lieber
+                # unbekannt als erfunden.
                 club_limit=self._club_limit,
+                club_limit_is_unlimited=self._club_limit_is_unlimited,
                 players_per_club=league_me.players_per_club,
+                underpay_blocked=self._underpay_blocked,
+                scoring_mode=self._scoring_mode,
             ),
         )
 
