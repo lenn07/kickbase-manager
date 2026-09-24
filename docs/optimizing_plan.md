@@ -1083,11 +1083,23 @@ mit und bände Budget, das längst frei ist.
 > BUY ×3, mit einer Begründung, die das Kaderlimit nicht einmal erwähnte. Korrigiert an beiden
 > Stellen (§1.1 und §3).
 
-**Beobachtung fürs nächste Paket:** nach der Verschärfung wählt `joker_is_no_starter` HOLD statt
-BUY. Erlaubt, aber das Szenario misst seine Regel damit nicht mehr. Der Prompt ist insgesamt
-zurückhaltender geworden — bei einem Kader mit 4 leeren Slots ist das die falsche Richtung.
-Nicht nachgeschärft, um nicht auf Eval-Szenarien statt auf die Realität zu optimieren; gehört
-gegen den Shadow-Lauf geprüft.
+**Verdacht geprüft und widerlegt.** Nach der Verschärfung endeten 8 von 12 Szenarien auf HOLD,
+darunter zwei, die vorher gekauft hatten. Das sah nach einem zu zurückhaltenden Prompt aus — und
+wäre bei einem Kader mit 4 leeren Slots die falsche Richtung gewesen. Statt am Prompt zu drehen,
+wurde ein Szenario gebaut, das die Frage beantwortet: `squad_too_small_to_field_eleven` (7
+Spieler, 4 leere Slots, 35 Mio Cash, `HOLD` verboten). Ergebnis **BUY ×3**, mit der Begründung
+„4 leere Startelf-Slots = 400 Punkte Risiko" und der Prüfung, dass das Listing vor dem Anpfiff
+abläuft. Der Prompt hält sich also zurück, wo das richtig ist, und handelt, wo Nichtstun kostet.
+
+> **Warum dieses Szenario fehlte — und warum das ein Eval-Problem ist:** `HOLD` war in **jedem**
+> Szenario erlaubt. Eine Suite, in der Nichtstun nie verboten ist, wird grün, sobald das Modell
+> aufhört zu handeln — sie misst dann nur noch Regeltreue, nie Handlungsfähigkeit. Jede künftige
+> Prompt-Verschärfung braucht mindestens ein Szenario, in dem Nichtstun teuer ist.
+>
+> Der Wächter `test_scenarios_have_eleven_players_in_the_starting_xi` musste dafür präzisiert
+> werden: er verlangte bei unvollständiger Elf pauschal, dass `SET_LINEUP` erlaubt ist. Bei einem
+> Kader **unter** elf Spielern hilft Aufstellen aber nicht — es sitzt niemand auf der Bank, den
+> man nachrücken könnte. Jetzt gilt die Forderung nur, wenn es Bankspieler gibt.
 
 **DoD:** `open_bids_total` > 0, sobald ein Gebot läuft · kein zweiter BUY zum selben Preis auf
 denselben Spieler · Eval grün.
