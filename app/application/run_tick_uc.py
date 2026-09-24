@@ -41,6 +41,7 @@ from app.infrastructure.notifications.smtp_client import SmtpConfig, SmtpError, 
 from app.infrastructure.persistence.models import SmtpConfigRow, TradeLogRow
 from app.infrastructure.persistence.repositories import (
     LeagueRepository,
+    MarketMetaRepository,
     SettingsRepository,
     SmtpRepository,
     TradeLogRepository,
@@ -56,6 +57,10 @@ class TickOutcome:
     decision: TradeDecision | None
     log_id: int | None
     skipped_reason: str | None = None
+    # Der Anpfiff, den dieser Tick gesehen hat — der Scheduler zieht seine
+    # beweglichen Fenster daraus nach (P1-10). `None`, wenn der Tick gar nicht
+    # so weit kam (Setup unvollständig, Kickbase-Fehler).
+    next_matchday_start: datetime | None = None
 
 
 _MAX_RECENT_ACTIONS = 20
@@ -93,6 +98,7 @@ class RunTickUseCase:
         self._settings = SettingsRepository(session)
         self._smtp_repo = SmtpRepository(session)
         self._trades = TradeLogRepository(session)
+        self._market_meta = MarketMetaRepository(session)
 
     async def run(self) -> TickOutcome:
         metrics = get_metrics()
@@ -138,6 +144,15 @@ class RunTickUseCase:
             return TickOutcome(executed=False, decision=None, log_id=row.id)
 
         now = datetime.now(UTC)
+        # Die beiden Uhren festhalten, bevor irgendetwas schiefgehen kann: der
+        # Scheduler legt seine Fenster daraus, und nach einem Neustart ist das
+        # hier die einzige Quelle, bis der erste Tick durch ist (P1-10).
+        self._market_meta.upsert(
+            league_row.kb_league_id,
+            next_matchday_start=next_matchday_start,
+            mv_update_at=snapshot.mv_update_at,
+        )
+
         squad_ids = {sp.player.id for sp in squad.players}
         buy_history = _load_buy_history(self._trades, user.id, squad_ids)
         own_listings = _load_own_listings(
@@ -249,7 +264,12 @@ class RunTickUseCase:
             # Nicht-HOLD-Entscheidung, aber nicht ausgeführt → Dry-Run oder Executor-Fehler.
             metrics.record_tick("blocked")
 
-        return TickOutcome(executed=result.executed, decision=decision, log_id=row.id)
+        return TickOutcome(
+            executed=result.executed,
+            decision=decision,
+            log_id=row.id,
+            next_matchday_start=next_matchday_start,
+        )
 
     def _executor(self, *, squad: Squad, dry_run: bool) -> TradeExecutor:
         return TradeExecutor(

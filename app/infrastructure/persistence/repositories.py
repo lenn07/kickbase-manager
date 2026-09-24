@@ -17,6 +17,7 @@ from app.domain.models import MarketValuePoint, MatchdayPerformance, PlayerPerfo
 from app.infrastructure.persistence.models import (
     CredentialRow,
     LeagueRow,
+    MarketMetaRow,
     MarketValueCacheRow,
     PlayerPerformanceCacheRow,
     SettingsRow,
@@ -439,3 +440,41 @@ class PlayerPerformanceCacheRepository:
         row.fetched_at = datetime.now(UTC)
         row.valid_until = valid_until
         self._session.commit()
+
+
+class MarketMetaRepository:
+    """Liest und schreibt die Markt-Uhren für den Scheduler (P1-10)."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, league_id: str) -> MarketMetaRow | None:
+        stmt = select(MarketMetaRow).where(MarketMetaRow.league_id == league_id)
+        return self._session.exec(stmt).first()
+
+    def latest(self) -> MarketMetaRow | None:
+        """Irgendeine Zeile — die App ist Single-League (siehe `PROJEKT.md`).
+
+        Der Scheduler kennt beim Start noch keine Liga-ID: die steht hinter dem
+        Setup, das zu diesem Zeitpunkt noch nicht gelaufen sein muss.
+        """
+        stmt = select(MarketMetaRow).order_by(MarketMetaRow.updated_at.desc())  # type: ignore[attr-defined]
+        return self._session.exec(stmt).first()
+
+    def upsert(
+        self,
+        league_id: str,
+        *,
+        next_matchday_start: datetime | None,
+        mv_update_at: datetime | None,
+    ) -> MarketMetaRow:
+        row = self.get(league_id)
+        if row is None:
+            row = MarketMetaRow(league_id=league_id)
+            self._session.add(row)
+        row.next_matchday_start = next_matchday_start
+        row.mv_update_at = mv_update_at
+        row.updated_at = datetime.now(UTC)
+        self._session.commit()
+        self._session.refresh(row)
+        return row

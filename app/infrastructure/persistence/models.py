@@ -137,6 +137,27 @@ class PlayerPerformanceCacheRow(SQLModel, table=True):
     valid_until: datetime = Field(index=True)
 
 
+class MarketMetaRow(SQLModel, table=True):
+    """Die beiden Uhren aus dem Market-Root, zwischen Ticks aufbewahrt (P1-10).
+
+    Der Scheduler braucht `next_matchday_start`, um die beweglichen Fenster zu
+    legen — bekommt ihn aber nur aus einem Tick, und der läuft beim Start des
+    Containers noch nicht. Ohne diese Zeile stünde nach jedem Neustart bis zum
+    ersten Intervall-Tick kein Deadline-Fenster; startet der Container am
+    Freitagabend neu, ist genau der Moment weg, an dem das Konto ins Plus muss.
+
+    Eine Zeile je Liga. Reiner Ableseplatz für den Scheduler, keine Historie.
+    """
+
+    __tablename__ = "market_meta"
+
+    id: int | None = Field(default=None, primary_key=True)
+    league_id: str = Field(index=True, unique=True)
+    next_matchday_start: datetime | None = Field(default=None)
+    mv_update_at: datetime | None = Field(default=None)
+    updated_at: datetime = Field(default_factory=_now)
+
+
 class TradeLogRow(SQLModel, table=True):
     """Historie aller Entscheidungen inkl. HOLD-Ticks (Nachvollziehbarkeit im Dashboard)."""
 

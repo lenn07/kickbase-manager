@@ -6,6 +6,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from sqlalchemy.engine import Engine
@@ -32,6 +33,7 @@ from app.infrastructure.notifications.smtp_client import AiosmtplibClient
 from app.infrastructure.persistence.db import init_db, make_engine
 from app.infrastructure.persistence.repositories import (
     CredentialRepository,
+    MarketMetaRepository,
     MarketValueCacheRepository,
     PlayerPerformanceCacheRepository,
     SettingsRepository,
@@ -69,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             scheduler.start()
             metrics.scheduler_running.set(1)
             metrics.scheduler_paused.set(0)
+            _apply_initial_windows(scheduler, engine)
             apply_digest_settings(scheduler, engine, vault)
         else:
             metrics.scheduler_running.set(0)
@@ -122,11 +125,35 @@ def _install_log_handler(
 
 
 def _build_scheduler(engine: Engine, vault: FernetVault, settings: Settings) -> KickbaseScheduler:
+    scheduler: KickbaseScheduler
+
     async def tick() -> TickOutcome:
-        return await _run_tick(engine, vault, settings)
+        outcome = await _run_tick(engine, vault, settings)
+        # Der Anpfiff wandert, sobald ein Spieltag durch ist — die beweglichen
+        # Fenster werden deshalb nach jedem Tick neu gelegt (P1-10).
+        if outcome.next_matchday_start is not None:
+            scheduler.set_windows(outcome.next_matchday_start, now=datetime.now(UTC))
+        return outcome
 
     interval = _resolve_initial_interval(engine, settings)
-    return KickbaseScheduler(tick=tick, interval_min=interval, timezone=settings.timezone)
+    scheduler = KickbaseScheduler(tick=tick, interval_min=interval, timezone=settings.timezone)
+    return scheduler
+
+
+def _apply_initial_windows(scheduler: KickbaseScheduler, engine: Engine) -> None:
+    """Setzt die Fenster beim Start aus der letzten bekannten Lage.
+
+    Ohne diesen Schritt hätte der Container nach einem Neustart bis zum ersten
+    Intervall-Tick kein Deadline-Fenster — bei 120 Minuten Takt also
+    möglicherweise über den Anpfiff hinweg. Die festen Uhrzeiten stehen
+    ohnehin, den Anpfiff liefert die letzte gespeicherte Zeile.
+    """
+    with Session(engine) as db:
+        row = MarketMetaRepository(db).latest()
+    next_start = row.next_matchday_start if row is not None else None
+    if next_start is not None and next_start.tzinfo is None:
+        next_start = next_start.replace(tzinfo=UTC)
+    scheduler.set_windows(next_start, now=datetime.now(UTC))
 
 
 def _resolve_initial_interval(engine: Engine, settings: Settings) -> int:
