@@ -16,12 +16,22 @@ from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+
+from app.application.tick_windows import (
+    DAILY_WINDOWS,
+    WEEKLY_WINDOWS,
+    upcoming_matchday_windows,
+)
 
 _log = logging.getLogger(__name__)
 
 _JOB_ID = "kickbase-tick"
 _DIGEST_JOB_ID = "kickbase-hold-digest"
+# Präfix aller Fenster-Jobs (P1-10). Eigene IDs, damit `set_windows()` sie
+# gezielt ersetzen kann, ohne den Intervall-Job anzufassen.
+_WINDOW_JOB_PREFIX = "kickbase-window-"
 
 
 TickCallable = Callable[[], Awaitable[Any]]
@@ -47,8 +57,19 @@ class KickbaseScheduler:
             raise ValueError("interval_min muss positiv sein.")
         self._tick = tick
         self._interval_min = interval_min
+        self._timezone = timezone
         self._scheduler = AsyncIOScheduler(timezone=timezone)
         self._paused = False
+        # Ein Lock über **alle** Auslöser, nicht pro Job (P1-10).
+        #
+        # `max_instances=1` verhindert nur, dass derselbe Job doppelt läuft.
+        # Seit es Fenster-Jobs gibt, konkurrieren aber verschiedene Jobs: das
+        # 21:45-Fenster und der Intervall-Job können auf dieselbe Minute
+        # fallen. Dann liefen zwei Ticks gleichzeitig gegen dieselbe
+        # Kickbase-API und dieselbe DB — zwei Entscheidungen, zwei Trades, und
+        # das direkte Gegenteil von „genau eine Aktion pro Tick". Dasselbe gilt
+        # für `trigger_now()` aus dem Dashboard.
+        self._tick_lock = asyncio.Lock()
 
     # -- Lifecycle -----------------------------------------------------
 
@@ -105,8 +126,68 @@ class KickbaseScheduler:
         _log.info("Scheduler-Intervall neu gesetzt: %d min", interval_min)
 
     async def trigger_now(self) -> Any:
-        """Führt sofort einen Tick synchron aus — nützlich für UI und Tests."""
-        return await self._tick()
+        """Führt sofort einen Tick aus — nützlich für UI und Tests.
+
+        Wartet auf einen laufenden Tick, statt danebenzulaufen: ein Klick im
+        Dashboard soll einen Tick auslösen, nicht einen zweiten parallelen.
+        """
+        async with self._tick_lock:
+            return await self._tick()
+
+    # -- Ereignis-Fenster (P1-10) --------------------------------------
+
+    def set_windows(self, next_matchday_start: datetime | None, *, now: datetime) -> list[str]:
+        """Setzt die Ereignis-Fenster neu und meldet, welche gesetzt wurden.
+
+        Fixe Uhrzeiten (vor/nach dem Marktwert-Update, Montags-Review) laufen
+        als Cron in der Scheduler-Zeitzone. Die beweglichen hängen am Anpfiff
+        und werden bei jedem Aufruf neu gelegt — `next_matchday_start` wandert
+        weiter, sobald ein Spieltag durch ist.
+
+        Alte Fenster-Jobs werden vorher entfernt, damit ein abgelaufener
+        Deadline-Job nicht als Leiche stehenbleibt. Der Intervall-Job bleibt
+        unberührt: er ist der Fallback für alles, was in kein Fenster fällt.
+        """
+        self._clear_window_jobs()
+        names: list[str] = []
+
+        for name, hour, minute in DAILY_WINDOWS:
+            self._add_window_job(name, CronTrigger(hour=hour, minute=minute))
+            names.append(name)
+
+        for name, weekday, hour, minute in WEEKLY_WINDOWS:
+            self._add_window_job(name, CronTrigger(day_of_week=weekday, hour=hour, minute=minute))
+            names.append(name)
+
+        for window in upcoming_matchday_windows(next_matchday_start, now=now):
+            self._add_window_job(window.name, DateTrigger(run_date=window.at))
+            names.append(window.name)
+
+        _log.info("Ereignis-Fenster gesetzt: %s", ", ".join(names))
+        return names
+
+    def window_job_ids(self) -> list[str]:
+        return sorted(
+            job.id for job in self._scheduler.get_jobs() if job.id.startswith(_WINDOW_JOB_PREFIX)
+        )
+
+    def _add_window_job(self, name: str, trigger: CronTrigger | DateTrigger) -> None:
+        self._scheduler.add_job(
+            self._safe_tick,
+            trigger=trigger,
+            id=f"{_WINDOW_JOB_PREFIX}{name}",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            # Ein Fenster, das der Container verschlafen hat (Neustart,
+            # überlanger Tick), soll noch kurz danach nachziehen dürfen — aber
+            # nicht Stunden später, wenn die Lage eine andere ist.
+            misfire_grace_time=300,
+        )
+
+    def _clear_window_jobs(self) -> None:
+        for job_id in self.window_job_ids():
+            self._scheduler.remove_job(job_id)
 
     # -- HOLD-Digest (F-9) --------------------------------------------
 
@@ -165,7 +246,17 @@ class KickbaseScheduler:
     async def _safe_tick(self) -> None:
         # Scheduler-Loop soll auch bei unerwarteten Tick-Fehlern weiterlaufen;
         # der Fehler landet im Log, damit Debugging möglich bleibt.
-        try:
-            await self._tick()
-        except Exception:
-            _log.exception("Scheduler-Tick fehlgeschlagen.")
+        #
+        # Fällt ein Fenster mit dem Intervall-Job zusammen, gewinnt der erste
+        # und der zweite überspringt: ein Tick pro Moment, egal wie viele
+        # Auslöser ihn wollen. Warten statt Überspringen wäre falsch — der
+        # zweite Lauf hätte dieselbe Lage neu bewertet und könnte ein zweites
+        # Mal handeln.
+        if self._tick_lock.locked():
+            _log.info("Tick läuft bereits — dieser Auslöser wird übersprungen.")
+            return
+        async with self._tick_lock:
+            try:
+                await self._tick()
+            except Exception:
+                _log.exception("Scheduler-Tick fehlgeschlagen.")

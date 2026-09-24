@@ -27,6 +27,7 @@ from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import FernetVault
 from app.infrastructure.persistence.models import TradeLogRow
 from app.infrastructure.persistence.repositories import (
+    MarketMetaRepository,
     SettingsRepository,
     TradeLogRepository,
     UserRepository,
@@ -628,3 +629,36 @@ async def test_lineup_reaches_the_decision_context(db_session: Session, vault: F
     context = engine.contexts[0]
     assert context.lineup is not None
     assert context.lineup.formation == "3-5-2"
+
+
+# -- P1-10: die Uhren für den Scheduler ----------------------------------
+
+
+async def test_tick_persists_the_clocks_for_the_scheduler(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Der Tick hinterlässt, was der Scheduler beim nächsten Start braucht.
+
+    Der Scheduler legt seine beweglichen Fenster aus `next_matchday_start` —
+    hat aber selbst keinen Zugang zur Kickbase-API und beim Containerstart noch
+    keinen gelaufenen Tick. Ohne diese Zeile stünde nach einem Neustart bis
+    zum ersten Intervall-Tick kein Deadline-Fenster.
+    """
+    kickoff = datetime.now(UTC) + timedelta(days=3)
+    mv_update = datetime.now(UTC) + timedelta(hours=4)
+    kb = FakeKickbase(mv_update_at=mv_update, next_matchday_start=kickoff)
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("nichts zu tun"))
+    outcome = await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    row = MarketMetaRepository(db_session).get("L1")
+    assert row is not None
+    assert row.next_matchday_start.replace(tzinfo=UTC) == kickoff
+    assert row.mv_update_at.replace(tzinfo=UTC) == mv_update
+    # Und derselbe Wert kommt zurück, damit der Scheduler ohne DB-Zugriff
+    # direkt nachziehen kann.
+    assert outcome.next_matchday_start == kickoff

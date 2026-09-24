@@ -62,12 +62,12 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`) — Code fertig, DoD-Shadow läuft
 - [x] **P0-5** Master-Prompt korrigieren — Edits + 5 neue Eval-Szenarien, Eval 17/17 grün
 
-### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **in Arbeit** (seit 2026-09-24)
+### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **Code abgeschlossen** (2026-09-24), Messung im Betrieb offen
 - [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
 - [x] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`) + Historien-Cache
 - [x] **P1-8** Echte Form & Minuten (`/performance`) + Spieltags-Cache
 - [x] **P1-9** Liga-Limits lesen — `mppu`/`tpc` echt, drei Felder ohne Quelle (§8/F6)
-- [ ] **P1-10** Scheduler auf Ereignis-Fenster umstellen
+- [x] **P1-10** Scheduler auf Ereignis-Fenster umstellen + Tick-Lock
 
 ### Phase 3 — P2: Top-Niveau · Status: **offen**
 - [ ] **P2-11** Spielplan & Gegnerstärke (FDR)
@@ -311,7 +311,7 @@ sähe fit aus. (P0-3)
 | D9 | `avg_points_last5` ist in Wahrheit der Saison-Ø | `app/application/player_enrichment.py:221` | Bankdrücker sieht aus wie im Oktober | P1-8 ✅ |
 | D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 ✅ (aktiver Pfad über `constraints.squad_limit`; `kb_rules.py` bleibt als toter Code unangetastet, §4.2) |
 | D11 | Keine Aufstellungs-Aktion | Gateway/Executor | teuerste Regel (−100/Slot) ohne Ausführungspfad | P0-4 |
-| D12 | Fester 120-min-Takt | `app/config.py:31`, `scheduler.py:60` | ~11 von 12 Ticks im Leerlauf; kann 20:35 statt 20:15 feuern | P1-10 |
+| D12 | Fester 120-min-Takt | `app/config.py:31`, `scheduler.py:60` | ~11 von 12 Ticks im Leerlauf; kann 20:35 statt 20:15 feuern | P1-10 ✅ |
 | D13 | `avg_points_last5` verwirft negative Werte | `app/application/player_enrichment.py` (`_avg_points_proxy`) | `ap > 0`-Filter ⇒ Spieler mit −60 Saison-Ø sieht aus wie einer ohne Daten; das aussagekräftigste Signal fällt weg | P0-3 ✅ |
 
 ### 4.1 Fehler im Master-Prompt (`docs/master_prompt.md`)
@@ -1002,6 +1002,37 @@ Englische Wochen: Fenster **relativ zu `next_matchday_start`** berechnen, nicht 
 **Test:** Unit auf die Fenster-Berechnung mit Dienstag-18:30-Spieltag · Scheduler-Test, dass Fenster
 und Intervall-Job sich nicht doppeln (`max_instances=1`, `coalesce=True` sind bereits gesetzt).
 
+> **[Plan-Ergänzung 2026-09-24] Zwei Annahmen des Pakets tragen nicht.**
+>
+> **(a) `max_instances=1` schützt nicht vor dem Doppellauf, den dieses Paket erst erzeugt.**
+> Der Pakettext hält den Punkt für erledigt („sind bereits gesetzt"). `max_instances` wirkt aber
+> **pro Job**. Fenster-Jobs sind eigene Jobs mit eigenen IDs — das 21:45-Fenster und der
+> Intervall-Job können auf dieselbe Minute fallen und liefen dann **gleichzeitig** gegen dieselbe
+> Kickbase-API und dieselbe DB: zwei Entscheidungen auf derselben Lage, zwei Trades, das genaue
+> Gegenteil der „genau eine Aktion pro Tick"-Regel. Vor P1-10 fiel das nicht auf, weil es nur
+> einen Job gab.
+> **Umgesetzt:** ein `asyncio.Lock` über **alle** Auslöser. Ein Zeitfenster, das auf einen
+> laufenden Tick trifft, wird übersprungen (Warten wäre falsch — der zweite Lauf würde dieselbe
+> Lage neu bewerten und könnte erneut handeln). `trigger_now()` aus dem Dashboard wartet
+> stattdessen: der Nutzer hat den Tick ausdrücklich angefordert.
+> Abgesichert durch zwei Tests, die ohne das Lock nachweislich rot sind.
+>
+> **(b) Der Scheduler kennt `next_matchday_start` gar nicht.** Die beweglichen Fenster sollen
+> relativ zum Anpfiff liegen — der Wert entsteht aber erst **im Tick** (aus dem Market-Root,
+> P0-1), und beim Start des Containers ist noch keiner gelaufen: `IntervalTrigger(minutes=120)`
+> feuert erstmals nach zwei Stunden. Nach einem Neustart am Freitagabend wäre also genau das
+> Deadline-Fenster weg, an dem das Konto ins Plus muss.
+> **Umgesetzt:** Tabelle `market_meta` (eine Zeile je Liga) hält beide Uhren. Der Tick schreibt
+> sie, der Scheduler liest sie beim Start und zieht die Fenster nach jedem Tick nach — der
+> Anpfiff wandert ja, sobald ein Spieltag durch ist.
+>
+> **Kleinere Festlegungen:** abgelaufene `DateTrigger` werden vorher herausgefiltert (APScheduler
+> verwirft sie sonst still); Fenster-Jobs bekommen `misfire_grace_time=300`, damit ein
+> verschlafenes Fenster kurz nachziehen darf, aber nicht Stunden später in einer anderen Lage;
+> der Intervall-Job bleibt unangetastet und ist weiter der Fallback. Das im Plan genannte
+> „z. B. 180 min" wird **nicht** automatisch gesetzt — `interval_min` ist eine Nutzer-Einstellung,
+> und die ändert das Paket nicht hinter dem Rücken des Nutzers.
+
 ---
 
 ### PHASE 3 — P2: Top-Niveau
@@ -1210,6 +1241,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-24 | P1-7 | **Ergaenzung:** `tfhmvt`/`sdmvt` fuer Kaderspieler, Historien-Cache bis `mvud`, Shortlist nach `ap` statt nach Marktwert | **Beide DoD-Haelften waren so nicht erreichbar.** (a) Die Market-Items tragen `tfhmvt`/`sdmvt` **nicht** — nur `mvt`, die Richtung ohne Hoehe. „Alle Marktspieler haben 24-h/7-d-Trends" ist ueber den Payload unmoeglich; erreichbar ist es fuer alle Kaderspieler. (b) Der Plan laesst die Historie fuer „Kader + Shortlist" stehen, also genau die Menge von heute — netto null eingesparte Requests. Der Hebel ist der **Cache**: der Marktwert aendert sich 1x taeglich, `mvud` nennt den Zeitpunkt, bei 120-min-Takt holte der Bot 11 von 12 Malen unveraenderte Daten. Ohne bekanntes `mvud` wird nicht gecacht. **Feldsemantik exakt bestaetigt** (nicht nur ±0,1 pp): `tfhmvt` = `mv - mv[-2]`, `sdmvt` = `mv - mv[-8]`, beide auf den Euro deckungsgleich mit der 365-Tage-Serie. **Payload schlaegt Historie** fuer 1 d/7 d — die Serie kann aus dem Cache kommen, `tfhmvt` ist immer frisch. Payload-Effekt: die Kader-Trends streuen erstmals (vorher 8x 0,02 % aus derselben Fake-Serie); Marius Wolf steht mit -13,2 % auf 7 Tagen da, wo vorher +0,02 % stand. |
 | 2026-09-24 | P1-8 | **Ergaenzung:** `/performance` angebunden, Fenster ueber gespielte Spieltage, `minutes_last5`/`starts_last5`/`form_matchdays_counted` neu, Spieltags-Cache bis `next_matchday_start` | **Drei Stellen haetten nach Planwortlaut nicht funktioniert.** (a) `mp` kommt als String mit Apostroph (`"96'"`) — ein int-Feld waere mit ValidationError ausgestiegen und haette die ganze Anreicherung mitgerissen. (b) Die Response traegt 11 Saisons *und* alle kommenden Spieltage; „die letzten fuenf Eintraege" haette ueber die Zukunft gemittelt. Filter `mdst == 2` trennt exakt (291 mit Minuten / 30 ohne). (c) Der Plan-Test „< 5 Spieltage ⇒ `None`" haette am 4. Spieltag **jeden** Spieler ohne Form gelassen — D9 mit neuem Etikett. Jetzt wird das kuerzere Fenster gerechnet und als `form_matchdays_counted` + Partial-Flag ausgewiesen. `starts_last5` aus `st` (5=Startelf, Median 90 min gegen 22 bei `st=3`), Unbekanntes zaehlt nicht als Start. Cache-Grenze ist `next_matchday_start`: waehrend eines laufenden Spieltags wird nicht geschrieben, sonst saehe der Bot die Live-Punkte nicht. Payload: `avg_points_last5` ist echte Form, `minutes_last5`/`starts_last5` neu bei 8/8 Kader + 10/21 Markt. |
 | 2026-09-24 | P1-9 | **Ergaenzung:** `mppu`/`tpc` gelesen, `LeagueConstraints` neu, drei Felder ohne Quelle als `null` + Flag, `KB_CLUB_LIMIT` als Konfigurationsweg | **Der Pakettext nennt einen Endpunkt, den es nicht gibt.** `/leagues/{l}/settings` → HTTP 500 `NotFound` (steht schon in §3.4 und im P0-0.1-Log, P1-9 fuehrte ihn trotzdem als Quelle inkl. „Contract auf die Settings-Response"). Abrufbar: `mppu` = **16** (Code hatte 15) und `tpc[]`. **Nicht abrufbar:** Vereinslimit, Underpay, Modus — alle 16 Discovery-Dumps geprueft. `clpc` als Kandidat verworfen: 11 in `/ranking`, 0 in `/lineup/overview` bei 8 aufgestellten. Neue offene Frage **F6**. Der geforderte Unit-Test bekam eine zweite Haelfte: ohne bekanntes Limit darf **kein** Verstoss behauptet werden — `club_room_left()` gibt `None` statt 0, sonst kauft der Bot nie wieder einen zweiten Spieler desselben Vereins. `kb_rules.py` blieb unangetastet (Widerspruch zu §4.2 zugunsten von §4.2 aufgeloest). |
+| 2026-09-24 | P1-10 | **Ergaenzung:** Ereignis-Fenster (`set_windows`), Tick-Lock ueber alle Ausloeser, `market_meta`-Tabelle fuer die Uhren | **Zwei Annahmen des Pakets tragen nicht.** (a) Der Pakettext haelt den Doppellauf fuer geloest („`max_instances=1`, `coalesce=True` sind bereits gesetzt") — `max_instances` wirkt aber **pro Job**, und Fenster sind eigene Jobs. Das 21:45-Fenster und der Intervall-Job koennen auf dieselbe Minute fallen und liefen dann parallel: zwei Entscheidungen auf derselben Lage. Jetzt ein `asyncio.Lock` ueber alle Ausloeser; die beiden Tests sind ohne das Lock nachweislich rot. (b) Der Scheduler kennt `next_matchday_start` nicht — der entsteht erst im Tick, und `IntervalTrigger(120)` feuert erstmals nach zwei Stunden. Nach einem Neustart am Freitagabend waere genau das Deadline-Fenster weg. Jetzt haelt `market_meta` beide Uhren; der Tick schreibt, der Scheduler liest beim Start und zieht nach jedem Tick nach. Abgelaufene `DateTrigger` werden vorher gefiltert (APScheduler verwirft sie sonst still), `misfire_grace_time=300` fuer verschlafene Fenster. `interval_min` bleibt Nutzer-Einstellung und wird nicht automatisch auf 180 gesetzt. |
 
 ---
 
