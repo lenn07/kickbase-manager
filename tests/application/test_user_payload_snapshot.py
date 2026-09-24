@@ -28,7 +28,7 @@ import pytest
 from app.application.ai_decision_engine import _build_user_payload
 from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord, RecentAction
 from app.application.player_enrichment import PlayerEnricher
-from app.application.run_tick_uc import _max_negative_allowed, _open_bids_total
+from app.application.run_tick_uc import _max_negative_allowed
 from app.domain.models import (
     LeagueConstraints,
     MarketPlayer,
@@ -85,7 +85,9 @@ def _build_context() -> DecisionContext:
 
     enrichment = _enrich(squad, market, history)
 
-    open_bids_total = _open_bids_total(market=list(market), manager_id=FAKE_USER_ID)
+    # Keine offenen Gebote in dieser Lage: der `trade_log` ist im Snapshot
+    # leer, also gibt es nichts zu rekonstruieren (siehe `_open_bids`).
+    open_bids_total = Decimal(0)
     return DecisionContext(
         league_id=FAKE_LEAGUE_ID,
         league_me=league_me,

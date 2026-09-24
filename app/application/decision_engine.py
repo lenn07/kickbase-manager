@@ -50,6 +50,21 @@ class ListingRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class OpenBid:
+    """Ein eigenes Gebot, das noch auf seinen Zuschlag wartet.
+
+    Kickbase entscheidet erst beim Ablauf des Listings, und zwar zugunsten des
+    höchsten Gebots (bei Gleichstand: des früheren). Bis dahin ist das Geld
+    gebunden, der Spieler aber noch nicht da — und ein zweites Gebot auf
+    denselben Spieler ist kein zusätzlicher Kauf, sondern eine Erhöhung.
+    """
+
+    player_id: str
+    price: Decimal
+    placed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class RecentAction:
     """Kompakte trade_log-Zeile für den AI-Only-Prompt (`recent_actions`)."""
 
@@ -78,6 +93,10 @@ class DecisionContext:
     # ältere Aufrufe (Tests) ohne Wert weiter funktionieren.
     team_value: Decimal = Decimal(0)
     open_bids_total: Decimal = Decimal(0)
+    # Die eigenen laufenden Gebote je Spieler. Ohne sie bietet der Bot jeden
+    # Tick erneut auf denselben Spieler, weil er sein eigenes Gebot nicht sieht
+    # (Defekt D3) — im Betrieb am 2026-09-24 siebenmal auf denselben.
+    open_bids: Mapping[str, OpenBid] = field(default_factory=dict)
     now: datetime | None = None
     next_matchday_start: datetime | None = None
     # Nächster Marktwert-Update-Zeitpunkt (`mvud` aus dem Market-Root, täglich

@@ -3,6 +3,7 @@
     "cash": -380069,
     "current_balance_after_open_bids": -380069,
     "max_negative_allowed": -48968009,
+    "open_bids_count": 0,
     "open_bids_total": 0,
     "team_value": 148767974
   },
@@ -78,6 +79,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Mitchell Weiser",
       "offer_count": 0,
       "player_id": "43",
@@ -107,6 +110,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Jonas Hofmann",
       "offer_count": 0,
       "player_id": "78",
@@ -138,6 +143,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Niklas Stark",
       "offer_count": 0,
       "player_id": "157",
@@ -169,6 +176,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Luca Waldschmidt",
       "offer_count": 0,
       "player_id": "737",
@@ -200,6 +209,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Edin Džeko",
       "offer_count": 0,
       "player_id": "1012",
@@ -231,6 +242,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Janik Haberer",
       "offer_count": 0,
       "player_id": "1553",
@@ -260,6 +273,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Benjamin Henrichs",
       "offer_count": 0,
       "player_id": "1689",
@@ -289,6 +304,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Marius Wolf",
       "offer_count": 0,
       "player_id": "1809",
@@ -318,6 +335,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Chris Führich",
       "offer_count": 0,
       "player_id": "2172",
@@ -347,6 +366,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Josip Stanišić",
       "offer_count": 0,
       "player_id": "2300",
@@ -376,6 +397,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Jamal Musiala",
       "offer_count": 0,
       "player_id": "2804",
@@ -407,6 +430,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Fisnik Asllani",
       "offer_count": 0,
       "player_id": "3158",
@@ -438,6 +463,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Keke Topp",
       "offer_count": 0,
       "player_id": "3166",
@@ -469,6 +496,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Tim Oermann",
       "offer_count": 0,
       "player_id": "4318",
@@ -498,6 +527,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Victor Boniface",
       "offer_count": 0,
       "player_id": "6745",
@@ -527,6 +558,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Jarell Quansah",
       "offer_count": 0,
       "player_id": "7963",
@@ -558,6 +591,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Johan Bakayoko",
       "offer_count": 0,
       "player_id": "8061",
@@ -589,6 +624,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Nyamekye Awortwie-Grant",
       "offer_count": 0,
       "player_id": "8984",
@@ -620,6 +657,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Marin Ljubičić",
       "offer_count": 0,
       "player_id": "10106",
@@ -651,6 +690,8 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Samuele Inácio",
       "offer_count": 0,
       "player_id": "11100",
@@ -680,6 +721,8 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "my_bid_placed_at_iso": null,
+      "my_open_bid_price": null,
       "name": "Satoshi Tanaka",
       "offer_count": 0,
       "player_id": "12297",

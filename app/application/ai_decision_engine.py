@@ -223,7 +223,7 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
     reason = _compose_reason(tool_input)
 
     _validate_action_shape(action, player_id, offer_id, price)
-    _validate_against_context(action, player_id, offer_id, context)
+    _validate_against_context(action, player_id, offer_id, price, context)
 
     if action is TradeAction.HOLD:
         return TradeDecision.hold(reason)
@@ -294,6 +294,7 @@ def _validate_against_context(
     action: TradeAction,
     player_id: str | None,
     offer_id: str | None,
+    price: Decimal | None,
     context: DecisionContext,
 ) -> None:
     """Prüft die vom Modell genannten IDs gegen den Kontext, den es bekommen hat.
@@ -323,6 +324,7 @@ def _validate_against_context(
     if action is TradeAction.BUY:
         if player_id not in {mp.player.id for mp in context.market}:
             raise _InvalidDecisionError(f"BUY auf Spieler {player_id!r}, der nicht am Markt ist")
+        _reject_pointless_rebid(player_id, price, context)
         return
 
     in_squad = player_id in {sp.player.id for sp in context.squad.players}
@@ -330,6 +332,34 @@ def _validate_against_context(
         raise _InvalidDecisionError(
             f"{action.value} für Spieler {player_id!r}, der nicht im Kader steht"
         )
+
+
+def _reject_pointless_rebid(
+    player_id: str | None, price: Decimal | None, context: DecisionContext
+) -> None:
+    """Blockt ein zweites Gebot, das nichts verbessert.
+
+    Auf ein laufendes Gebot noch einmal denselben Betrag zu setzen, ändert die
+    Lage nicht: Kickbase entscheidet erst beim Ablauf des Listings und nimmt
+    das höchste Gebot. Ein gleich hohes Nachgebot verbraucht nur den Tick —
+    und der Bot hat am 2026-09-24 genau das siebenmal hintereinander getan,
+    weil er sein eigenes Gebot nicht sah (Defekt D3).
+
+    Ein **höheres** Gebot ist dagegen legitim und geht durch: bei Konkurrenz
+    (`offer_count > 1`) ist Nachlegen der einzige Weg, den Zuschlag doch noch
+    zu bekommen.
+    """
+    existing = context.open_bids.get(player_id or "")
+    if existing is None:
+        return
+    if price is not None and price > existing.price:
+        return
+    raise _InvalidDecisionError(
+        f"BUY auf {player_id!r} zu {price}, aber es läuft bereits ein eigenes Gebot über "
+        f"{existing.price} (seit {existing.placed_at.isoformat()}). Ein gleich hohes oder "
+        "niedrigeres Nachgebot ändert nichts — Kickbase entscheidet erst beim Ablauf des "
+        "Listings und nimmt das höchste Gebot."
+    )
 
 
 def _compose_reason(tool_input: dict[str, Any]) -> str:
@@ -498,6 +528,9 @@ def _budget_block(context: DecisionContext) -> dict[str, Any]:
         "cash": _int(context.budget),
         "team_value": _int(context.team_value),
         "open_bids_total": _int(context.open_bids_total),
+        # Wie viele Gebote das sind. Eine Summe allein lässt offen, ob sie aus
+        # einem großen oder fünf kleinen Geboten besteht.
+        "open_bids_count": len(context.open_bids),
         "max_negative_allowed": _int(context.max_negative_allowed),
         "current_balance_after_open_bids": _int(context.current_balance_after_open_bids),
     }
@@ -587,6 +620,7 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
     player = mp.player
     enrichment = context.enrichment.get(player.id)
     expires_at = mp.expires_at(now)
+    my_bid = context.open_bids.get(player.id)
     entry: dict[str, Any] = {
         "player_id": player.id,
         "name": _full_name(mp),
@@ -600,6 +634,12 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
         # Konkurrenz auf diesem Listing: je höher, desto eher braucht ein
         # eigenes Gebot einen Aufschlag (Grundlage für P2-13).
         "offer_count": mp.offer_count,
+        # Habe **ich** auf diesen Spieler schon geboten, und wie viel? `null`
+        # heißt nein. Ohne dieses Feld bietet das Modell jeden Tick erneut auf
+        # denselben Spieler, weil ein laufendes Gebot nirgends sichtbar ist —
+        # genau das ist am 2026-09-24 siebenmal passiert (Defekt D3).
+        "my_open_bid_price": _int_or_none(my_bid.price) if my_bid else None,
+        "my_bid_placed_at_iso": _to_iso(my_bid.placed_at) if my_bid else None,
         "injury_status": enrichment.injury_status if enrichment else "unknown",
         "market_trend_1d_pct": enrichment.market_trend_1d_pct if enrichment else None,
         "market_trend_3d_pct": enrichment.market_trend_3d_pct if enrichment else None,

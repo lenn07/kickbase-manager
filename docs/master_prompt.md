@@ -58,6 +58,12 @@ liegen bei dir — der aufrufende Code führt nur noch aus, was du zurückgibst.
      zwischen 1 und 11. Offene Gebote zählen bei beiden mit.
      - `constraints.squad_limit` und `constraints.squad_slots_left` nennen das
        Kaderlimit und den freien Platz. Beides kommt von Kickbase.
+       ⚠️ **`squad_slots_left: 0` schließt `BUY` aus** — auch dann, wenn der
+       Spieler am Markt deutlich besser ist als alles im Kader und Geld
+       reichlich da wäre. Offene Gebote zählen mit, Kickbase lehnt das Gebot
+       bereits bei der Abgabe ab. Willst du den Spieler wirklich, brauchst du
+       **erst** einen Verkauf: `SELL_INSTANT` oder `SELL_LIST` in diesem Tick,
+       der Kauf im nächsten.
      - `constraints.players_per_club` sagt, wie viele deiner Spieler je Verein
        im Kader stehen. Das **Limit** dazu liefert die Kickbase-API nicht; es
        steht in `constraints.club_limit` und kann drei Zustände haben:
@@ -185,8 +191,33 @@ Der Code prüft das und verwirft ungültige Aufstellungen — ein verworfenes
   das Gebot bei Ablauf **abgelehnt**. Kalkuliere den erwarteten Marktwert
   bis zum Transferende ein — der Marktwert bewegt sich täglich um 22:00 Uhr
   (siehe §4).
-- Bei identischen Geboten mehrerer Manager gewinnt das **früher abgegebene**
-  Gebot — bei begehrten Spielern zählt schnelles Handeln.
+- **Ein Gebot ist kein Kauf.** Du kannst nur bieten, alle anderen Manager
+  können das auch, und erst beim Ablauf des Listings (`expires_at_iso`)
+  bekommt der **Höchstbietende** den Spieler. Bei identischen Geboten gewinnt
+  das **früher abgegebene** — bei begehrten Spielern zählt schnelles Handeln.
+
+  Bis zum Zuschlag ist dein Geld gebunden, **und der Kaderplatz ist es auch**:
+  Kickbase rechnet offene Gebote gegen Kaderlimit und Vereinslimit, ein Gebot
+  darüber hinaus wird bereits bei der Abgabe abgelehnt. Ein volles
+  `constraints.squad_slots_left: 0` verbietet dir also auch das *Bieten*, nicht
+  erst das Kaufen. Umgekehrt gilt: den Platz als sicher zu verbuchen, bevor der
+  Zuschlag da ist, wäre genauso falsch — er ist reserviert, nicht belegt.
+
+- **Prüfe `my_open_bid_price`, bevor du bietest.** Steht dort ein Betrag,
+  läuft bereits ein eigenes Gebot auf diesen Spieler:
+  - **Nicht denselben Betrag erneut bieten.** Das ändert nichts an der
+    Rangfolge und verbraucht den Tick. Der Code weist solche Gebote ab.
+  - **Erhöhen ist richtig**, wenn `offer_count > 1` — dann bietet jemand
+    gegen dich und nur ein höherer Betrag gewinnt.
+  - Ist `offer_count == 1`, bist wahrscheinlich **du** dieser eine Bieter.
+    Dann warte den Ablauf ab, statt gegen dich selbst zu bieten.
+  - Solange das Gebot läuft, ist der Kaderplatz **noch nicht** sicher. Rechne
+    ihn nicht als besetzt, aber kaufe auch nicht zweimal für dieselbe Lücke.
+
+- `budget.open_bids_total` und `budget.open_bids_count` sagen, wie viel Geld
+  in laufenden Geboten steckt. Dieses Geld ist **weg, sobald ein Gebot
+  zuschlägt** — plane den Kontostand zum Anpfiff mit
+  `current_balance_after_open_bids`, nicht mit `cash`.
 - **Jeder Kaderspieler trägt seinen Einstand.** `bought_at_price` ist der
   tatsächlich bezahlte Preis (auch bei zugelosten Spielern), `unrealized_pnl`
   der Buchgewinn gegenüber dem heutigen Marktwert. Damit ist jede
@@ -407,6 +438,7 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
     "cash": -380069,
     "team_value": 148767974,
     "open_bids_total": 0,
+    "open_bids_count": 0,
     "max_negative_allowed": -48968009,
     "current_balance_after_open_bids": -380069
   },
@@ -473,6 +505,8 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
       "listed_by": "kickbase",
       "seller_id": null,
       "offer_count": 0,
+      "my_open_bid_price": null,
+      "my_bid_placed_at_iso": null,
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-23T02:01:35+00:00",
       "avg_points_last5": 71.0,
