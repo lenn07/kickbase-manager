@@ -71,11 +71,40 @@ class RedactionFilter(logging.Filter):
 
 
 def install_redaction_filter(logger: logging.Logger | None = None) -> RedactionFilter:
-    """Hängt einen Redaction-Filter an den Root-Logger (idempotent)."""
+    """Hängt einen Redaction-Filter an **alle Handler** des Loggers (idempotent).
+
+    ⚠️ **Nicht an den Logger selbst.** Python wendet Logger-Filter nur auf
+    Records an, die direkt auf *diesem* Logger entstehen. Beim Propagieren nach
+    oben ruft `Logger.callHandlers()` die **Handler** der Vorfahren auf, ihre
+    Filter aber nicht. Ein Filter am Root-Logger sieht deshalb nie einen Record
+    aus `app.irgendwas` — und die gesamte Anwendung loggt über solche
+    Kind-Logger.
+
+    Genau so war es bis 2026-09-24 gebaut: die Maskierung lief ins Leere, ohne
+    dass es auffiel, weil der zugehörige Test den Filter direkt aufrief statt
+    über einen echten Logger. Handler-Filter greifen dagegen bei jedem Record,
+    der den Handler erreicht, egal wo er entstanden ist.
+
+    Neue Handler, die später dazukommen, müssen den Filter selbst erhalten —
+    deshalb gibt die Funktion ihn zurück.
+    """
     target = logger if logger is not None else logging.getLogger()
+    redactor = _existing_redactor(target) or RedactionFilter()
+    for handler in target.handlers:
+        if not any(isinstance(f, RedactionFilter) for f in handler.filters):
+            handler.addFilter(redactor)
+    # Zusätzlich am Logger: deckt Records ab, die direkt hier entstehen.
+    if not any(isinstance(f, RedactionFilter) for f in target.filters):
+        target.addFilter(redactor)
+    return redactor
+
+
+def _existing_redactor(target: logging.Logger) -> RedactionFilter | None:
     for existing in target.filters:
         if isinstance(existing, RedactionFilter):
             return existing
-    redactor = RedactionFilter()
-    target.addFilter(redactor)
-    return redactor
+    for handler in target.handlers:
+        for existing in handler.filters:
+            if isinstance(existing, RedactionFilter):
+                return existing
+    return None
