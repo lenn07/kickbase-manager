@@ -8,6 +8,12 @@ Vor jedem Merge an `docs/master_prompt.md` einmal ausführen:
 `-s` zeigt je Szenario die gewählten Aktionen und die erste Begründung — bei
 einem Prompt-Merge ist das der eigentliche Befund, nicht das grüne Häkchen.
 
+⚠️ **Nicht durch `| tail` oder `| head` schicken.** Der Exit-Code der Pipe ist
+dann der des letzten Glieds, nicht der von pytest: ein Lauf mit roten Tests
+meldet `0` und sieht bestanden aus. Und der abgeschnittene Teil enthält genau
+die Begründungen, für die man bezahlt hat. Wenn die Ausgabe zu lang ist:
+`pytest -m eval -s > eval.log 2>&1; echo $?` und die Datei danach lesen.
+
 Warum drei Läufe pro Szenario: ein einzelner Lauf kann eine Regelverletzung
 verschlucken, die das Modell nur in einem von drei Fällen zeigt. `temperature=0`
 allein reicht nicht — die API garantiert keine Bit-Gleichheit.

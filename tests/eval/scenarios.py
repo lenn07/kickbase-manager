@@ -293,6 +293,20 @@ def _injured_starter() -> Scenario:
 
     Verkaufsgrund 2 aus dem Regelwerk: die These ist gebrochen. Ein Kauf wäre
     hier die falsche Reaktion — das Kapital steckt im falschen Spieler.
+
+    **`SET_LINEUP` gehört seit dem Eval-Lauf vom 2026-09-24 dazu.** Das
+    Szenario stammt aus P0-0.6, also aus der Zeit vor der Aufstellungs-Aktion,
+    und wurde bei deren Einführung nicht nachgezogen. Das Modell wählte
+    dreimal einstimmig `SET_LINEUP` mit der Begründung, der Verletzte (5 %
+    Startelf-Chance) stehe in der Elf, während ein fitter Bankspieler daneben
+    sitze — und das ist bei drei Tagen bis zum Anpfiff die bessere Aktion als
+    ein Verkauf: sie wirkt sofort auf die Punkte, ist umkehrbar und verbrennt
+    kein Kapital zum schlechtesten Zeitpunkt.
+
+    Die Regel, um die es hier geht, ist damit **nicht** verletzt: geprüft wird,
+    dass der Bot nicht *nachkauft*, während sein Kapital im falschen Spieler
+    steckt. `BUY` bleibt deshalb erlaubt (der Ersatz am Markt ist legitim),
+    `ACCEPT_OFFER`/`DECLINE_OFFER` bleiben es nicht — es gibt keine Gebote.
     """
     squad = _squad_of_twelve()
     injured = _player(
@@ -315,10 +329,19 @@ def _injured_starter() -> Scenario:
             enrichment_overrides=overrides,
         ),
         allowed=frozenset(
-            {TradeAction.SELL, TradeAction.LIST_ON_MARKET, TradeAction.HOLD, TradeAction.BUY}
+            {
+                TradeAction.SELL,
+                TradeAction.LIST_ON_MARKET,
+                TradeAction.HOLD,
+                TradeAction.BUY,
+                TradeAction.SET_LINEUP,
+            }
         ),
-        forbidden=frozenset(),
-        rule="These gebrochen (Verletzung) ist Verkaufsgrund 2 (§2.6)",
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        rule=(
+            "These gebrochen (Verletzung) ist Verkaufsgrund 2 (§2.6); ihn aus der Elf zu "
+            "nehmen ist die schnellere Antwort auf dasselbe Problem"
+        ),
     )
 
 

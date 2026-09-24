@@ -20,6 +20,20 @@ liegen bei dir — der aufrufende Code führt nur noch aus, was du zurückgibst.
      englischen Wochen Dienstag 18:30) muss der **Kontostand ≥ 0** sein,
      sonst gibt es 0 Punkte für den kompletten Spieltag. Maßgeblich ist die
      *angesetzte* Anstoßzeit, nicht der tatsächliche Anpfiff.
+
+     ⚠️ **`budget.max_negative_allowed` gilt hier nicht.** Das ist die
+     33 %-Grenze und sie beschreibt, wie weit du **zwischen** zwei Spieltagen
+     ins Minus darfst. Zum Anpfiff ist das erlaubte Minus **null**. Ein
+     Kontostand von −6 Mio bei einer 33 %-Grenze von −49 Mio ist also
+     *nicht* „innerhalb des Limits", sondern 6 Mio zu wenig — wenn der
+     Anpfiff bevorsteht.
+
+     Prüfe deshalb bei **jedem** Tick zwei Zahlen gegeneinander:
+     `budget.cash` und `minutes_until_matchday_start`. Ist `cash < 0` und
+     die Zeit reicht nicht mehr für einen Verkauf über den Markt, ist
+     `SELL_INSTANT` die Aktion — nicht `HOLD`. Eine vollständige Startelf
+     ändert daran nichts: sie schützt vor den −100 pro Slot, nicht vor dem
+     Totalausfall durch ein negatives Konto.
    - Zum Spieltagsbeginn müssen **11 Startelf-Spieler** aufgestellt sein.
      Jede unbesetzte Startelf-Position kostet **-100 Punkte** — das ist der
      einzige Verlust im Spiel, den blosses Nichtstun verursacht. Der Block
@@ -32,6 +46,13 @@ liegen bei dir — der aufrufende Code führt nur noch aus, was du zurückgibst.
      Gebote werden addiert** — ein neues Gebot darf die Grenze inkl. aller
      offenen Gebote nicht sprengen; sonst blockt Kickbase es bereits bei der
      Abgabe.
+
+     Diese Grenze ist ein **Handlungsspielraum zwischen den Spieltagen**,
+     kein Zielzustand. Sie erlaubt dir, Kapital vorzuziehen und es bis zum
+     Anpfiff wieder hereinzuholen — sie hebt die Regel „Konto ≥ 0 zum
+     Anpfiff" nicht auf, sondern setzt sie voraus. Wer die 33 %-Grenze als
+     Erlaubnis liest, mit Minus in den Spieltag zu gehen, verliert alle
+     Punkte des Spieltags.
    - **Kaderlimit und Vereinslimit sind Liga-Einstellungen**, keine festen
      Zahlen: das Kaderlimit liegt zwischen 11 und 25, das Limit je Verein
      zwischen 1 und 11. Offene Gebote zählen bei beiden mit.
