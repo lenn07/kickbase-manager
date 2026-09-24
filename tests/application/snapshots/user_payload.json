@@ -45,8 +45,9 @@
   },
   "market": [
     {
-      "avg_points_last5": 71.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-23T20:29:36+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-23T02:01:35+00:00",
@@ -57,8 +58,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 6779912,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Mitchell Weiser",
@@ -68,11 +70,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "10"
     },
     {
-      "avg_points_last5": 43.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-24T10:15:37+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T12:59:36+00:00",
@@ -83,8 +87,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 3410857,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Jonas Hofmann",
@@ -94,11 +99,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "7"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-23T19:05:39+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T12:41:38+00:00",
@@ -109,6 +116,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 2821595,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5",
@@ -122,11 +130,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "10"
     },
     {
       "avg_points_last5": -4.0,
       "expires_at_iso": "2026-09-25T09:10:59+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T10:45:58+00:00",
@@ -137,6 +147,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 1005207,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -150,11 +161,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "28"
     },
     {
       "avg_points_last5": 20.0,
       "expires_at_iso": "2026-09-24T12:01:39+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T23:50:38+00:00",
@@ -165,6 +178,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 4329635,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -178,11 +192,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "8"
     },
     {
       "avg_points_last5": 11.0,
       "expires_at_iso": "2026-09-24T03:27:58+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T20:23:57+00:00",
@@ -193,6 +209,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 4272054,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -206,11 +223,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "40"
     },
     {
-      "avg_points_last5": 41.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-23T21:50:59+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T00:56:58+00:00",
@@ -221,8 +240,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 7011249,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Benjamin Henrichs",
@@ -232,11 +252,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "43"
     },
     {
-      "avg_points_last5": 111.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": null,
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T13:31:57+00:00",
@@ -247,8 +269,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": -13.17,
       "market_value": 8811078,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Marius Wolf",
@@ -258,11 +281,13 @@
       "seller_id": "9999999",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "13"
     },
     {
-      "avg_points_last5": 60.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T08:21:29+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T15:12:28+00:00",
@@ -273,8 +298,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 17047077,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Chris Führich",
@@ -284,11 +310,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "9"
     },
     {
-      "avg_points_last5": 106.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T05:37:01+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T06:23:00+00:00",
@@ -299,8 +327,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 16591375,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Josip Stanišić",
@@ -310,11 +339,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "2"
     },
     {
-      "avg_points_last5": 149.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-24T01:22:59+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-23T03:06:58+00:00",
@@ -325,8 +356,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 26056187,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Jamal Musiala",
@@ -336,11 +368,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "2"
     },
     {
       "avg_points_last5": 34.0,
       "expires_at_iso": "2026-09-24T08:45:49+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T05:20:48+00:00",
@@ -351,6 +385,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 15900243,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -364,11 +399,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "14"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-25T00:48:59+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "out_of_squad",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T16:22:58+00:00",
@@ -379,6 +416,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 500000,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5",
@@ -392,11 +430,13 @@
       "seller_id": null,
       "start_probability_next": 0.15,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "10"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-24T07:56:24+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T11:39:23+00:00",
@@ -407,6 +447,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 738658,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5",
@@ -420,11 +461,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "7"
     },
     {
-      "avg_points_last5": 43.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T11:28:07+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T14:09:06+00:00",
@@ -435,8 +478,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 2889401,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Victor Boniface",
@@ -446,11 +490,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "7"
     },
     {
-      "avg_points_last5": 100.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T09:03:19+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
       "listed_at_iso": "2026-09-23T11:54:18+00:00",
@@ -461,8 +507,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 16717275,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Jarell Quansah",
@@ -472,11 +519,13 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "7"
     },
     {
       "avg_points_last5": 24.0,
       "expires_at_iso": "2026-09-23T18:46:53+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "questionable",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T19:18:52+00:00",
@@ -487,6 +536,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 4412716,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -500,11 +550,13 @@
       "seller_id": null,
       "start_probability_next": 0.55,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "43"
     },
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-23T19:10:04+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "out_of_squad",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T10:32:03+00:00",
@@ -515,6 +567,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 500000,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5",
@@ -528,11 +581,13 @@
       "seller_id": null,
       "start_probability_next": 0.15,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "29"
     },
     {
       "avg_points_last5": 1.0,
       "expires_at_iso": "2026-09-23T16:06:27+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T18:11:26+00:00",
@@ -543,6 +598,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 3234700,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -556,11 +612,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "40"
     },
     {
       "avg_points_last5": -60.0,
       "expires_at_iso": "2026-09-24T04:31:08+00:00",
+      "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-22T17:01:07+00:00",
@@ -571,6 +629,7 @@
       "market_trend_3d_pct": null,
       "market_trend_7d_pct": null,
       "market_value": 5813189,
+      "minutes_last5": null,
       "missing_data_flags": [
         "missing_data:market_trend_7d_pct",
         "missing_data:avg_points_last5_using_season_avg",
@@ -584,11 +643,13 @@
       "seller_id": null,
       "start_probability_next": 0.85,
       "start_probability_source": "injury_status_heuristic",
+      "starts_last5": null,
       "team_id": "3"
     },
     {
-      "avg_points_last5": 87.0,
+      "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-24T12:41:22+00:00",
+      "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
       "listed_at_iso": "2026-09-23T04:11:21+00:00",
@@ -599,8 +660,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 8370212,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Satoshi Tanaka",
@@ -610,6 +672,7 @@
       "seller_id": null,
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "8"
     }
   ],
@@ -643,6 +706,7 @@
       "avg_points_last5": 178.0,
       "bought_at_price": 33879307,
       "bought_intent": "PROFIT",
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 2,
@@ -652,8 +716,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 0.02,
       "market_value": 33697577,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Upamecano",
@@ -661,14 +726,16 @@
       "position": "DEF",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "2",
       "total_points_season": 712,
       "unrealized_pnl": -181730
     },
     {
       "average_points_season": 76.0,
-      "avg_points_last5": 76.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 12388187,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 1,
@@ -678,8 +745,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 10.42,
       "market_value": 10827018,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Simpson-Pusey",
@@ -687,14 +755,16 @@
       "position": "DEF",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "28",
       "total_points_season": 302,
       "unrealized_pnl": -1561169
     },
     {
       "average_points_season": 126.0,
-      "avg_points_last5": 126.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 14000000,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 0,
@@ -704,8 +774,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 2.81,
       "market_value": 13491277,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Noll",
@@ -713,14 +784,16 @@
       "position": "TW",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "29",
       "total_points_season": 504,
       "unrealized_pnl": -508723
     },
     {
       "average_points_season": 119.0,
-      "avg_points_last5": 119.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 30000000,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 4,
@@ -730,8 +803,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 1.15,
       "market_value": 25816501,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Uzun",
@@ -739,14 +813,16 @@
       "position": "MID",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "4",
       "total_points_season": 476,
       "unrealized_pnl": -4183499
     },
     {
       "average_points_season": 123.0,
-      "avg_points_last5": 123.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 10000000,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 6,
@@ -756,8 +832,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 7.2,
       "market_value": 13140589,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Fernández",
@@ -765,14 +842,16 @@
       "position": "MID",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "7",
       "total_points_season": 490,
       "unrealized_pnl": 3140589
     },
     {
       "average_points_season": 137.0,
-      "avg_points_last5": 137.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 12769773,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 9,
@@ -782,8 +861,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": 7.81,
       "market_value": 15347905,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Gregoritsch",
@@ -791,14 +871,16 @@
       "position": "STK",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "13",
       "total_points_season": 549,
       "unrealized_pnl": 2578132
     },
     {
       "average_points_season": 111.0,
-      "avg_points_last5": 111.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 11000005,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 8,
@@ -814,8 +896,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": -13.17,
       "market_value": 8811078,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Wolf",
@@ -823,14 +906,16 @@
       "position": "MID",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "13",
       "total_points_season": 444,
       "unrealized_pnl": -2188927
     },
     {
       "average_points_season": 145.0,
-      "avg_points_last5": 145.0,
+      "avg_points_last5": 178.0,
       "bought_at_price": 28000000,
+      "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 10,
@@ -840,8 +925,9 @@
       "market_trend_3d_pct": 0.03,
       "market_trend_7d_pct": -0.1,
       "market_value": 27636029,
+      "minutes_last5": 84.5,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
       "name": "Saibari",
@@ -849,6 +935,7 @@
       "position": "STK",
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
+      "starts_last5": 4,
       "team_id": "2",
       "total_points_season": 581,
       "unrealized_pnl": -363971

@@ -145,7 +145,12 @@ class RunTickUseCase:
         )
         recent_actions = _load_recent_actions(self._trades, user.id)
         enrichment = await self._enrich_players(
-            league_row.kb_league_id, squad, market, snapshot=snapshot, now=now
+            league_row.kb_league_id,
+            squad,
+            market,
+            snapshot=snapshot,
+            next_matchday_start=next_matchday_start,
+            now=now,
         )
 
         open_bids_total = _open_bids_total(market=market, manager_id=user.kb_user_id)
@@ -298,6 +303,7 @@ class RunTickUseCase:
         market: list[MarketPlayer],
         *,
         snapshot: MarketSnapshot,
+        next_matchday_start: datetime | None,
         now: datetime,
     ) -> dict[str, PlayerEnrichment]:
         if self._enricher is None:
@@ -310,6 +316,7 @@ class RunTickUseCase:
                 squad,
                 market,
                 mv_update_at=snapshot.mv_update_at,
+                next_matchday_start=next_matchday_start,
                 now=now,
             )
         except KickbaseError as exc:

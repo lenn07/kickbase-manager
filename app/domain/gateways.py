@@ -15,6 +15,7 @@ from app.domain.models import (
     MarketValuePoint,
     Matchday,
     PlayerDetail,
+    PlayerPerformance,
     Session,
     Squad,
 )
@@ -66,6 +67,31 @@ class MarketValueCache(Protocol):
         league_id: str,
         player_id: str,
         points: Sequence[MarketValuePoint],
+        *,
+        valid_until: datetime,
+    ) -> None: ...
+
+
+@runtime_checkable
+class PlayerPerformanceCache(Protocol):
+    """Cache für Spieltags-Historien.
+
+    Haltbarkeit ist hier `next_matchday_start`, nicht `mvud`: Spieltagspunkte
+    stehen fest, sobald der Spieltag durch ist. Läuft gerade einer, liegt der
+    nächste Start in der Zukunft — aber die Punkte des laufenden bewegen sich
+    noch. Der Aufrufer löst das, indem er während eines laufenden Spieltags
+    nicht schreibt; siehe `PlayerEnricher`.
+    """
+
+    def get_many(
+        self, league_id: str, player_ids: Sequence[str], *, now: datetime
+    ) -> dict[str, PlayerPerformance]: ...
+
+    def put(
+        self,
+        league_id: str,
+        player_id: str,
+        performance: PlayerPerformance,
         *,
         valid_until: datetime,
     ) -> None: ...
@@ -125,6 +151,16 @@ class KickbaseGateway(Protocol):
         Kostet einen Request **pro Spieler**. Aufrufer müssen die Menge
         begrenzen; der `PlayerEnricher` holt sie nur für Kader + Shortlist und
         nur dann, wenn `prob` fehlt (Plan §9, Rate-Limit/Ban).
+        """
+        ...
+
+    async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+        """Spieltags-Historie eines Spielers — Quelle der echten Form (P1-8).
+
+        Die Response trägt **alle** Saisons seit 2016/17, rund 105 KB. Sie
+        kostet einen Request pro Spieler und gehört deshalb hinter denselben
+        Deckel wie `get_player_detail`: Kader + Shortlist, und nur, wenn kein
+        gültiger Cache-Eintrag vorliegt.
         """
         ...
 

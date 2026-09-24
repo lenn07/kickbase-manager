@@ -24,6 +24,7 @@ from app.domain.models import (
     MarketValuePoint,
     Player,
     PlayerDetail,
+    PlayerPerformance,
     PlayerStatus,
     Position,
     Squad,
@@ -222,6 +223,13 @@ class _CountingGateway:
         # laufen. Gemessen wird ausschliesslich `history_calls`.
         del league_id
         return PlayerDetail(player_id=player_id, is_predicted_starter=True)
+
+    async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+        # Seit P1-8 fragt der Enricher die Spieltagshistorie ab. Dieses Doppel
+        # liefert keine — der Fall „keine Form geladen" ist genauso gültig wie
+        # der mit, und die Form-Tests stehen in `test_form_window.py`.
+        del league_id
+        return PlayerPerformance(player_id=player_id)
 
 
 class _FakeCache:

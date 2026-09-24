@@ -110,6 +110,33 @@ class MarketValueCacheRow(SQLModel, table=True):
     valid_until: datetime = Field(index=True)
 
 
+class PlayerPerformanceCacheRow(SQLModel, table=True):
+    """Gecachte Spieltags-Historie eines Spielers (P1-8).
+
+    Andere Haltbarkeit als der Marktwert-Cache: Spieltagspunkte stehen fest,
+    sobald der Spieltag durch ist, und ändern sich erst wieder, wenn der
+    nächste angepfiffen wird. Gültigkeitsgrenze ist deshalb
+    `next_matchday_start` — und solange ein Spieltag **läuft**, liegt der in
+    der Vergangenheit, der Cache greift also nicht und jeder Tick sieht die
+    Live-Punkte.
+
+    `matchdays` hält `[[day, points, minutes, war_startelf], …]`.
+    """
+
+    __tablename__ = "player_performance_cache"
+    __table_args__ = (
+        UniqueConstraint("league_id", "player_id", name="uq_perf_cache_league_player"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    league_id: str = Field(index=True)
+    player_id: str = Field(index=True)
+    season: str = Field(default="")
+    matchdays: list[list[Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    fetched_at: datetime = Field(default_factory=_now)
+    valid_until: datetime = Field(index=True)
+
+
 class TradeLogRow(SQLModel, table=True):
     """Historie aller Entscheidungen inkl. HOLD-Ticks (Nachvollziehbarkeit im Dashboard)."""
 

@@ -5,9 +5,10 @@ Der Master-Prompt erwartet pro Spieler:
   Historie abgeleitet. Mehrere Zeitfenster gleichzeitig, damit die LLM
   Momentum und Beschleunigung erkennen kann (7 d steigend + 1 d fallend =
   Wendepunkt).
-- `avg_points_last5`     — Kickbase liefert keinen offiziellen Endpoint dafür.
-  Für v1 nutzen wir `Player.average_points` (Saison-Ø) als Proxy und markieren
-  die Ungenauigkeit über `missing_data`-Flags im USER-JSON.
+- `avg_points_last5`, `minutes_last5`, `starts_last5` — seit P1-8 aus
+  `GET /players/{p}/performance`, also echte Spieltagsdaten statt des
+  Saison-Durchschnitts (Defekt D9). Fehlt die Historie, bleibt der Saison-Ø
+  der Proxy und das `..._using_season_avg`-Flag sagt das.
 - `start_probability_next` — seit P0-3 eine **Quellen-Kette** statt einer
   Pauschale (Defekt D5). In dieser Reihenfolge:
 
@@ -59,11 +60,12 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.domain.exceptions import KickbaseError
-from app.domain.gateways import KickbaseGateway, MarketValueCache
+from app.domain.gateways import KickbaseGateway, MarketValueCache, PlayerPerformanceCache
 from app.domain.models import (
     MarketPlayer,
     MarketValuePoint,
     Player,
+    PlayerPerformance,
     PlayerStatus,
     Squad,
     SquadPlayer,
@@ -123,6 +125,12 @@ _FLAG_STATUS_UNKNOWN = "missing_data:injury_status"
 _FLAG_AVG_POINTS_MISSING = "missing_data:avg_points_last5"
 _FLAG_AVG_POINTS_SEASON = "missing_data:avg_points_last5_using_season_avg"
 _FLAG_TREND_MISSING = "missing_data:market_trend_7d_pct"
+# Weniger als fünf gespielte Spieltage — der Wert ist echt, das Fenster aber
+# kürzer als der Feldname verspricht. Siehe `_form_from_performance`.
+_FLAG_FORM_PARTIAL_WINDOW = "missing_data:avg_points_last5_partial_window"
+
+# Das Fenster, das der Feldname meint.
+_FORM_WINDOW = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +172,18 @@ class PlayerEnrichment:
     start_probability_source: str
     injury_status: str
     missing_data_flags: tuple[str, ...] = field(default_factory=tuple)
+    # Durchschnittliche Einsatzminuten und Zahl der Startelf-Einsätze im
+    # selben Fenster wie `avg_points_last5`. Minuten sind laut §2.4 des Plans
+    # die Basis von allem: ein Spieler mit 180 Saisonpunkten aus vier
+    # Kurzeinsätzen ist etwas völlig anderes als einer mit 180 aus vier
+    # Neunzig-Minuten-Spielen.
+    minutes_last5: float | None = None
+    starts_last5: int | None = None
+    # Auf wie vielen **gespielten** Spieltagen die drei Werte beruhen. 0 heißt
+    # „keine Spieltagsdaten" — dann stammt `avg_points_last5` aus dem
+    # Saison-Durchschnitt. Ohne diese Zahl kann das Modell einen Wert aus zwei
+    # Spieltagen nicht von einem aus fünf unterscheiden.
+    form_matchdays_counted: int = 0
 
 
 class PlayerEnricher:
@@ -177,8 +197,10 @@ class PlayerEnricher:
         history_days: int = 30,
         max_lineup_predictions: int | None = None,
         cache: MarketValueCache | None = None,
+        performance_cache: PlayerPerformanceCache | None = None,
     ) -> None:
         self._kickbase = kickbase
+        self._performance_cache = performance_cache
         # Ohne Cache verhält sich der Enricher wie vor P1-7: jeder Tick holt
         # jede Historie neu. Das ist der Zustand in Tests, die den Cache nicht
         # interessiert — nicht ein stiller Default.
@@ -203,6 +225,7 @@ class PlayerEnricher:
         market: Sequence[MarketPlayer],
         *,
         mv_update_at: datetime | None = None,
+        next_matchday_start: datetime | None = None,
         now: datetime | None = None,
     ) -> dict[str, PlayerEnrichment]:
         """Baut die Zusatzsignale je Spieler.
@@ -212,6 +235,10 @@ class PlayerEnricher:
         Fehlt er, wird nicht gecacht — eine geratene Haltbarkeit wäre schlimmer
         als gar keine, weil eine zu lange gehaltene Serie den Bot einen ganzen
         Marktwert-Zyklus lang blind für die Bewegung machen würde.
+
+        `next_matchday_start` spielt dieselbe Rolle für die Spieltagsdaten:
+        abgeschlossene Spieltage ändern sich nicht mehr, bis der nächste
+        angepfiffen wird.
         """
         now = now or datetime.now(UTC)
         squad_ids = [sp.player.id for sp in squad.players]
@@ -242,12 +269,21 @@ class PlayerEnricher:
         predictions = await self._fetch_lineup_predictions(
             league_id, history_targets, known_prob=usable_prob
         )
+        performances = await self._fetch_all_performances(
+            league_id, history_targets, next_matchday_start=next_matchday_start, now=now
+        )
 
         history_set = set(history_targets)
         result: dict[str, PlayerEnrichment] = {}
         for pid, player in players.items():
             m = metrics.get(pid, _EMPTY_METRICS)
-            avg5, avg5_flag = _avg_points_proxy(player)
+            form = _form_from_performance(performances.get(pid))
+            # Der Saison-Durchschnitt bleibt Rückfallebene: er ist gröber, aber
+            # für Spieler ohne geladene Spieltagshistorie die einzige Zahl.
+            avg5: float | None = form.avg_points
+            avg5_is_season = False
+            if avg5 is None:
+                avg5, avg5_is_season = _avg_points_proxy(player)
             start_prob, source = _start_probability(
                 raw_prob=prob_by_player.get(pid),
                 predicted_starter=predictions.get(pid),
@@ -256,7 +292,8 @@ class PlayerEnricher:
             flags = _collect_flags(
                 trend_missing=pid not in history_set or m.trend_7d_pct is None,
                 avg5=avg5,
-                avg5_is_season_average=avg5_flag,
+                avg5_is_season_average=avg5_is_season,
+                form_matchdays=form.matchdays_counted,
                 source=source,
                 status=player.status,
             )
@@ -272,8 +309,95 @@ class PlayerEnricher:
                 start_probability_source=source,
                 injury_status=_INJURY_STATUS_LABELS.get(player.status, "unknown"),
                 missing_data_flags=flags,
+                minutes_last5=form.avg_minutes,
+                starts_last5=form.starts,
+                form_matchdays_counted=form.matchdays_counted,
             )
         return result
+
+    async def _fetch_all_performances(
+        self,
+        league_id: str,
+        player_ids: Sequence[str],
+        *,
+        next_matchday_start: datetime | None,
+        now: datetime,
+    ) -> dict[str, PlayerPerformance]:
+        """Spieltags-Historien für Kader + Shortlist, Cache zuerst.
+
+        Ein Call pro Spieler, und die Response trägt alle Saisons seit 2016/17
+        (~105 KB). Ohne Cache wäre das die teuerste Stelle im ganzen Tick —
+        deshalb hält der Plan bei P1-8 ausdrücklich einen Tages-Cache fest.
+        """
+        if not player_ids:
+            return {}
+
+        # Der Cache ist optional, die Daten sind es nicht: ohne Cache wird
+        # jeder Tick geholt — teuer, aber richtig. Die Form vom Cache abhängig
+        # zu machen hieße, sie bei jedem Cache-Ausfall still zu verlieren.
+        cached = self._read_performance_cache(league_id, player_ids, now=now)
+        missing = [pid for pid in player_ids if pid not in cached]
+        fetched = await asyncio.gather(
+            *(self._fetch_performance(league_id, pid) for pid in missing),
+            return_exceptions=False,
+        )
+        _log.info(
+            "Spieltags-Historien: %d aus dem Cache, %d per HTTP geholt (von %d Spielern).",
+            len(cached),
+            len(missing),
+            len(player_ids),
+        )
+
+        out: dict[str, PlayerPerformance] = dict(cached)
+        for pid, performance in zip(missing, fetched, strict=True):
+            if performance is None:
+                continue
+            out[pid] = performance
+            self._write_performance_cache(
+                league_id, pid, performance, valid_until=next_matchday_start, now=now
+            )
+        return out
+
+    def _read_performance_cache(
+        self, league_id: str, player_ids: Sequence[str], *, now: datetime
+    ) -> dict[str, PlayerPerformance]:
+        if self._performance_cache is None:
+            return {}
+        try:
+            return self._performance_cache.get_many(league_id, player_ids, now=now)
+        except Exception:  # ein kaputter Cache darf den Tick nicht kippen
+            _log.warning("Spieltags-Cache nicht lesbar — hole alles per HTTP.", exc_info=True)
+            return {}
+
+    def _write_performance_cache(
+        self,
+        league_id: str,
+        player_id: str,
+        performance: PlayerPerformance,
+        *,
+        valid_until: datetime | None,
+        now: datetime,
+    ) -> None:
+        # `valid_until <= now` heißt hier: der Spieltag **läuft gerade**. Dann
+        # bewegen sich die Punkte noch, und ein Cache-Eintrag würde den Bot
+        # genau in den Stunden blind machen, in denen sich am meisten ändert.
+        if self._performance_cache is None or valid_until is None or valid_until <= now:
+            return
+        try:
+            self._performance_cache.put(league_id, player_id, performance, valid_until=valid_until)
+        except Exception:  # siehe `_read_performance_cache`
+            _log.warning("Spieltags-Cache nicht schreibbar (%s).", player_id, exc_info=True)
+
+    async def _fetch_performance(self, league_id: str, player_id: str) -> PlayerPerformance | None:
+        try:
+            return await self._kickbase.get_player_performance(league_id, player_id)
+        except KickbaseError as exc:
+            _log.info(
+                "Spieltags-Historie für %s nicht ladbar (%s) — Form fällt auf den Saison-Ø.",
+                player_id,
+                exc,
+            )
+            return None
 
     async def _fetch_lineup_predictions(
         self, league_id: str, candidates: Sequence[str], *, known_prob: set[str]
@@ -520,6 +644,7 @@ def _collect_flags(
     trend_missing: bool,
     avg5: float | None,
     avg5_is_season_average: bool,
+    form_matchdays: int,
     source: str,
     status: PlayerStatus,
 ) -> tuple[str, ...]:
@@ -537,6 +662,8 @@ def _collect_flags(
         flags.append(_FLAG_AVG_POINTS_MISSING)
     elif avg5_is_season_average:
         flags.append(_FLAG_AVG_POINTS_SEASON)
+    elif form_matchdays < _FORM_WINDOW:
+        flags.append(_FLAG_FORM_PARTIAL_WINDOW)
     if source == _SOURCE_INJURY_STATUS:
         flags.append(_FLAG_START_PROBABILITY_HEURISTIC)
     elif source == _SOURCE_NONE:
@@ -544,6 +671,49 @@ def _collect_flags(
     if status is PlayerStatus.UNKNOWN:
         flags.append(_FLAG_STATUS_UNKNOWN)
     return tuple(flags)
+
+
+@dataclass(frozen=True, slots=True)
+class FormWindow:
+    """Form über die letzten (bis zu) fünf **gespielten** Spieltage."""
+
+    avg_points: float | None
+    avg_minutes: float | None
+    starts: int | None
+    matchdays_counted: int
+
+
+_EMPTY_FORM = FormWindow(avg_points=None, avg_minutes=None, starts=None, matchdays_counted=0)
+
+
+def _form_from_performance(performance: PlayerPerformance | None) -> FormWindow:
+    """Rechnet das 5-Spieltage-Fenster aus der Spieltagshistorie.
+
+    **Ein kürzeres Fenster wird gerechnet, nicht verworfen.** Der Plan
+    verlangt für „< 5 Spieltage Historie" ein `None`, „nicht verzerren" — die
+    Absicht ist richtig, die Umsetzung wäre es nicht: am 4. Spieltag einer
+    Saison hat *kein einziger* Spieler fünf Einträge, und ein pauschales
+    `None` hieße, der Bot sähe im ersten Saisonmonat gar keine Form. Das ist
+    exakt der Zustand, den D9 beschreibt, nur mit anderem Etikett.
+
+    Stattdessen steht die Fenstergröße als `matchdays_counted` daneben und
+    `missing_data:avg_points_last5_partial_window` markiert sie. Damit kann
+    das Modell einen Schnitt aus zwei Spieltagen anders gewichten als einen
+    aus fünf — eine Unterscheidung, die ein `None` nicht erlaubt.
+
+    Ohne einen einzigen gespielten Spieltag bleibt es bei `None`: dann gibt es
+    nichts zu mitteln.
+    """
+    if performance is None or not performance.matchdays:
+        return _EMPTY_FORM
+    window = performance.matchdays[-_FORM_WINDOW:]
+    count = len(window)
+    return FormWindow(
+        avg_points=round(sum(m.points for m in window) / count, 2),
+        avg_minutes=round(sum(m.minutes for m in window) / count, 1),
+        starts=sum(1 for m in window if m.was_in_starting_xi),
+        matchdays_counted=count,
+    )
 
 
 def _avg_points_proxy(player: Player) -> tuple[float | None, bool]:

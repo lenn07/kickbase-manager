@@ -25,6 +25,7 @@ from app.domain.models import (
     MarketValuePoint,
     Player,
     PlayerDetail,
+    PlayerPerformance,
     PlayerStatus,
     Position,
     Squad,
@@ -59,6 +60,13 @@ class _CountingGateway:
             is_predicted_starter=self._predicted_starter,
             prediction_source="Ligainsider",
         )
+
+    async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+        # Seit P1-8 fragt der Enricher die Spieltagshistorie ab. Dieses Doppel
+        # liefert keine — der Fall „keine Form geladen" ist genauso gültig wie
+        # der mit, und die Form-Tests stehen in `test_form_window.py`.
+        del league_id
+        return PlayerPerformance(player_id=player_id)
 
 
 def _sample_market() -> tuple[MarketPlayer, ...]:
@@ -268,6 +276,13 @@ async def test_detail_call_failure_does_not_break_the_tick() -> None:
         async def get_player_detail(self, league_id: str, player_id: str) -> PlayerDetail:
             self.detail_calls.append(player_id)
             raise TransportError("detail down")
+
+        async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+            # Seit P1-8 fragt der Enricher die Spieltagshistorie ab. Dieses Doppel
+            # liefert keine — der Fall „keine Form geladen" ist genauso gültig wie
+            # der mit, und die Form-Tests stehen in `test_form_window.py`.
+            del league_id
+            return PlayerPerformance(player_id=player_id)
 
     market = (_market_player(_player("m1")),)
     enrichment = await PlayerEnricher(_FailingGateway()).enrich(  # type: ignore[arg-type]
