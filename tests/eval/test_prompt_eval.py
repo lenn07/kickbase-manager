@@ -145,6 +145,22 @@ async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Sc
         f"Alle Läufe: {_describe(decisions)}"
     )
 
+    # Manche Regeln verbieten keine Aktionsart, sondern eine Auswahl: „kaufen
+    # ist in Ordnung, **den** zu kaufen nicht". Ohne diese Prüfung liesse sich
+    # so ein Szenario nur als Verbot der ganzen Aktion formulieren — und das
+    # misst dann eine andere Regel als die gemeinte.
+    picked_forbidden = [
+        d.player_id
+        for d in decisions
+        if d.player_id is not None and d.player_id in scenario.forbidden_player_ids
+    ]
+    assert not picked_forbidden, (
+        f"[{scenario.name}] {scenario.description}\n"
+        f"Regel: {scenario.rule}\n"
+        f"Verbotener Spieler gewählt: {picked_forbidden}\n"
+        f"Alle Läufe: {_describe(decisions)}"
+    )
+
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
 async def test_scenario_produces_a_usable_decision(
