@@ -387,6 +387,28 @@ def test_gap_market_players_have_recent_form(payload: dict[str, Any]) -> None:
     assert len({p["avg_points_last5"] for p in with_data}) > 1
 
 
+def test_every_squad_player_shows_its_entry_price(payload: dict[str, Any]) -> None:
+    """Das DoD von P1-6 (Defekt D7): kein Kaderspieler ohne `bought_at_price`.
+
+    Der Kontext dieses Snapshots trägt **einen** historischen BUY im
+    `trade_log` — vor P1-6 hatte damit genau ein Spieler von acht einen
+    Einstand. Die anderen sieben wären für jede PROFIT-Rechnung unsichtbar
+    gewesen, obwohl Kickbase den Wert über `mvgl` die ganze Zeit mitgeliefert
+    hat.
+    """
+    squad = payload["squad"]
+    assert all(p["bought_at_price"] is not None for p in squad), (
+        f"Kaderspieler ohne Einstand: {[p['name'] for p in squad if p['bought_at_price'] is None]}"
+    )
+    assert all(p["unrealized_pnl"] is not None for p in squad)
+    # Die Identität muss im Payload halten, nicht nur in der Domain-Schicht.
+    for entry in squad:
+        assert entry["market_value"] - entry["bought_at_price"] == entry["unrealized_pnl"]
+    # Nur ein Spieler trägt einen Intent — der kommt weiter aus dem `trade_log`,
+    # denn *warum* gekauft wurde, weiß Kickbase nicht.
+    assert sum(1 for p in squad if p.get("bought_intent")) == 1
+
+
 def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> None:
     """Ein Minuswert ist ein Datum — und ein besonders aussagekräftiges.
 

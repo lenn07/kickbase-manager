@@ -490,12 +490,27 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
         "start_probability_source": enrichment.start_probability_source if enrichment else None,
         "listing": _own_listing(listing) if listing else None,
+        # Einstand und Buchgewinn kommen seit P1-6 von Kickbase selbst
+        # (`mvgl`), nicht mehr aus dem eigenen `trade_log`. Der Unterschied ist
+        # nicht kosmetisch: das Log kennt nur, was dieser Bot gekauft hat —
+        # zugeloste Spieler und Käufe aus der App standen ohne Einstand da, und
+        # ohne Einstand ist weder ein PROFIT-Exit noch ein Transfer-Erfolg
+        # planbar (Defekt D7).
+        "bought_at_price": _int_or_none(sp.buy_price),
+        "unrealized_pnl": _int_or_none(sp.unrealized_pnl),
     }
+    # Der Intent bleibt beim `trade_log`: *warum* gekauft wurde, weiß nur der
+    # Bot selbst. Kickbase liefert den Preis, nicht die Absicht.
     if buy is not None:
-        entry["bought_at_price"] = _int(buy.buy_price)
         entry["bought_intent"] = buy.intent.value
-    if enrichment:
-        entry["missing_data_flags"] = list(enrichment.missing_data_flags)
+        # Fallback auf den geloggten Preis, falls Kickbase `mvgl` mal weglässt.
+        if entry["bought_at_price"] is None:
+            entry["bought_at_price"] = _int(buy.buy_price)
+    flags = list(enrichment.missing_data_flags) if enrichment else []
+    if entry["bought_at_price"] is None:
+        flags.append("missing_data:bought_at_price")
+    if enrichment or flags:
+        entry["missing_data_flags"] = flags
     return entry
 
 
@@ -631,6 +646,16 @@ def _int(value: Decimal | int | float | None) -> int:
     if isinstance(value, Decimal):
         return int(value)
     return int(value)
+
+
+def _int_or_none(value: Decimal | int | float | None) -> int | None:
+    """Wie `_int`, aber `None` bleibt `None`.
+
+    Für Felder, bei denen „unbekannt" und „null Euro" verschiedene Aussagen
+    sind — `bought_at_price` ist genau so eins: ein Einstand von 0 hieße, der
+    ganze Marktwert sei Gewinn.
+    """
+    return None if value is None else _int(value)
 
 
 __all__ = ["AiDecisionConfig", "AiDecisionEngine"]

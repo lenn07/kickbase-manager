@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from app.application.ai_decision_engine import AiDecisionEngine
+from app.application.ai_decision_engine import AiDecisionEngine, _build_user_payload
 from app.application.decision_engine import (
     BuyRecord,
     DecisionContext,
@@ -636,3 +636,58 @@ async def test_decision_call_runs_at_temperature_zero(monkeypatch: pytest.Monkey
     await AiDecisionEngine(llm=llm, api_key="sk-ant-test").decide(_context())
 
     assert llm.calls[0]["temperature"] == 0.0
+
+
+# -- P1-6: Einstand im Payload -------------------------------------------
+
+
+def _payload_for(squad_players: tuple[SquadPlayer, ...], **kwargs: Any) -> dict[str, Any]:
+    return _build_user_payload(_context(squad_players=squad_players, **kwargs))
+
+
+def test_entry_price_prefers_kickbase_over_the_own_trade_log() -> None:
+    """Kickbase kennt den echten Einstand, das eigene Log nur den eigenen Kauf.
+
+    Weichen beide ab (etwa weil der Spieler zwischendurch über die App
+    gehandelt wurde), gewinnt die Quelle, die nicht auf den Bot beschränkt ist.
+    """
+    sp = SquadPlayer(
+        player=_player("s1", mv=8_000_000),
+        buy_price=Decimal(6_000_000),
+        unrealized_pnl=Decimal(2_000_000),
+    )
+    payload = _payload_for(
+        (sp,),
+        buy_history={"s1": BuyRecord(intent=TradeIntent.PROFIT, buy_price=Decimal(1))},
+    )
+    entry = payload["squad"][0]
+    assert entry["bought_at_price"] == 6_000_000
+    assert entry["unrealized_pnl"] == 2_000_000
+    # Der Intent bleibt trotzdem aus dem Log — den liefert Kickbase nicht.
+    assert entry["bought_intent"] == "PROFIT"
+
+
+def test_entry_price_falls_back_to_the_trade_log() -> None:
+    """Fehlt `mvgl`, trägt der geloggte eigene Kauf den Einstand weiter."""
+    sp = SquadPlayer(player=_player("s1", mv=8_000_000))
+    payload = _payload_for(
+        (sp,),
+        buy_history={"s1": BuyRecord(intent=TradeIntent.POINTS, buy_price=Decimal(7_500_000))},
+    )
+    entry = payload["squad"][0]
+    assert entry["bought_at_price"] == 7_500_000
+    assert entry["unrealized_pnl"] is None
+    assert "missing_data:bought_at_price" not in entry.get("missing_data_flags", [])
+
+
+def test_unknown_entry_price_is_flagged_not_zeroed() -> None:
+    """Ohne jede Quelle bleibt der Einstand `null` — und sagt das auch.
+
+    Eine 0 hier hieße „umsonst bekommen" und würde den gesamten Marktwert als
+    Gewinn ausweisen. Das ist derselbe Fehler wie die Default-0 bei
+    `team_value` (Defekt D1), nur pro Spieler.
+    """
+    payload = _payload_for((SquadPlayer(player=_player("s1")),))
+    entry = payload["squad"][0]
+    assert entry["bought_at_price"] is None
+    assert "missing_data:bought_at_price" in entry["missing_data_flags"]
