@@ -7,13 +7,17 @@ Persistenz keine Krypto-Verantwortung trägt.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from sqlmodel import Session, select
 
+from app.domain.models import MarketValuePoint
 from app.infrastructure.persistence.models import (
     CredentialRow,
     LeagueRow,
+    MarketValueCacheRow,
     SettingsRow,
     SmtpConfigRow,
     TradeLogRow,
@@ -298,3 +302,68 @@ class TradeLogRepository:
             row.notified_at = ts
         if rows:
             self._session.commit()
+
+
+class MarketValueCacheRepository:
+    """Tages-Cache für Marktwert-Historien — implementiert `MarketValueCache`.
+
+    Gültigkeitsgrenze ist `mvud`, der nächste Marktwert-Update-Zeitpunkt, nicht
+    eine Zeitspanne. Ein abgelaufener Eintrag wird beim nächsten Schreiben
+    überschrieben statt gelöscht: pro Liga und Spieler gibt es nur eine Zeile,
+    die Tabelle wächst also mit der Zahl je gesehener Spieler und nicht mit der
+    Zahl der Ticks.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_many(
+        self, league_id: str, player_ids: Sequence[str], *, now: datetime
+    ) -> dict[str, list[MarketValuePoint]]:
+        ids = list(player_ids)
+        if not ids:
+            return {}
+        stmt = (
+            select(MarketValueCacheRow)
+            .where(MarketValueCacheRow.league_id == league_id)
+            .where(MarketValueCacheRow.player_id.in_(ids))  # type: ignore[attr-defined]
+        )
+        out: dict[str, list[MarketValuePoint]] = {}
+        for row in self._session.exec(stmt):
+            if _as_utc(row.valid_until) <= now:
+                continue  # abgelaufen — der Aufrufer holt neu und überschreibt
+            out[row.player_id] = [
+                MarketValuePoint(day=datetime.fromisoformat(day), value=Decimal(str(value)))
+                for day, value in row.points
+            ]
+        return out
+
+    def put(
+        self,
+        league_id: str,
+        player_id: str,
+        points: Sequence[MarketValuePoint],
+        *,
+        valid_until: datetime,
+    ) -> None:
+        serialised = [[p.day.isoformat(), str(p.value)] for p in points]
+        stmt = (
+            select(MarketValueCacheRow)
+            .where(MarketValueCacheRow.league_id == league_id)
+            .where(MarketValueCacheRow.player_id == player_id)
+        )
+        row = self._session.exec(stmt).first()
+        if row is None:
+            row = MarketValueCacheRow(
+                league_id=league_id, player_id=player_id, valid_until=valid_until
+            )
+            self._session.add(row)
+        row.points = serialised
+        row.fetched_at = datetime.now(UTC)
+        row.valid_until = valid_until
+        self._session.commit()
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite gibt naive Datetimes zurück — sie sind per Konvention UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)

@@ -110,6 +110,18 @@ class SquadPlayer:
     # `buy_price` das Abgeleitete, und eine Rundungsdifferenz soll sichtbar
     # bleiben statt weggerechnet zu werden.
     unrealized_pnl: Decimal | None = None
+    # `tfhmvt` / `sdmvt` — Marktwert-Änderung der letzten 24 Stunden bzw. der
+    # letzten 7 Tage, in Euro. Beide Semantiken sind gegen die echte
+    # Marktwert-Historie geprüft und stimmen auf den Euro: Upamecano trägt
+    # `tfhmvt` 5.697 bei einem Vortageswert von 33.691.880 und `sdmvt` 7.367
+    # bei einem Wert von 33.690.210 sieben Tage davor (Plan §6/P1-7).
+    #
+    # Sie ersetzen für Kaderspieler den 1-d- und 7-d-Trend aus der
+    # Marktwert-Historie — also genau die zwei Fenster, für die der Bot bis
+    # P1-7 einen eigenen HTTP-Call pro Spieler ausgab (Defekt D8). Nur für
+    # Kaderspieler: die Market-Items tragen die Felder nicht.
+    mv_change_1d: Decimal | None = None
+    mv_change_7d: Decimal | None = None
     # Startelf-Slot laut Kickbase (`lo`-Feld im Squad-Response). 0..10 =
     # aufgestellt (11 Slots), None/andere Werte = Bank/Reserve/unbekannt.
     lineup_order: int | None = None

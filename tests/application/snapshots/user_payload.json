@@ -78,24 +78,22 @@
       "listed_at_iso": "2026-09-23T12:59:36+00:00",
       "listed_by": "kickbase",
       "listed_price": 3410857,
-      "market_trend_1d_pct": null,
-      "market_trend_30d_pct": null,
-      "market_trend_3d_pct": null,
-      "market_trend_7d_pct": null,
+      "market_trend_1d_pct": 0.02,
+      "market_trend_30d_pct": -0.83,
+      "market_trend_3d_pct": 0.03,
+      "market_trend_7d_pct": 0.02,
       "market_value": 3410857,
       "missing_data_flags": [
-        "missing_data:market_trend_7d_pct",
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
-      "mv_max_30d": null,
+      "mv_max_30d": 33879307,
       "name": "Jonas Hofmann",
       "offer_count": 0,
       "player_id": "78",
       "position": "MID",
       "seller_id": null,
-      "start_probability_next": 0.85,
-      "start_probability_source": "injury_status_heuristic",
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "7"
     },
     {
@@ -244,10 +242,10 @@
       "listed_at_iso": "2026-09-23T13:31:57+00:00",
       "listed_by": "self",
       "listed_price": 9200000,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": -3.83,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": -13.17,
       "market_value": 8811078,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -348,22 +346,24 @@
       "listed_at_iso": "2026-09-23T05:20:48+00:00",
       "listed_by": "kickbase",
       "listed_price": 15900243,
-      "market_trend_1d_pct": 0.02,
-      "market_trend_30d_pct": -0.83,
-      "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_1d_pct": null,
+      "market_trend_30d_pct": null,
+      "market_trend_3d_pct": null,
+      "market_trend_7d_pct": null,
       "market_value": 15900243,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:market_trend_7d_pct",
+        "missing_data:avg_points_last5_using_season_avg",
+        "missing_data:start_probability_next_heuristic"
       ],
-      "mv_max_30d": 33879307,
+      "mv_max_30d": null,
       "name": "Fisnik Asllani",
       "offer_count": 0,
       "player_id": "3158",
       "position": "STK",
       "seller_id": null,
-      "start_probability_next": 0.8,
-      "start_probability_source": "lineup_prediction",
+      "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "14"
     },
     {
@@ -430,24 +430,22 @@
       "listed_at_iso": "2026-09-23T14:09:06+00:00",
       "listed_by": "kickbase",
       "listed_price": 2889401,
-      "market_trend_1d_pct": null,
-      "market_trend_30d_pct": null,
-      "market_trend_3d_pct": null,
-      "market_trend_7d_pct": null,
+      "market_trend_1d_pct": 0.02,
+      "market_trend_30d_pct": -0.83,
+      "market_trend_3d_pct": 0.03,
+      "market_trend_7d_pct": 0.02,
       "market_value": 2889401,
       "missing_data_flags": [
-        "missing_data:market_trend_7d_pct",
-        "missing_data:avg_points_last5_using_season_avg",
-        "missing_data:start_probability_next_heuristic"
+        "missing_data:avg_points_last5_using_season_avg"
       ],
-      "mv_max_30d": null,
+      "mv_max_30d": 33879307,
       "name": "Victor Boniface",
       "offer_count": 0,
       "player_id": "6745",
       "position": "STK",
       "seller_id": null,
-      "start_probability_next": 0.85,
-      "start_probability_source": "injury_status_heuristic",
+      "start_probability_next": 0.8,
+      "start_probability_source": "lineup_prediction",
       "team_id": "7"
     },
     {
@@ -568,22 +566,24 @@
       "listed_at_iso": "2026-09-22T17:01:07+00:00",
       "listed_by": "kickbase",
       "listed_price": 5813189,
-      "market_trend_1d_pct": 0.02,
-      "market_trend_30d_pct": -0.83,
-      "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_1d_pct": null,
+      "market_trend_30d_pct": null,
+      "market_trend_3d_pct": null,
+      "market_trend_7d_pct": null,
       "market_value": 5813189,
       "missing_data_flags": [
-        "missing_data:avg_points_last5_using_season_avg"
+        "missing_data:market_trend_7d_pct",
+        "missing_data:avg_points_last5_using_season_avg",
+        "missing_data:start_probability_next_heuristic"
       ],
-      "mv_max_30d": 33879307,
+      "mv_max_30d": null,
       "name": "Samuele Inácio",
       "offer_count": 0,
       "player_id": "11100",
       "position": "MID",
       "seller_id": null,
-      "start_probability_next": 0.8,
-      "start_probability_source": "lineup_prediction",
+      "start_probability_next": 0.85,
+      "start_probability_source": "injury_status_heuristic",
       "team_id": "3"
     },
     {
@@ -673,10 +673,10 @@
       "injury_status": "fit",
       "lineup_order": 1,
       "listing": null,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": 1.65,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": 10.42,
       "market_value": 10827018,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -699,10 +699,10 @@
       "injury_status": "fit",
       "lineup_order": 0,
       "listing": null,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": 0.67,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": 2.81,
       "market_value": 13491277,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -725,10 +725,10 @@
       "injury_status": "fit",
       "lineup_order": 4,
       "listing": null,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": 0.18,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": 1.15,
       "market_value": 25816501,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -751,10 +751,10 @@
       "injury_status": "fit",
       "lineup_order": 6,
       "listing": null,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": 1.42,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": 7.2,
       "market_value": 13140589,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -777,10 +777,10 @@
       "injury_status": "fit",
       "lineup_order": 9,
       "listing": null,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": 0.66,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": 7.81,
       "market_value": 15347905,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -809,10 +809,10 @@
         "offer_count": 0,
         "price": 9200000
       },
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": -3.83,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": -13.17,
       "market_value": 8811078,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"
@@ -835,10 +835,10 @@
       "injury_status": "fit",
       "lineup_order": 10,
       "listing": null,
-      "market_trend_1d_pct": 0.02,
+      "market_trend_1d_pct": 0.06,
       "market_trend_30d_pct": -0.83,
       "market_trend_3d_pct": 0.03,
-      "market_trend_7d_pct": 0.02,
+      "market_trend_7d_pct": -0.1,
       "market_value": 27636029,
       "missing_data_flags": [
         "missing_data:avg_points_last5_using_season_avg"

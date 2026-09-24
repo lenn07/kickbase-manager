@@ -26,10 +26,27 @@ Der Master-Prompt erwartet pro Spieler:
 **Kostendeckel (Plan §9, Ban-Risiko).** Beide Zusatzquellen kosten einen
 HTTP-Call pro Spieler. Geladen wird deshalb nur für:
 - alle Squad-Spieler (überschaubar, ~15),
-- die teuersten N Markt-Spieler (Default 10),
+- die N aussichtsreichsten Markt-Spieler (Default 10),
 und `sl` zusätzlich nur dann, wenn `prob` für diesen Spieler fehlt. In der
 Spieltagswoche — wenn `prob` da ist — kostet die Kette also **null** zusätzliche
 Requests. Für alle übrigen Markt-Spieler bleibt der Trend `None`.
+
+**Woher die Trends seit P1-7 kommen (Defekt D8).** Drei Quellen, in dieser
+Reihenfolge:
+
+1. **Squad-Payload.** `tfhmvt` (24 h in €) und `sdmvt` (7 d in €) stehen in
+   der Squad-Response, die der Tick ohnehin holt. Für Kaderspieler decken sie
+   das 1-d- und 7-d-Fenster ohne einen einzigen zusätzlichen Request ab. Die
+   Market-Items tragen die Felder **nicht** — dort bleibt es bei der Historie.
+2. **Cache.** Die Marktwert-Historie wird bis zum nächsten Update-Zeitpunkt
+   (`mvud`) aufbewahrt. Kickbase schreibt Marktwerte einmal täglich fort; bei
+   120-min-Takt holte der Bot elf von zwölf Malen unveränderte Daten.
+3. **HTTP.** Nur noch, was in 1 und 2 nicht beantwortet ist.
+
+Die Shortlist folgt seit P1-7 der **Punkteausbeute (`ap`)**, nicht mehr dem
+Marktwert. Teuer heißt nicht interessant: nach Marktwert sortiert landeten
+zuverlässig dieselben Stars in der Liste, während der 900k-Rohpunktesammler —
+der Fall, den §2.6 als PROFIT-These beschreibt — nie eine Historie bekam.
 """
 
 from __future__ import annotations
@@ -37,17 +54,19 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.domain.exceptions import KickbaseError
-from app.domain.gateways import KickbaseGateway
+from app.domain.gateways import KickbaseGateway, MarketValueCache
 from app.domain.models import (
     MarketPlayer,
     MarketValuePoint,
     Player,
     PlayerStatus,
     Squad,
+    SquadPlayer,
 )
 
 _log = logging.getLogger(__name__)
@@ -157,8 +176,13 @@ class PlayerEnricher:
         max_market_history: int = 10,
         history_days: int = 30,
         max_lineup_predictions: int | None = None,
+        cache: MarketValueCache | None = None,
     ) -> None:
         self._kickbase = kickbase
+        # Ohne Cache verhält sich der Enricher wie vor P1-7: jeder Tick holt
+        # jede Historie neu. Das ist der Zustand in Tests, die den Cache nicht
+        # interessiert — nicht ein stiller Default.
+        self._cache = cache
         self._max_market_history = max_market_history
         # Deckel für Stufe 2 der Startelf-Kette (`sl`, ein Request pro Spieler).
         # Ohne Deckel wären es Kader + *alle* Marktspieler — knapp 30 zusätzliche
@@ -177,13 +201,30 @@ class PlayerEnricher:
         league_id: str,
         squad: Squad,
         market: Sequence[MarketPlayer],
+        *,
+        mv_update_at: datetime | None = None,
+        now: datetime | None = None,
     ) -> dict[str, PlayerEnrichment]:
-        squad_ids = [sp.player.id for sp in squad.players]
-        market_by_value = sorted(market, key=lambda m: m.player.market_value, reverse=True)
-        top_market_ids = [mp.player.id for mp in market_by_value[: self._max_market_history]]
-        history_targets = list(dict.fromkeys(squad_ids + top_market_ids))
+        """Baut die Zusatzsignale je Spieler.
 
-        metrics = await self._fetch_all_metrics(league_id, history_targets)
+        `mv_update_at` ist der nächste Marktwert-Update-Zeitpunkt (`mvud` aus
+        dem Market-Root) und damit die Gültigkeitsgrenze des Historien-Caches.
+        Fehlt er, wird nicht gecacht — eine geratene Haltbarkeit wäre schlimmer
+        als gar keine, weil eine zu lange gehaltene Serie den Bot einen ganzen
+        Marktwert-Zyklus lang blind für die Bewegung machen würde.
+        """
+        now = now or datetime.now(UTC)
+        squad_ids = [sp.player.id for sp in squad.players]
+        shortlist_ids = _shortlist(market, limit=self._max_market_history)
+        history_targets = list(dict.fromkeys(squad_ids + shortlist_ids))
+
+        metrics = await self._fetch_all_metrics(
+            league_id, history_targets, mv_update_at=mv_update_at, now=now
+        )
+        # Die Payload-Trends überschreiben die 1-d-/7-d-Fenster der Historie:
+        # sie stammen aus dem Live-Squad-Call dieses Ticks, die Historie
+        # womöglich aus dem Cache von heute Nachmittag.
+        metrics = _apply_payload_trends(metrics, squad.players)
 
         players: dict[str, Player] = {sp.player.id: sp.player for sp in squad.players}
         for mp in market:
@@ -269,20 +310,76 @@ class PlayerEnricher:
         return detail.is_predicted_starter
 
     async def _fetch_all_metrics(
-        self, league_id: str, player_ids: Iterable[str]
+        self,
+        league_id: str,
+        player_ids: Iterable[str],
+        *,
+        mv_update_at: datetime | None,
+        now: datetime,
     ) -> dict[str, HistoryMetrics]:
         ids = list(player_ids)
         if not ids:
             return {}
-        results = await asyncio.gather(
-            *(self._fetch_history_metrics(league_id, pid) for pid in ids),
+
+        cached = self._read_cache(league_id, ids, now=now)
+        missing = [pid for pid in ids if pid not in cached]
+        fetched = await asyncio.gather(
+            *(self._fetch_history(league_id, pid) for pid in missing),
             return_exceptions=False,
         )
-        return dict(zip(ids, results, strict=True))
+        # Die Zahlen gehören ins Log, weil das DoD von P1-7 sie verlangt:
+        # „Requests/Tick im Log messbar gesunken". Ohne die Zeile ist die
+        # Wirkung des Pakets im Betrieb nicht nachweisbar.
+        _log.info(
+            "Marktwert-Historien: %d aus dem Cache, %d per HTTP geholt (von %d Spielern).",
+            len(cached),
+            len(missing),
+            len(ids),
+        )
 
-    async def _fetch_history_metrics(self, league_id: str, player_id: str) -> HistoryMetrics:
+        histories: dict[str, list[MarketValuePoint]] = dict(cached)
+        for pid, history in zip(missing, fetched, strict=True):
+            if history is None:
+                continue
+            histories[pid] = history
+            self._write_cache(league_id, pid, history, valid_until=mv_update_at, now=now)
+
+        return {pid: _metrics_from_history(histories.get(pid, [])) for pid in ids}
+
+    def _read_cache(
+        self, league_id: str, player_ids: Sequence[str], *, now: datetime
+    ) -> dict[str, list[MarketValuePoint]]:
+        if self._cache is None:
+            return {}
         try:
-            history = await self._kickbase.get_market_value_history(
+            return self._cache.get_many(league_id, player_ids, now=now)
+        except Exception:  # ein kaputter Cache darf den Tick nicht kippen
+            _log.warning("Marktwert-Cache nicht lesbar — hole alles per HTTP.", exc_info=True)
+            return {}
+
+    def _write_cache(
+        self,
+        league_id: str,
+        player_id: str,
+        history: list[MarketValuePoint],
+        *,
+        valid_until: datetime | None,
+        now: datetime,
+    ) -> None:
+        # Ohne bekannten nächsten Update-Zeitpunkt wird nicht geschrieben, und
+        # ein bereits verstrichener taugt auch nicht: er läge sofort in der
+        # Vergangenheit und der Eintrag wäre beim Anlegen schon abgelaufen.
+        if self._cache is None or valid_until is None or valid_until <= now:
+            return
+        try:
+            self._cache.put(league_id, player_id, history, valid_until=valid_until)
+        except Exception:  # siehe `_read_cache`
+            _log.warning("Marktwert-Cache nicht schreibbar (%s).", player_id, exc_info=True)
+
+    async def _fetch_history(self, league_id: str, player_id: str) -> list[MarketValuePoint] | None:
+        """Historie eines Spielers. `None` heißt „nicht ladbar", nicht „leer"."""
+        try:
+            return await self._kickbase.get_market_value_history(
                 league_id, player_id, days=self._history_days
             )
         except KickbaseError as exc:
@@ -291,8 +388,62 @@ class PlayerEnricher:
                 player_id,
                 exc,
             )
-            return _EMPTY_METRICS
-        return _metrics_from_history(history)
+            return None
+
+
+def _shortlist(market: Sequence[MarketPlayer], *, limit: int) -> list[str]:
+    """Die Markt-Spieler, für die sich eine Historie lohnt — nach `ap` sortiert.
+
+    Bis P1-7 war das Kriterium der Marktwert. Das hat zuverlässig dieselben
+    Stars ausgewählt, die man ohnehin nicht kauft, und die billigen
+    Rohpunkte-Sammler übersehen — genau die Gruppe, auf die §2.6 die
+    PROFIT-These stützt.
+
+    Spieler ohne `ap` stehen hinten, nicht vorne: „keine Daten" ist kein Grund,
+    ein knappes Request-Budget auszugeben (Plan §9, Ban-Risiko).
+    """
+    ranked = sorted(
+        market,
+        key=lambda m: (
+            m.player.average_points is None,
+            -(m.player.average_points or 0.0),
+        ),
+    )
+    return [mp.player.id for mp in ranked[:limit]]
+
+
+def _apply_payload_trends(
+    metrics: dict[str, HistoryMetrics], squad_players: Sequence[SquadPlayer]
+) -> dict[str, HistoryMetrics]:
+    """Ersetzt 1-d-/7-d-Trend der Kaderspieler durch die Werte aus dem Payload.
+
+    `tfhmvt`/`sdmvt` sind absolute Euro-Deltas; der Prompt will Prozent. Aus
+    `delta = mv_heute - mv_damals` folgt `mv_damals = mv_heute - delta`, und
+    damit `pct = delta / (mv_heute - delta) * 100`.
+
+    Die Gegenprobe gegen die Historie geht exakt auf (Plan §6/P1-7):
+    Upamecano `tfhmvt` 5.697 bei `mv` 33.697.577 ergibt einen Vortageswert von
+    33.691.880 — genau der Wert, der in der 365-Tage-Serie steht.
+    """
+    updated = dict(metrics)
+    for sp in squad_players:
+        base = updated.get(sp.player.id, _EMPTY_METRICS)
+        one_day = _pct_from_delta(sp.player.market_value, sp.mv_change_1d)
+        seven_day = _pct_from_delta(sp.player.market_value, sp.mv_change_7d)
+        if one_day is None and seven_day is None:
+            continue
+        updated[sp.player.id] = replace(
+            base,
+            trend_1d_pct=one_day if one_day is not None else base.trend_1d_pct,
+            trend_7d_pct=seven_day if seven_day is not None else base.trend_7d_pct,
+        )
+    return updated
+
+
+def _pct_from_delta(current: Decimal, delta: Decimal | None) -> float | None:
+    if delta is None:
+        return None
+    return _pct_delta(current - delta, current)
 
 
 def _pct_delta(base: Decimal, latest: Decimal) -> float | None:
