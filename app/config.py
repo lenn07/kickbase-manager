@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     default_interval_min: int = 120
 
+    # Spielerlimit pro Verein (Kickbase-Admin-Einstellung, real 1 bis 11).
+    # Die API liefert es **nicht**: `/leagues/{l}/settings` existiert nicht und
+    # `/me` kennt nur `mppu` (Kaderlimit) und `tpc[]` (aktuelle Verteilung).
+    # Ablesbar ist es in den Admin-Einstellungen der Liga — deshalb hier
+    # konfigurierbar statt geraten. `None` heißt „unbekannt": das Modell
+    # bekommt ein `null` plus Flag und behauptet dann keinen Verstoß (P1-9).
+    club_limit: int | None = None
+
     # Aufstellungs-Writes (P0-4). Default aus: `POST /lineup` ist die einzige
     # Aktion, die unmittelbar Punkte bewegt — eine falsch geschriebene Elf holt
     # kein späterer Tick zurück. Erst einschalten, wenn der Shadow-Lauf die

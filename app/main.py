@@ -174,6 +174,7 @@ async def _run_tick(engine: Engine, vault: FernetVault, settings: Settings) -> T
                 smtp=smtp,
                 enricher=enricher,
                 lineup_writes_enabled=settings.lineup_writes_enabled,
+                club_limit=settings.club_limit,
             )
             return await uc.run()
         finally:

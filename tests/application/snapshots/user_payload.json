@@ -8,9 +8,27 @@
   },
   "constraints": {
     "blacklist": [],
+    "club_limit": null,
     "interval_min": 120,
     "max_trade_pct": 0.25,
-    "min_cash_reserve": 1000000
+    "min_cash_reserve": 1000000,
+    "missing_data_flags": [
+      "missing_data:constraints.club_limit",
+      "missing_data:constraints.underpay_blocked",
+      "missing_data:constraints.scoring_mode"
+    ],
+    "players_per_club": {
+      "13": 2,
+      "2": 2,
+      "28": 1,
+      "29": 1,
+      "4": 1,
+      "7": 1
+    },
+    "scoring_mode": null,
+    "squad_limit": 16,
+    "squad_slots_left": 8,
+    "underpay_blocked": null
   },
   "incoming_offers": [],
   "lineup": {
