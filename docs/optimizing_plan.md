@@ -62,8 +62,8 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`) — Code fertig, DoD-Shadow läuft
 - [x] **P0-5** Master-Prompt korrigieren — Edits + 5 neue Eval-Szenarien, Eval 17/17 grün
 
-### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **offen**
-- [ ] **P1-6** Kaufpreis & G/V aus Kickbase (`prc`, `mvgl`)
+### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **in Arbeit** (seit 2026-09-24)
+- [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
 - [ ] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`)
 - [ ] **P1-8** Echte Form & Minuten (`/performance`)
 - [ ] **P1-9** Liga-Settings lesen (Kader-/Vereinslimit, Underpay, Modus)
@@ -306,7 +306,7 @@ sähe fit aus. (P0-3)
 | D4 | Marktspieler ohne Leistungsdaten | `app/infrastructure/kickbase/dto.py:229-230` | `avg_points_last5: null` für **jeden** Marktspieler ⇒ Käufe ohne Datengrundlage | P0-3 |
 | D5 | `prob` verworfen, Startelf-Prognose erfunden | `app/application/player_enrichment.py:49-60,137` | Ersatzkeeper und Kapitän bekommen beide `0.85` | P0-3 |
 | D6 | Unbekannte `st`-Werte → `FIT` | `app/infrastructure/kickbase/dto.py` (`_to_status`) | `st=128` erscheint als fit mit 0.85 | P0-3 |
-| D7 | Kaufpreis nur aus eigenem `trade_log` | `app/application/run_tick_uc.py` (`_load_buy_history`) | zugeloste/App-Käufe ohne Kaufpreis ⇒ PROFIT-Exits & Transfer-Erfolge nicht steuerbar | P1-6 |
+| D7 | Kaufpreis nur aus eigenem `trade_log` | `app/application/run_tick_uc.py` (`_load_buy_history`) | zugeloste/App-Käufe ohne Kaufpreis ⇒ PROFIT-Exits & Transfer-Erfolge nicht steuerbar | P1-6 ✅ |
 | D8 | 25 History-Calls/Tick für Daten, die im Payload stehen | `app/application/player_enrichment.py:104` | Ban-Risiko; 12 von 22 Marktspielern trotzdem ohne Trend | P1-7 |
 | D9 | `avg_points_last5` ist in Wahrheit der Saison-Ø | `app/application/player_enrichment.py:221` | Bankdrücker sieht aus wie im Oktober | P1-8 |
 | D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 |
@@ -835,6 +835,26 @@ Fallback für fehlendes `prc`: `/managers/{m}/transfer` (`trp`).
 **Test:** Konsistenz-Check über die Cassette: `mv - prc == mvgl`.
 **DoD:** Jeder Kaderspieler im USER-JSON hat `bought_at_price` ≠ null.
 
+> **[Plan-Ergänzung 2026-09-24] `prc` steht nicht im Squad-Payload — der Einstand wird aus `mvgl`
+> zurückgerechnet.**
+> §3.3 führte `prc` unter den verifizierten Squad-Keys. Die echte Cassette hat es nicht: die Keys
+> sind `ap, iotm, lo, lst, mv, mvgl, mvt, p, pi, pim, pn, pos, sdmvt, st, stl, tfhmvt, tid`.
+> Damit wäre der Plan-Test (`mv - prc == mvgl`) gar nicht ausführbar gewesen und das DoD
+> unerreichbar — der Bot hätte weiter nur die selbst gekauften Spieler mit Einstand gesehen.
+> **Umgesetzt:** `mvgl = mv - prc` wird umgestellt zu `buy_price = mv - mvgl`.
+> **Belegt gegen eine unabhängige Quelle** (`/managers/{m}/transfer`, Feld `trp` = bezahlter
+> Preis): Saibari 28.000.000 und Wolf 11.000.005, beide exakt identisch mit `mv - mvgl`.
+> Nebenbefund derselben Prüfung: `tty` = 1 ist der Zugang, 2 der Abgang (Adam 12317 steht mit
+> `tty=1` am 17.09. und `tty=2` am 22.09. im Log).
+> **Folge für den Fallback:** `/managers/{m}/transfer` wird **nicht** in den Produktivpfad
+> aufgenommen. `mvgl` deckt 8 von 8 Kaderspielern ab, die Transferhistorie nur 2 — sechs Spieler
+> sind zugelost und tauchen dort nie auf. Genau die waren Defekt D7, der Fallback hätte sie also
+> nicht gerettet, wohl aber einen HTTP-Call pro Tick gekostet. Er bleibt **Testquelle** für die
+> Gegenprobe (`tests/infrastructure/kickbase/test_buy_price.py`).
+> **Zweite Korrektur:** `SquadPlayer.buy_price` hatte Default `Decimal(0)`. Ein Einstand von 0
+> weist den gesamten Marktwert als Gewinn aus — dieselbe Falle wie die Default-0 bei `team_value`
+> (D1), nur pro Spieler. Jetzt `None` + `missing_data:bought_at_price`.
+
 #### P1-7 — Trends aus Payload statt 25 HTTP-Calls
 **Behebt:** D8 · `tfhmvt` (24 h €) und `sdmvt` (7 d €) übernehmen, in Prozent umrechnen.
 `get_market_value_history` nur noch für `mv_max_30d` + 30-d-Trend, und nur für **Kader + Shortlist**
@@ -1064,6 +1084,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-4 | **Ergaenzung:** `app/domain/lineup.py`, Startelf-Guard, `SET_LINEUP`, Executor-Vorvalidierung, Kill-Switch `KB_LINEUP_WRITES_ENABLED` | **„Genau 11 IDs" haette den Guard unwirksam gemacht:** der echte Kader hat 8 Spieler, also gibt es keine vollstaendige Formation — ausgerechnet bei 3 leeren Slots (-300 Punkte) waere jede Aktion abgelehnt worden. Jetzt „hoechstens 11, Formation nicht ueberschritten". **Zweiter Befund:** `best_lineup` haette gesperrte Spieler aufgestellt, sobald die Anreicherung ausfaellt (`_enrich_players` liefert dann `{}`) — der Status ist jetzt Untergrenze im Score. Payload zeigt neu `lineup` mit `empty_slots: 3`, `points_at_risk: 300`, `allowed_formations`. Von den 10 Formationen ist nur `3-5-2` gegen die API verifiziert; der Guard behaelt die gemeldete bei, solange keine andere mehr Slots besetzt. |
 | 2026-09-23 | P0-5 | Master-Prompt gegen §4.1 korrigiert, `SET_LINEUP` + zweite Uhr aufgenommen, USER-JSON-Beispiel auf den echten Payload gezogen, `temperature=0` im Produktivpfad, 5 neue Eval-Szenarien | Alle 10 Falschaussagen aus §4.1 sind raus (durch Test abgesichert: `test_corrected_claims_are_gone_from_the_prompt`). `temperature` war nur in der Eval gesetzt — der Produktivpfad lief am API-Default, damit war jede Entscheidung unreproduzierbar und ein Prompt-Merge nicht belegbar; jetzt `AiDecisionConfig.temperature = 0.0`. Der Waechter `test_scenarios_have_eleven_players_in_the_starting_xi` haette das SET_LINEUP-Szenario blockiert (es braucht per definitionem eine unvollstaendige Elf) — geloest ueber `Scenario.expects_full_lineup`, das gleichzeitig erzwingt, dass ein solches Szenario `SET_LINEUP` auch erlaubt. Prompt-Umfang: ~3.900 Tokens Cache-Prefix. **Offen:** der bezahlte Eval-Lauf (8 Szenarien x 4 = 32 Calls). |
 | 2026-09-23 | P0-5 | Eval-Suite gegen den korrigierten Prompt ausgefuehrt | **17/17 gruen, 32 calls, 8:00 min**, alle acht szenarien 3/3 einstimmig. `open_lineup_slots` liefert SET_LINEUP und begruendet es mit `empty_slots: 1` / `points_at_risk: 100` — die P0-4-felder werden gelesen, nicht nur mitgeschickt. `bench_player_is_no_bargain` kauft den 140-punkte-mann mit 5 % startelf-chance nicht. **Befund beim start:** der wrapper `_DeterministicLlm` und die neue produktiv-`temperature` kollidierten — die eval mass bis dahin einen pfad, den es in produktion nicht gab. Wrapper entfernt, waechter-test davor. |
+| 2026-09-24 | P1-6 | **Ergaenzung:** Einstand aus `mvgl` zurueckgerechnet statt aus `prc` gelesen, `unrealized_pnl` neu, Default-0 entfernt | **`prc` steht nicht im Squad-Payload** — §3.3 fuehrte es als verifiziert, die Cassette widerspricht. Der Plan-Test (`mv - prc == mvgl`) waere nicht ausfuehrbar gewesen. Umkehrung `buy_price = mv - mvgl` gegen `/transfer` (`trp`) belegt: Saibari 28.000.000, Wolf 11.000.005, beide exakt. **Der im Plan vorgesehene `/transfer`-Fallback faellt weg:** `mvgl` deckt 8/8 Kaderspieler, die Transferhistorie nur 2 — sechs sind zugelost und stehen dort nie, also genau der Fall von D7. Er bleibt Testquelle. `buy_price` hatte Default `Decimal(0)`; ein Einstand von 0 weist den ganzen Marktwert als Gewinn aus (D1 pro Spieler) — jetzt `None` + Flag. Payload: `bought_at_price` 1/8 -> 8/8, `unrealized_pnl` neu. |
 
 ---
 

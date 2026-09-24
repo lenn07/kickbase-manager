@@ -179,6 +179,9 @@ class SquadPlayerDTO(BaseModel):
     total_points: int | None = Field(default=None, validation_alias="p")
     # `lo` = Lineup-Order (0..10 = Startelf-Slot laut Kickbase-App).
     lineup_order: int | None = Field(default=None, validation_alias="lo")
+    # `mvgl` = unrealisierter Gewinn/Verlust. Der Squad-Response trägt **kein**
+    # `prc` — der Einstand wird daraus zurückgerechnet (siehe `to_squad_player`).
+    unrealized_pnl: Decimal | None = Field(default=None, validation_alias="mvgl")
 
     def to_squad_player(self) -> SquadPlayer:
         player = Player(
@@ -192,7 +195,19 @@ class SquadPlayerDTO(BaseModel):
             average_points=self.average_points,
             total_points=self.total_points,
         )
-        return SquadPlayer(player=player, lineup_order=self.lineup_order)
+        return SquadPlayer(
+            player=player,
+            # `mvgl = mv - prc` ⇒ `prc = mv - mvgl`. Kickbase liefert den
+            # Kaufpreis im Squad-Response nicht direkt; über `mvgl` ist er
+            # exakt rekonstruierbar (gegen `/transfer` verifiziert, siehe
+            # `SquadPlayer`) — und zwar auch für zugeloste Spieler, die es nie
+            # über den Transfermarkt gab. Das war Defekt D7.
+            buy_price=(
+                self.market_value - self.unrealized_pnl if self.unrealized_pnl is not None else None
+            ),
+            unrealized_pnl=self.unrealized_pnl,
+            lineup_order=self.lineup_order,
+        )
 
 
 class SquadResponseDTO(BaseModel):

@@ -83,9 +83,33 @@ class Player:
 
 @dataclass(frozen=True, slots=True)
 class SquadPlayer:
+    """Ein eigener Spieler samt Einstandsdaten.
+
+    `buy_price` ist **abgeleitet, nicht gelesen**: der Squad-Response trägt
+    kein `prc` (der Optimizing-Plan §3.3 führte es als verifiziert, die echte
+    Cassette hat es nicht — siehe die Ergänzung bei P1-6). Was er trägt, ist
+    `mvgl`, der unrealisierte Gewinn/Verlust. Da `mvgl = mv - prc` gilt, ist
+    der Einstand die Umkehrung: `prc = mv - mvgl`.
+
+    Gegenprobe gegen `/managers/{m}/transfer`, das den bezahlten Preis als
+    `trp` führt: Saibari 28.000.000 und Wolf 11.000.005 — beide auf den Cent
+    identisch mit `mv - mvgl`. Und `mvgl` deckt zusätzlich die sechs
+    zugelosten Spieler ab, die in der Transferhistorie gar nicht auftauchen;
+    genau die waren Defekt D7.
+
+    Beide Felder sind `None`, wenn Kickbase `mvgl` nicht mitschickt. Die
+    frühere Default-0 war dieselbe Falle wie bei `Squad.team_value`: sie sah
+    aus wie ein Einstand von null Euro und hätte jeden solchen Spieler als
+    reinen Gewinn ausgewiesen.
+    """
+
     player: Player
-    # Kickbase v4 Squad-Response enthält keinen Kaufpreis mehr — bleibt 0.
-    buy_price: Decimal = Decimal(0)
+    buy_price: Decimal | None = None
+    # `mvgl` — unrealisierter Gewinn/Verlust gegenüber dem Einstand. Positiv =
+    # im Plus. Wird roh durchgereicht statt neu berechnet: er ist die Quelle,
+    # `buy_price` das Abgeleitete, und eine Rundungsdifferenz soll sichtbar
+    # bleiben statt weggerechnet zu werden.
+    unrealized_pnl: Decimal | None = None
     # Startelf-Slot laut Kickbase (`lo`-Feld im Squad-Response). 0..10 =
     # aufgestellt (11 Slots), None/andere Werte = Bank/Reserve/unbekannt.
     lineup_order: int | None = None

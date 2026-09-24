@@ -89,7 +89,9 @@ def test_squad_v4_uses_pi_pn() -> None:
     assert sp.player.last_name == "Upamecano"
     assert sp.player.position == Position.DEFENDER
     assert sp.player.market_value == Decimal("33253201")
-    assert sp.buy_price == Decimal(0)
+    # Kein `mvgl` im Payload ⇒ der Einstand ist unbekannt, nicht null.
+    assert sp.buy_price is None
+    assert sp.unrealized_pnl is None
 
 
 def test_market_v4_maps_prc_exs_and_no_offers() -> None:

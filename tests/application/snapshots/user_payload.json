@@ -641,7 +641,7 @@
     {
       "average_points_season": 178.0,
       "avg_points_last5": 178.0,
-      "bought_at_price": 12000000,
+      "bought_at_price": 33879307,
       "bought_intent": "PROFIT",
       "in_starting_xi": true,
       "injury_status": "fit",
@@ -662,11 +662,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "2",
-      "total_points_season": 712
+      "total_points_season": 712,
+      "unrealized_pnl": -181730
     },
     {
       "average_points_season": 76.0,
       "avg_points_last5": 76.0,
+      "bought_at_price": 12388187,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 1,
@@ -686,11 +688,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "28",
-      "total_points_season": 302
+      "total_points_season": 302,
+      "unrealized_pnl": -1561169
     },
     {
       "average_points_season": 126.0,
       "avg_points_last5": 126.0,
+      "bought_at_price": 14000000,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 0,
@@ -710,11 +714,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "29",
-      "total_points_season": 504
+      "total_points_season": 504,
+      "unrealized_pnl": -508723
     },
     {
       "average_points_season": 119.0,
       "avg_points_last5": 119.0,
+      "bought_at_price": 30000000,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 4,
@@ -734,11 +740,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "4",
-      "total_points_season": 476
+      "total_points_season": 476,
+      "unrealized_pnl": -4183499
     },
     {
       "average_points_season": 123.0,
       "avg_points_last5": 123.0,
+      "bought_at_price": 10000000,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 6,
@@ -758,11 +766,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "7",
-      "total_points_season": 490
+      "total_points_season": 490,
+      "unrealized_pnl": 3140589
     },
     {
       "average_points_season": 137.0,
       "avg_points_last5": 137.0,
+      "bought_at_price": 12769773,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 9,
@@ -782,11 +792,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "13",
-      "total_points_season": 549
+      "total_points_season": 549,
+      "unrealized_pnl": 2578132
     },
     {
       "average_points_season": 111.0,
       "avg_points_last5": 111.0,
+      "bought_at_price": 11000005,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 8,
@@ -812,11 +824,13 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "13",
-      "total_points_season": 444
+      "total_points_season": 444,
+      "unrealized_pnl": -2188927
     },
     {
       "average_points_season": 145.0,
       "avg_points_last5": 145.0,
+      "bought_at_price": 28000000,
       "in_starting_xi": true,
       "injury_status": "fit",
       "lineup_order": 10,
@@ -836,7 +850,8 @@
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "team_id": "2",
-      "total_points_season": 581
+      "total_points_season": 581,
+      "unrealized_pnl": -363971
     }
   ],
   "squad_size": 8,
