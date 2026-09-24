@@ -660,6 +660,61 @@ def _bid_already_running() -> Scenario:
     )
 
 
+def _squad_too_small_to_field_eleven() -> Scenario:
+    """Sieben Spieler, vier leere Startelf-Slots — die reale Lage am 2026-09-24.
+
+    Das ist der einzige Zustand im Spiel, in dem **Nichtstun** garantiert Punkte
+    kostet: jeder unbesetzte Slot ist -100 pro Spieltag, hier also -400. Und er
+    ist mit `SET_LINEUP` **nicht** lösbar — im Kader sind schlicht keine elf
+    Spieler. Nur ein Kauf hilft.
+
+    Das Szenario ist der Gegenpol zu allen anderen: sie prüfen, dass der Bot
+    sich zurückhält, wo Zurückhaltung richtig ist. Hier ist sie falsch, und
+    `HOLD` steht deshalb in `forbidden`. Ohne so ein Szenario wird jede
+    Verschärfung des Prompts „grün", weil HOLD überall erlaubt ist — die Eval
+    misst dann nur noch, dass der Bot nichts tut.
+
+    Geld ist reichlich da, Marktspieler sind verfügbar und ihre Listings laufen
+    **vor** dem Anpfiff ab. Es gibt also keinen Grund zu warten.
+    """
+    squad = [
+        _player("101", "Keeper", Position.GOALKEEPER, 8_000_000),
+        *[_player(f"20{i}", f"Abwehr{i}", Position.DEFENDER, 12_000_000) for i in range(1, 4)],
+        *[
+            _player(f"30{i}", f"Mittelfeld{i}", Position.MIDFIELDER, 15_000_000)
+            for i in range(1, 3)
+        ],
+        _player("401", "Sturm1", Position.FORWARD, 18_000_000),
+    ]
+    market = [
+        _player("950", "Verteidiger frei", Position.DEFENDER, 9_000_000, average_points=110.0),
+        _player("951", "Mittelfeld frei", Position.MIDFIELDER, 7_500_000, average_points=125.0),
+        _player("952", "Stuermer frei", Position.FORWARD, 6_000_000, average_points=95.0),
+    ]
+    return Scenario(
+        name="squad_too_small_to_field_eleven",
+        description="7 Spieler im Kader, 4 leere Startelf-Slots (400 Punkte Risiko), 35 Mio Cash",
+        context=_context(
+            squad_players=squad,
+            market_players=market,
+            cash=35_000_000,
+            team_value=90_000_000,
+            minutes_until_matchday=2 * 24 * 60,
+            placed_in_lineup=len(squad),
+            # Alle Listings laufen lange vor dem Anpfiff ab — ein Gebot kommt
+            # rechtzeitig zum Zuschlag, das Warten hat also keinen Grund.
+            market_expiry_s=12 * 3600,
+        ),
+        allowed=frozenset({TradeAction.BUY}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.SELL, TradeAction.ACCEPT_OFFER}),
+        expects_full_lineup=False,
+        rule=(
+            "Jeder leere Startelf-Slot kostet 100 Punkte pro Spieltag und ist mit einem zu "
+            "kleinen Kader nur durch einen Kauf zu schliessen (§1.1, §4)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -673,4 +728,5 @@ SCENARIOS: tuple[Scenario, ...] = (
     _squad_is_full(),
     _underpay_is_blocked(),
     _bid_already_running(),
+    _squad_too_small_to_field_eleven(),
 )

@@ -27,17 +27,27 @@ def test_scenarios_have_eleven_players_in_the_starting_xi() -> None:
 
     Ausnahme: Szenarien, in denen die Aufstellung *der Gegenstand* ist. Die
     müssen das über `expects_full_lineup=False` erklären — und dann auch
-    `SET_LINEUP` erlauben, sonst haben sie keine gültige Antwort.
+    `SET_LINEUP` erlauben, **sofern es überhaupt hilft**.
+
+    Es hilft nur, wenn mehr Spieler im Kader stehen als aufgestellt sind; sonst
+    gibt es niemanden, den man nachrücken könnte. Bei einem Kader **unter** elf
+    Spielern ist jede Aufstellung bereits maximal besetzt, und `SET_LINEUP`
+    wäre ein verbrauchter Tick, der keinen einzigen Slot schließt — dort ist
+    der Kauf die einzige Antwort. Diese Unterscheidung stand bis 2026-09-24
+    nicht im Wächter, weil es noch kein Szenario mit zu kleinem Kader gab.
     """
     for scenario in SCENARIOS:
         payload = _build_user_payload(scenario.context)
         if not scenario.expects_full_lineup:
-            assert TradeAction.SET_LINEUP in scenario.allowed, (
-                f"{scenario.name}: unvollständige Elf, aber SET_LINEUP nicht erlaubt"
-            )
             assert payload["lineup"]["empty_slots"] > 0, (
                 f"{scenario.name}: als unvollständig deklariert, ist es aber nicht"
             )
+            bench = payload["squad_size"] - payload["starting_xi_count"]
+            if bench > 0:
+                assert TradeAction.SET_LINEUP in scenario.allowed, (
+                    f"{scenario.name}: {bench} Spieler auf der Bank, aber SET_LINEUP "
+                    "nicht erlaubt — dann hat das Szenario keine gültige Antwort"
+                )
             continue
         assert payload["starting_xi_count"] == 11, (
             f"{scenario.name}: {payload['starting_xi_count']} Spieler aufgestellt"
