@@ -55,14 +55,14 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P0-0.6** Eval-Gerüst + `eval`-Marker  ⟵ *[Plan-Ergänzung, siehe §6]*
 - [x] **P0-0.7** Verifikation gegen echte Calls + Korrekturen  ⟵ *[Plan-Ergänzung, siehe §6]*
 
-### Phase 1 — P0: Bot handlungsfähig machen · Status: **Code abgeschlossen** (2026-09-23), Shadow-Lauf offen
+### Phase 1 — P0: Bot handlungsfähig machen · Status: **Code abgeschlossen** (2026-09-23), Shadow-Lauf offen · Eval-DoD ✅ (23/23 am 2026-09-24)
 - [x] **P0-1** Team-Value & Markt-Metadaten (`tv`, `mvud`, `dt`)
 - [x] **P0-2** Gebote parsen (Offers-Array) — `ofc`-Teil umgesetzt, Array-Teil belegt entkoppelt
 - [x] **P0-3** Marktspieler-Leistungsdaten + `prob`
 - [x] **P0-4** Aufstellung setzen (Guard + `SET_LINEUP`) — Code fertig, DoD-Shadow läuft
 - [x] **P0-5** Master-Prompt korrigieren — Edits + 5 neue Eval-Szenarien, Eval 17/17 grün
 
-### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **Code abgeschlossen** (2026-09-24), Messung im Betrieb offen
+### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **abgeschlossen** (2026-09-24) — Eval 23/23, Messung im Betrieb offen
 - [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
 - [x] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`) + Historien-Cache
 - [x] **P1-8** Echte Form & Minuten (`/performance`) + Spieltags-Cache
