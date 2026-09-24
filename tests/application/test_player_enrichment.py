@@ -13,6 +13,7 @@ from app.domain.models import (
     MarketValuePoint,
     Player,
     PlayerDetail,
+    PlayerPerformance,
     PlayerStatus,
     Position,
     Squad,
@@ -64,6 +65,13 @@ class FakeKickbase:
             is_predicted_starter=self.predicted_starters.get(player_id),
             prediction_source="Ligainsider",
         )
+
+    async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+        # Seit P1-8 fragt der Enricher die Spieltagshistorie ab. Dieses Doppel
+        # liefert keine — der Fall „keine Form geladen" ist genauso gültig wie
+        # der mit, und die Form-Tests stehen in `test_form_window.py`.
+        del league_id
+        return PlayerPerformance(player_id=player_id)
 
 
 def _player(

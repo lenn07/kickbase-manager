@@ -65,7 +65,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 ### Phase 2 — P1: Von „funktioniert" auf „gut" · Status: **in Arbeit** (seit 2026-09-24)
 - [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
 - [x] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`) + Historien-Cache
-- [ ] **P1-8** Echte Form & Minuten (`/performance`)
+- [x] **P1-8** Echte Form & Minuten (`/performance`) + Spieltags-Cache
 - [ ] **P1-9** Liga-Settings lesen (Kader-/Vereinslimit, Underpay, Modus)
 - [ ] **P1-10** Scheduler auf Ereignis-Fenster umstellen
 
@@ -285,7 +285,7 @@ sähe fit aus. (P0-3)
 | `GET/POST /v4/leagues/{l}/lineup` | Aufstellung lesen **und setzen**. POST-Body: `{"type":"4-4-2","players":["1235", …]}` . `/lineup/overview` liefert die Formation als `t` (z. B. `"3-5-2"`), die Deadline als `lis`, `lpc` = Zahl aufgestellter Spieler | P0-4 |
 | ~~`GET /v4/leagues/{l}/settings`~~ | **existiert nicht** (HTTP 500 `NotFound`). Ersatz: `/me` liefert `isp`, `gpm`, `lnm`, `mgm`, `mgc`, `mppu`; `/leagues/{l}/squad` liefert `mppu` | P1-9 |
 | `GET /v4/leagues/{l}/me` | `b` (Cash), `tpc[]` = **Spieler je Verein** (`{tid, npt}`), `mppu` = **Kaderlimit** (hier 16), `gpm`/`isp` = Modus-Flags | P1-9 |
-| `GET /v4/leagues/{l}/players/{p}/performance` | `it[].ph[]` mit `day, p` (Punkte), `mp` (**Minuten**), `md`, `t1/t2`, `st` | P1-8 |
+| `GET /v4/leagues/{l}/players/{p}/performance` | `it[].ph[]` mit `day, p` (Punkte), `mp` (**Minuten, als String `"96'"`**), `md`, `t1/t2`, `st` (Einsatzart: 5=Startelf, 3=eingewechselt, 4=ohne Einsatz, 1=nicht im Kader), `mdst` (2=gespielt). ⚠️ **alle Saisons seit 2016/17 + alle kommenden Spieltage**, ~105 KB je Spieler | P1-8 |
 | `GET /v4/leagues/{l}/players/{p}` | `sl` (Startelf-Prognose als **bool**, Quelle `plpt`=„Ligainsider"), `mdsum[]` (**kommende Spiele**), `g`, `a`, `y`, `r`, `sec` | P0-3 / P2-11 |
 | `GET /v4/leagues/{l}/ranking` | `us[]` mit `sp` (Saisonpunkte), `mdp`, `spl` (Platz), `tv`, **`lp[]` = Aufstellungen der Rivalen** | P2-12 |
 | `GET /v4/competitions/1/table` | `tid, tn, cp, cpl, mc, gd, mdp, sp` → Gegnerstärke/FDR | P2-11 |
@@ -308,7 +308,7 @@ sähe fit aus. (P0-3)
 | D6 | Unbekannte `st`-Werte → `FIT` | `app/infrastructure/kickbase/dto.py` (`_to_status`) | `st=128` erscheint als fit mit 0.85 | P0-3 |
 | D7 | Kaufpreis nur aus eigenem `trade_log` | `app/application/run_tick_uc.py` (`_load_buy_history`) | zugeloste/App-Käufe ohne Kaufpreis ⇒ PROFIT-Exits & Transfer-Erfolge nicht steuerbar | P1-6 ✅ |
 | D8 | 25 History-Calls/Tick für Daten, die im Payload stehen | `app/application/player_enrichment.py:104` | Ban-Risiko; 12 von 22 Marktspielern trotzdem ohne Trend | P1-7 ✅ |
-| D9 | `avg_points_last5` ist in Wahrheit der Saison-Ø | `app/application/player_enrichment.py:221` | Bankdrücker sieht aus wie im Oktober | P1-8 |
+| D9 | `avg_points_last5` ist in Wahrheit der Saison-Ø | `app/application/player_enrichment.py:221` | Bankdrücker sieht aus wie im Oktober | P1-8 ✅ |
 | D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 |
 | D11 | Keine Aufstellungs-Aktion | Gateway/Executor | teuerste Regel (−100/Slot) ohne Ausführungspfad | P0-4 |
 | D12 | Fester 120-min-Takt | `app/config.py:31`, `scheduler.py:60` | ~11 von 12 Ticks im Leerlauf; kann 20:35 statt 20:15 feuern | P1-10 |
@@ -905,6 +905,41 @@ Daraus: echtes `avg_points_last5`, `minutes_last5`, `starts_last5` (Rotationsris
 mit **Tages-Cache in SQLite** — Spieltagspunkte ändern sich nur montags.
 **Test:** Unit auf die Fenster-Mathematik bei < 5 Spieltagen Historie (muss `None` liefern, nicht verzerren).
 
+> **[Plan-Ergänzung 2026-09-24] Drei Stellen, an denen die Umsetzung nach Planwortlaut
+> danebengegangen wäre.**
+>
+> **(a) `mp` ist ein String mit Apostroph.** Der Plan nennt `ph[].mp` als „Minuten". Real steht
+> dort `"96'"`, `"0'"`. Ein `int`-Feld im DTO wäre mit einem ValidationError ausgestiegen und
+> hätte die **gesamte** Anreicherung mitgerissen — der Tick wäre ohne jedes Zusatzsignal
+> weitergelaufen, ohne dass die Ursache irgendwo sichtbar wird.
+>
+> **(b) Die Response enthält alle Saisons *und* alle kommenden Spieltage.** `it[]` hat 11
+> Gruppen ab 2016/17 (~105 KB je Spieler), und in der aktuellen Saison stehen alle 34 Spieltage —
+> gespielt sind vier. „Die letzten fünf Einträge" hätte also über die **Zukunft** gemittelt und
+> für jeden Spieler nahe null ergeben. Filter ist `mdst == 2`; über die ganze Cassette trennt er
+> exakt (291 Einträge mit Minuten, alle `mdst == 2`; 30 ohne, alle `mdst == 0`). Gehalten wird
+> nur die letzte `it`-Gruppe.
+>
+> **(c) Der Plan-Test hätte das Paket wirkungslos gemacht.** „< 5 Spieltage ⇒ `None`" heißt am
+> 4. Spieltag einer Saison: **kein einziger Spieler** hat eine Form — also exakt der Zustand von
+> D9, nur mit anderem Etikett. Die Absicht („nicht verzerren") ist richtig, die Umsetzung nicht.
+> Stattdessen wird das kürzere Fenster gerechnet und mit `form_matchdays_counted` ausgewiesen,
+> plus `missing_data:avg_points_last5_partial_window`. Ein Schnitt aus zwei Spieltagen ist damit
+> von einem aus fünf unterscheidbar — was ein `None` gerade nicht leistet. Nur **ohne einen
+> einzigen** gespielten Spieltag bleibt es bei `None` bzw. beim Saison-Ø.
+>
+> **`starts_last5` kommt aus `st` im Spieltags-Eintrag** — nicht zu verwechseln mit dem
+> Spielerstatus aus `PlayerStatus`. Die Bedeutung ist undokumentiert, über die Minutenverteilung
+> derselben Cassette aber eindeutig: `st=5` Startelf (n=217, Median 90 min), `st=3` eingewechselt
+> (n=32, Median 22), `st=4` ohne Einsatz (n=38, Median 0), `st=1` nicht im Kader (n=4, alle 0).
+> Unbekannte Werte zählen **nicht** als Startelf: `starts_last5` misst Rotationsrisiko, ein zu
+> niedriger Wert warnt, ein zu hoher beruhigt fälschlich.
+>
+> **Cache-Haltbarkeit ist `next_matchday_start`, nicht „Tages-Cache".** Spieltagspunkte stehen
+> fest, sobald der Spieltag durch ist. Läuft gerade einer, liegt der nächste Anpfiff in der
+> Vergangenheit — dann wird nicht geschrieben und jeder Tick sieht die Live-Punkte. Ein
+> Kalendertag-TTL hätte den Bot genau während des Spieltags eingefroren.
+
 #### P1-9 — Liga-Settings lesen
 **Behebt:** D10 · `/leagues/{l}/settings` + `/me → tpc[]` ⇒ `constraints.squad_limit`,
 `constraints.club_limit`, `constraints.underpay_blocked`, `constraints.scoring_mode`,
@@ -1120,6 +1155,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-23 | P0-5 | Eval-Suite gegen den korrigierten Prompt ausgefuehrt | **17/17 gruen, 32 calls, 8:00 min**, alle acht szenarien 3/3 einstimmig. `open_lineup_slots` liefert SET_LINEUP und begruendet es mit `empty_slots: 1` / `points_at_risk: 100` — die P0-4-felder werden gelesen, nicht nur mitgeschickt. `bench_player_is_no_bargain` kauft den 140-punkte-mann mit 5 % startelf-chance nicht. **Befund beim start:** der wrapper `_DeterministicLlm` und die neue produktiv-`temperature` kollidierten — die eval mass bis dahin einen pfad, den es in produktion nicht gab. Wrapper entfernt, waechter-test davor. |
 | 2026-09-24 | P1-6 | **Ergaenzung:** Einstand aus `mvgl` zurueckgerechnet statt aus `prc` gelesen, `unrealized_pnl` neu, Default-0 entfernt | **`prc` steht nicht im Squad-Payload** — §3.3 fuehrte es als verifiziert, die Cassette widerspricht. Der Plan-Test (`mv - prc == mvgl`) waere nicht ausfuehrbar gewesen. Umkehrung `buy_price = mv - mvgl` gegen `/transfer` (`trp`) belegt: Saibari 28.000.000, Wolf 11.000.005, beide exakt. **Der im Plan vorgesehene `/transfer`-Fallback faellt weg:** `mvgl` deckt 8/8 Kaderspieler, die Transferhistorie nur 2 — sechs sind zugelost und stehen dort nie, also genau der Fall von D7. Er bleibt Testquelle. `buy_price` hatte Default `Decimal(0)`; ein Einstand von 0 weist den ganzen Marktwert als Gewinn aus (D1 pro Spieler) — jetzt `None` + Flag. Payload: `bought_at_price` 1/8 -> 8/8, `unrealized_pnl` neu. |
 | 2026-09-24 | P1-7 | **Ergaenzung:** `tfhmvt`/`sdmvt` fuer Kaderspieler, Historien-Cache bis `mvud`, Shortlist nach `ap` statt nach Marktwert | **Beide DoD-Haelften waren so nicht erreichbar.** (a) Die Market-Items tragen `tfhmvt`/`sdmvt` **nicht** — nur `mvt`, die Richtung ohne Hoehe. „Alle Marktspieler haben 24-h/7-d-Trends" ist ueber den Payload unmoeglich; erreichbar ist es fuer alle Kaderspieler. (b) Der Plan laesst die Historie fuer „Kader + Shortlist" stehen, also genau die Menge von heute — netto null eingesparte Requests. Der Hebel ist der **Cache**: der Marktwert aendert sich 1x taeglich, `mvud` nennt den Zeitpunkt, bei 120-min-Takt holte der Bot 11 von 12 Malen unveraenderte Daten. Ohne bekanntes `mvud` wird nicht gecacht. **Feldsemantik exakt bestaetigt** (nicht nur ±0,1 pp): `tfhmvt` = `mv - mv[-2]`, `sdmvt` = `mv - mv[-8]`, beide auf den Euro deckungsgleich mit der 365-Tage-Serie. **Payload schlaegt Historie** fuer 1 d/7 d — die Serie kann aus dem Cache kommen, `tfhmvt` ist immer frisch. Payload-Effekt: die Kader-Trends streuen erstmals (vorher 8x 0,02 % aus derselben Fake-Serie); Marius Wolf steht mit -13,2 % auf 7 Tagen da, wo vorher +0,02 % stand. |
+| 2026-09-24 | P1-8 | **Ergaenzung:** `/performance` angebunden, Fenster ueber gespielte Spieltage, `minutes_last5`/`starts_last5`/`form_matchdays_counted` neu, Spieltags-Cache bis `next_matchday_start` | **Drei Stellen haetten nach Planwortlaut nicht funktioniert.** (a) `mp` kommt als String mit Apostroph (`"96'"`) — ein int-Feld waere mit ValidationError ausgestiegen und haette die ganze Anreicherung mitgerissen. (b) Die Response traegt 11 Saisons *und* alle kommenden Spieltage; „die letzten fuenf Eintraege" haette ueber die Zukunft gemittelt. Filter `mdst == 2` trennt exakt (291 mit Minuten / 30 ohne). (c) Der Plan-Test „< 5 Spieltage ⇒ `None`" haette am 4. Spieltag **jeden** Spieler ohne Form gelassen — D9 mit neuem Etikett. Jetzt wird das kuerzere Fenster gerechnet und als `form_matchdays_counted` + Partial-Flag ausgewiesen. `starts_last5` aus `st` (5=Startelf, Median 90 min gegen 22 bei `st=3`), Unbekanntes zaehlt nicht als Start. Cache-Grenze ist `next_matchday_start`: waehrend eines laufenden Spieltags wird nicht geschrieben, sonst saehe der Bot die Live-Punkte nicht. Payload: `avg_points_last5` ist echte Form, `minutes_last5`/`starts_last5` neu bei 8/8 Kader + 10/21 Markt. |
 
 ---
 

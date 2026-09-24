@@ -13,9 +13,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from app.domain.models import MarketValuePoint
+from app.domain.models import MarketValuePoint, MatchdayPerformance, PlayerPerformance
 from app.infrastructure.persistence.models import MarketValueCacheRow
-from app.infrastructure.persistence.repositories import MarketValueCacheRepository
+from app.infrastructure.persistence.repositories import (
+    MarketValueCacheRepository,
+    PlayerPerformanceCacheRepository,
+)
 from sqlmodel import Session, SQLModel, create_engine, select
 
 LEAGUE = "L1"
@@ -91,3 +94,38 @@ def test_unknown_players_are_simply_absent(session: Session) -> None:
     repo = MarketValueCacheRepository(session)
     assert repo.get_many(LEAGUE, ["1991", "4711"], now=NOW) == {}
     assert repo.get_many(LEAGUE, [], now=NOW) == {}
+
+
+# -- Spieltags-Cache (P1-8) ----------------------------------------------
+
+
+def test_performance_roundtrip(session: Session) -> None:
+    """Auch hier muss rein/raus dieselbe Historie ergeben.
+
+    Die JSON-Spalte speichert vier Werte je Spieltag; vertauscht jemand
+    Minuten und Punkte, sähe der Payload weiter plausibel aus.
+    """
+    perf = PlayerPerformance(
+        player_id="1991",
+        season="2026/2027",
+        matchdays=(
+            MatchdayPerformance(day=3, points=126, minutes=98, was_in_starting_xi=True),
+            MatchdayPerformance(day=4, points=97, minutes=48, was_in_starting_xi=False),
+        ),
+    )
+    repo = PlayerPerformanceCacheRepository(session)
+    repo.put(LEAGUE, "1991", perf, valid_until=VALID_UNTIL)
+
+    loaded = repo.get_many(LEAGUE, ["1991"], now=NOW)["1991"]
+    assert loaded == perf
+
+
+def test_performance_expires_with_the_next_kickoff(session: Session) -> None:
+    repo = PlayerPerformanceCacheRepository(session)
+    repo.put(
+        LEAGUE,
+        "1991",
+        PlayerPerformance(player_id="1991", season="2026/2027"),
+        valid_until=VALID_UNTIL,
+    )
+    assert repo.get_many(LEAGUE, ["1991"], now=VALID_UNTIL + timedelta(minutes=1)) == {}

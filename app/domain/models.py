@@ -251,6 +251,41 @@ class PlayerDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class MatchdayPerformance:
+    """Was ein Spieler an **einem** Spieltag getan hat.
+
+    Aus `GET /v4/leagues/{l}/players/{p}/performance`, Eintrag in `it[].ph[]`.
+    Nur abgeschlossene Spieltage landen hier: in der Response stehen auch alle
+    kommenden, und die tragen weder Punkte noch Minuten. `mdst == 2` trennt
+    beides sauber — in der Cassette gilt das über 11 Saisons ausnahmslos
+    (291 Einträge mit Minuten, alle `mdst == 2`; 30 ohne, alle `mdst == 0`).
+    """
+
+    day: int
+    points: int
+    minutes: int
+    was_in_starting_xi: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerPerformance:
+    """Die Spieltagshistorie **der laufenden Saison**.
+
+    Die Response liefert alle Saisons seit 2016/17 — rund 105 KB pro Spieler.
+    Gehalten wird nur die aktuelle: die Form der Saison 2019/20 beantwortet
+    keine Frage, die dieser Bot stellt.
+
+    `matchdays` ist aufsteigend nach Spieltag sortiert und enthält nur
+    gespielte. Ist sie leer, hat der Spieler diese Saison noch keine Minute
+    gemacht — das ist eine Aussage, kein fehlender Wert.
+    """
+
+    player_id: str
+    season: str = ""
+    matchdays: tuple[MatchdayPerformance, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class Matchday:
     number: int
     starts_at: datetime

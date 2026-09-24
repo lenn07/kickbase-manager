@@ -487,6 +487,15 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         "market_trend_30d_pct": enrichment.market_trend_30d_pct if enrichment else None,
         "mv_max_30d": enrichment.mv_max_30d if enrichment else None,
         "avg_points_last5": enrichment.avg_points_last5 if enrichment else None,
+        # Minuten und Startelf-Einsätze im selben Fenster. §2.4 des Plans:
+        # „Minuten sind die Basis von allem" — 140 Punkte aus vier
+        # Zwanzig-Minuten-Einsätzen sind eine andere Aussage als 140 aus vier
+        # kompletten Spielen, und ohne diese Zahlen sehen beide gleich aus.
+        "minutes_last5": enrichment.minutes_last5 if enrichment else None,
+        "starts_last5": enrichment.starts_last5 if enrichment else None,
+        # Auf wie vielen gespielten Spieltagen die drei Werte beruhen; 0 heißt
+        # „Saison-Durchschnitt statt echter Form".
+        "form_matchdays_counted": enrichment.form_matchdays_counted if enrichment else 0,
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
         "start_probability_source": enrichment.start_probability_source if enrichment else None,
         "listing": _own_listing(listing) if listing else None,
@@ -556,6 +565,15 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
         "market_trend_30d_pct": enrichment.market_trend_30d_pct if enrichment else None,
         "mv_max_30d": enrichment.mv_max_30d if enrichment else None,
         "avg_points_last5": enrichment.avg_points_last5 if enrichment else None,
+        # Minuten und Startelf-Einsätze im selben Fenster. §2.4 des Plans:
+        # „Minuten sind die Basis von allem" — 140 Punkte aus vier
+        # Zwanzig-Minuten-Einsätzen sind eine andere Aussage als 140 aus vier
+        # kompletten Spielen, und ohne diese Zahlen sehen beide gleich aus.
+        "minutes_last5": enrichment.minutes_last5 if enrichment else None,
+        "starts_last5": enrichment.starts_last5 if enrichment else None,
+        # Auf wie vielen gespielten Spieltagen die drei Werte beruhen; 0 heißt
+        # „Saison-Durchschnitt statt echter Form".
+        "form_matchdays_counted": enrichment.form_matchdays_counted if enrichment else 0,
         "start_probability_next": enrichment.start_probability_next if enrichment else None,
         "start_probability_source": enrichment.start_probability_source if enrichment else None,
         "is_new_on_market": mp.is_new,

@@ -29,6 +29,7 @@ from app.domain.models import (
     MarketValuePoint,
     Matchday,
     PlayerDetail,
+    PlayerPerformance,
     Session,
     Squad,
 )
@@ -43,6 +44,7 @@ from app.infrastructure.kickbase.dto import (
     MarketValueResponseDTO,
     MatchdaysResponseDTO,
     PlayerDetailDTO,
+    PlayerPerformanceResponseDTO,
     SquadResponseDTO,
 )
 from app.infrastructure.kickbase.rate_limit import AsyncRateLimiter
@@ -163,6 +165,11 @@ class HttpxKickbaseClient:
         await self._request("POST", path)
 
     # -- Aufstellung ---------------------------------------------------
+
+    async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+        path = f"/v4/leagues/{league_id}/players/{player_id}/performance"
+        data = await self._request("GET", path)
+        return PlayerPerformanceResponseDTO.model_validate(data).to_domain(player_id)
 
     async def get_lineup(self, league_id: str) -> Lineup:
         # `/lineup/overview` statt `/lineup`: nur dort stehen Formation (`t`)

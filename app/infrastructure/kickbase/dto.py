@@ -30,8 +30,10 @@ from app.domain.models import (
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
+    MatchdayPerformance,
     Player,
     PlayerDetail,
+    PlayerPerformance,
     PlayerStatus,
     Position,
     Session,
@@ -367,6 +369,103 @@ class PlayerDetailDTO(BaseModel):
             player_id=self.id or player_id,
             is_predicted_starter=self.is_predicted_starter,
             prediction_source=self.prediction_source,
+        )
+
+
+# ---------- Performance ----------
+
+# `mdst` im Spieltags-Eintrag: 2 = Spieltag abgeschlossen, 0 = steht noch aus.
+# Über 11 Saisons der Cassette trennt das exakt: 291 Einträge mit `mp`, alle
+# mit `mdst == 2`; 30 ohne `mp`, alle mit `mdst == 0`. Ohne diesen Filter
+# liefe jedes „letzte N Spieltage"-Fenster in die **Zukunft** — die kommenden
+# Spieltage stehen mit in derselben Liste.
+_MATCHDAY_FINISHED = 2
+
+# `st` im Spieltags-Eintrag ist **nicht** der Spielerstatus aus `PlayerStatus`,
+# sondern die Einsatzart. Die Bedeutung ist nicht offiziell dokumentiert, aber
+# über die Minutenverteilung derselben Cassette eindeutig:
+#   st=5 → Startelf       (n=217, Median 90 min)
+#   st=3 → eingewechselt  (n=32,  Median 22 min)
+#   st=4 → ohne Einsatz   (n=38,  Median 0 min)
+#   st=1 → nicht im Kader (n=4,   alle 0 min)
+# Unbekannte Werte zählen bewusst **nicht** als Startelf: `starts_last5` misst
+# Rotationsrisiko, und ein zu niedriger Wert warnt, ein zu hoher beruhigt
+# fälschlich.
+_APPEARANCE_STARTING_XI = 5
+
+
+class MatchdayPerformanceDTO(BaseModel):
+    """Ein Eintrag aus `it[].ph[]`."""
+
+    model_config = _DTO_CONFIG
+
+    day: int = Field(default=0)
+    matchday_status: int = Field(default=0, validation_alias="mdst")
+    points: int | None = Field(default=None, validation_alias="p")
+    # `mp` kommt als String **mit Apostroph**: "96'", "0'". Ein int-Feld würde
+    # hier mit einem ValidationError aussteigen und die ganze Anreicherung
+    # mitreißen.
+    minutes_raw: str | None = Field(default=None, validation_alias="mp")
+    appearance: int = Field(default=0, validation_alias="st")
+
+    @property
+    def is_finished(self) -> bool:
+        return self.matchday_status == _MATCHDAY_FINISHED
+
+    def to_domain(self) -> MatchdayPerformance:
+        return MatchdayPerformance(
+            day=self.day,
+            points=self.points or 0,
+            minutes=_parse_minutes(self.minutes_raw),
+            was_in_starting_xi=self.appearance == _APPEARANCE_STARTING_XI,
+        )
+
+
+def _parse_minutes(raw: str | None) -> int:
+    if raw is None:
+        return 0
+    cleaned = raw.strip().rstrip("'").strip()
+    try:
+        return int(cleaned)
+    except ValueError:
+        _log.warning("Unerwartetes Minuten-Format %r — als 0 gewertet.", raw)
+        return 0
+
+
+class SeasonPerformanceDTO(BaseModel):
+    """Eine Saison-Gruppe aus `it[]`."""
+
+    model_config = _DTO_CONFIG
+
+    season_id: str = Field(default="", validation_alias="sid")
+    title: str = Field(default="", validation_alias="ti")
+    ph: list[MatchdayPerformanceDTO] = Field(default_factory=list)
+
+
+class PlayerPerformanceResponseDTO(BaseModel):
+    """`GET /v4/leagues/{l}/players/{p}/performance` — alle Saisons seit 2016/17.
+
+    Behalten wird nur die letzte Gruppe: Kickbase liefert sie chronologisch,
+    die aktuelle Saison steht am Ende. Das ist die einzige, deren Form eine
+    Kaufentscheidung trägt.
+    """
+
+    model_config = _DTO_CONFIG
+
+    it: list[SeasonPerformanceDTO] = Field(default_factory=list)
+
+    def to_domain(self, player_id: str) -> PlayerPerformance:
+        if not self.it:
+            return PlayerPerformance(player_id=player_id, season="")
+        current = self.it[-1]
+        return PlayerPerformance(
+            player_id=player_id,
+            season=current.title,
+            matchdays=tuple(
+                entry.to_domain()
+                for entry in sorted(current.ph, key=lambda e: e.day)
+                if entry.is_finished
+            ),
         )
 
 

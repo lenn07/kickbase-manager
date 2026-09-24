@@ -13,11 +13,12 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
-from app.domain.models import MarketValuePoint
+from app.domain.models import MarketValuePoint, MatchdayPerformance, PlayerPerformance
 from app.infrastructure.persistence.models import (
     CredentialRow,
     LeagueRow,
     MarketValueCacheRow,
+    PlayerPerformanceCacheRow,
     SettingsRow,
     SmtpConfigRow,
     TradeLogRow,
@@ -367,3 +368,74 @@ class MarketValueCacheRepository:
 def _as_utc(value: datetime) -> datetime:
     """SQLite gibt naive Datetimes zurück — sie sind per Konvention UTC."""
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+class PlayerPerformanceCacheRepository:
+    """Cache für Spieltags-Historien — implementiert `PlayerPerformanceCache`.
+
+    Aufbau wie `MarketValueCacheRepository`; getrennt gehalten, weil die
+    Haltbarkeit eine andere Frage beantwortet (Spieltag statt Marktwert-Update)
+    und die Serialisierung eine andere Form hat. Eine gemeinsame generische
+    Tabelle würde beides hinter `Any` verstecken.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get_many(
+        self, league_id: str, player_ids: Sequence[str], *, now: datetime
+    ) -> dict[str, PlayerPerformance]:
+        ids = list(player_ids)
+        if not ids:
+            return {}
+        stmt = (
+            select(PlayerPerformanceCacheRow)
+            .where(PlayerPerformanceCacheRow.league_id == league_id)
+            .where(PlayerPerformanceCacheRow.player_id.in_(ids))  # type: ignore[attr-defined]
+        )
+        out: dict[str, PlayerPerformance] = {}
+        for row in self._session.exec(stmt):
+            if _as_utc(row.valid_until) <= now:
+                continue
+            out[row.player_id] = PlayerPerformance(
+                player_id=row.player_id,
+                season=row.season,
+                matchdays=tuple(
+                    MatchdayPerformance(
+                        day=int(day),
+                        points=int(points),
+                        minutes=int(minutes),
+                        was_in_starting_xi=bool(started),
+                    )
+                    for day, points, minutes, started in row.matchdays
+                ),
+            )
+        return out
+
+    def put(
+        self,
+        league_id: str,
+        player_id: str,
+        performance: PlayerPerformance,
+        *,
+        valid_until: datetime,
+    ) -> None:
+        serialised = [
+            [m.day, m.points, m.minutes, m.was_in_starting_xi] for m in performance.matchdays
+        ]
+        stmt = (
+            select(PlayerPerformanceCacheRow)
+            .where(PlayerPerformanceCacheRow.league_id == league_id)
+            .where(PlayerPerformanceCacheRow.player_id == player_id)
+        )
+        row = self._session.exec(stmt).first()
+        if row is None:
+            row = PlayerPerformanceCacheRow(
+                league_id=league_id, player_id=player_id, valid_until=valid_until
+            )
+            self._session.add(row)
+        row.season = performance.season
+        row.matchdays = serialised
+        row.fetched_at = datetime.now(UTC)
+        row.valid_until = valid_until
+        self._session.commit()

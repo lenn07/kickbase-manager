@@ -29,7 +29,13 @@ from app.application.ai_decision_engine import _build_user_payload
 from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord, RecentAction
 from app.application.player_enrichment import PlayerEnricher
 from app.application.run_tick_uc import _max_negative_allowed, _open_bids_total
-from app.domain.models import MarketPlayer, MarketValuePoint, PlayerDetail, Squad
+from app.domain.models import (
+    MarketPlayer,
+    MarketValuePoint,
+    PlayerDetail,
+    PlayerPerformance,
+    Squad,
+)
 from app.domain.trade import TradeAction, TradeIntent
 from app.infrastructure.kickbase.dto import (
     LeagueMeDTO,
@@ -37,6 +43,7 @@ from app.infrastructure.kickbase.dto import (
     MarketResponseDTO,
     MarketValueResponseDTO,
     PlayerDetailDTO,
+    PlayerPerformanceResponseDTO,
     SquadResponseDTO,
 )
 
@@ -108,19 +115,29 @@ def _build_context() -> DecisionContext:
 
 
 class _StaticGateway:
-    """Liefert jedem Spieler dieselbe echte Marktwert-Serie und dasselbe Detail.
+    """Liefert jedem Spieler dieselben echten Serien: Marktwert, Detail, Spieltage.
 
     Der Enricher soll im Snapshot seinen echten Pfad laufen (Trendfenster,
-    `mv_max_30d`, Startelf-Kette, `missing_data`-Flags) — nur die Datenquellen
-    sind fixiert, damit das Ergebnis reproduzierbar bleibt. Dass dadurch alle
-    Spieler dieselbe Startelf-Prognose bekommen, ist ein Artefakt des Fakes und
-    kein Befund; die Streuung prüft `test_prob_scale_spreads_the_start_probability`
-    gegen die Archiv-Stichprobe, in der `prob` wirklich enthalten ist.
+    `mv_max_30d`, Startelf-Kette, Form-Fenster, `missing_data`-Flags) — nur die
+    Datenquellen sind fixiert, damit das Ergebnis reproduzierbar bleibt.
+
+    Dass dadurch alle Spieler dieselbe Startelf-Prognose und dieselbe
+    Spieltags-Form bekommen, ist ein Artefakt des Fakes und kein Befund. Die
+    Streuung prüft `test_prob_scale_spreads_the_start_probability` gegen die
+    Archiv-Stichprobe; die Form-Mathematik steht in `test_form_window.py`.
+    Einzig die Marktwert-Trends der Kaderspieler streuen hier echt — die
+    kommen seit P1-7 aus dem Squad-Payload, nicht aus der Fake-Serie.
     """
 
-    def __init__(self, history: list[MarketValuePoint], detail: PlayerDetail) -> None:
+    def __init__(
+        self,
+        history: list[MarketValuePoint],
+        detail: PlayerDetail,
+        performance: PlayerPerformance,
+    ) -> None:
         self._history = history
         self._detail = detail
+        self._performance = performance
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7
@@ -132,13 +149,30 @@ class _StaticGateway:
         del league_id
         return replace(self._detail, player_id=player_id)
 
+    async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
+        del league_id
+        return replace(self._performance, player_id=player_id)
+
 
 def _enrich(
     squad: Squad, market: tuple[MarketPlayer, ...], history: list[MarketValuePoint]
 ) -> dict[str, Any]:
     detail = PlayerDetailDTO.model_validate(load_cassette_payload("player_detail")).to_domain("x")
-    enricher = PlayerEnricher(_StaticGateway(history, detail))  # type: ignore[arg-type]
-    return asyncio.run(enricher.enrich(FAKE_LEAGUE_ID, squad, market))
+    performance = PlayerPerformanceResponseDTO.model_validate(
+        load_cassette_payload("player_performance")
+    ).to_domain("x")
+    gateway = _StaticGateway(history, detail, performance)
+    enricher = PlayerEnricher(gateway)  # type: ignore[arg-type]
+    return asyncio.run(
+        enricher.enrich(
+            FAKE_LEAGUE_ID,
+            squad,
+            market,
+            mv_update_at=None,
+            next_matchday_start=None,
+            now=NOW,
+        )
+    )
 
 
 def _buy_history(squad: Squad) -> dict[str, BuyRecord]:
@@ -431,6 +465,32 @@ def test_squad_trends_come_from_the_payload_not_the_shared_fake(payload: dict[st
     # Die Fenster ohne Payload-Quelle kommen weiter aus der Historie und
     # dürfen im Snapshot ruhig gleich sein — der Fake liefert ja eine Serie.
     assert len({p["market_trend_30d_pct"] for p in squad}) == 1
+
+
+def test_form_reports_minutes_and_its_own_window(payload: dict[str, Any]) -> None:
+    """P1-8 (Defekt D9): `avg_points_last5` ist echte Form, mit Minuten daneben.
+
+    Drei Zusagen in einem Test, weil sie nur zusammen etwas wert sind:
+    der Wert stammt aus Spieltagsdaten (nicht mehr aus dem Saison-Ø), die
+    Einsatzminuten stehen daneben (§2.4: „Minuten sind die Basis von allem"),
+    und die Fenstergröße ist ausgewiesen — am 4. Spieltag beruht jede Form auf
+    vier Spielen, und das muss das Modell wissen dürfen.
+    """
+    squad = payload["squad"]
+    assert all(p["form_matchdays_counted"] > 0 for p in squad)
+    assert all(p["minutes_last5"] is not None for p in squad)
+    assert all(p["starts_last5"] is not None for p in squad)
+    for entry in squad:
+        # Solange das Fenster kürzer als fünf Spieltage ist, muss genau das
+        # Flag stehen — und nicht mehr das alte „ist in Wahrheit der Saison-Ø".
+        assert "missing_data:avg_points_last5_using_season_avg" not in entry["missing_data_flags"]
+        if entry["form_matchdays_counted"] < 5:
+            assert "missing_data:avg_points_last5_partial_window" in entry["missing_data_flags"]
+
+    # Marktspieler außerhalb der Shortlist bekommen keine Spieltagsdaten —
+    # ein Request pro Spieler wäre das Ban-Risiko aus §9.
+    with_form = [p for p in payload["market"] if p["form_matchdays_counted"] > 0]
+    assert 0 < len(with_form) < len(payload["market"])
 
 
 def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> None:
