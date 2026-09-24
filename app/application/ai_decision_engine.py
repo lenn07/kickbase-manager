@@ -419,14 +419,51 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         "lineup": _lineup_block(context, now),
         "incoming_offers": _incoming_offers(context),
         "recent_actions": [_recent_action(a) for a in context.recent_actions],
-        "constraints": {
-            "min_cash_reserve": int(context.min_cash_reserve),
-            "max_trade_pct": context.max_trade_pct,
-            "blacklist": list(context.blacklist),
-            "interval_min": context.interval_min,
-        },
+        "constraints": _constraints_block(context),
     }
     return payload
+
+
+def _constraints_block(context: DecisionContext) -> dict[str, Any]:
+    """Guardrails des Nutzers **und** die Liga-Limits von Kickbase.
+
+    Vor P1-9 standen hier nur die eigenen Einstellungen; die Kickbase-Limits
+    waren im Code hartkodiert (Kaderlimit 15, real 16) oder gar nicht bekannt.
+
+    Drei der fünf Liga-Felder sind `null`, weil es sie in keiner Response
+    gibt: `GET /leagues/{l}/settings` existiert nicht, und `/me` liefert nur
+    `mppu` und `tpc[]`. Sie kommen trotzdem in den Payload — mit
+    `missing_data`-Flag. Ein Feld, das fehlt, kann das Modell nicht von einem
+    unterscheiden, das es vergessen hat zu lesen; ein `null` mit Begründung
+    schon (Plan §9).
+    """
+    limits = context.constraints
+    missing: list[str] = []
+    if limits.squad_limit is None:
+        missing.append("missing_data:constraints.squad_limit")
+    if limits.club_limit is None:
+        missing.append("missing_data:constraints.club_limit")
+    if limits.underpay_blocked is None:
+        missing.append("missing_data:constraints.underpay_blocked")
+    if limits.scoring_mode is None:
+        missing.append("missing_data:constraints.scoring_mode")
+
+    squad_size = len(context.squad.players)
+    return {
+        # Guardrails aus den Nutzer-Einstellungen.
+        "min_cash_reserve": int(context.min_cash_reserve),
+        "max_trade_pct": context.max_trade_pct,
+        "blacklist": list(context.blacklist),
+        "interval_min": context.interval_min,
+        # Liga-Regeln von Kickbase.
+        "squad_limit": limits.squad_limit,
+        "squad_slots_left": limits.squad_room_left(squad_size),
+        "club_limit": limits.club_limit,
+        "players_per_club": dict(limits.players_per_club),
+        "underpay_blocked": limits.underpay_blocked,
+        "scoring_mode": limits.scoring_mode,
+        "missing_data_flags": missing,
+    }
 
 
 def _lineup_block(context: DecisionContext, now: datetime) -> dict[str, Any]:

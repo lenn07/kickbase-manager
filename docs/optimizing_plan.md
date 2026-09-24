@@ -66,7 +66,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P1-6** Kaufpreis & G/V aus Kickbase (`mvgl` — `prc` gibt es nicht, siehe §6)
 - [x] **P1-7** Trends aus Payload statt 25 HTTP-Calls (`tfhmvt`, `sdmvt`) + Historien-Cache
 - [x] **P1-8** Echte Form & Minuten (`/performance`) + Spieltags-Cache
-- [ ] **P1-9** Liga-Settings lesen (Kader-/Vereinslimit, Underpay, Modus)
+- [x] **P1-9** Liga-Limits lesen — `mppu`/`tpc` echt, drei Felder ohne Quelle (§8/F6)
 - [ ] **P1-10** Scheduler auf Ereignis-Fenster umstellen
 
 ### Phase 3 — P2: Top-Niveau · Status: **offen**
@@ -309,7 +309,7 @@ sähe fit aus. (P0-3)
 | D7 | Kaufpreis nur aus eigenem `trade_log` | `app/application/run_tick_uc.py` (`_load_buy_history`) | zugeloste/App-Käufe ohne Kaufpreis ⇒ PROFIT-Exits & Transfer-Erfolge nicht steuerbar | P1-6 ✅ |
 | D8 | 25 History-Calls/Tick für Daten, die im Payload stehen | `app/application/player_enrichment.py:104` | Ban-Risiko; 12 von 22 Marktspielern trotzdem ohne Trend | P1-7 ✅ |
 | D9 | `avg_points_last5` ist in Wahrheit der Saison-Ø | `app/application/player_enrichment.py:221` | Bankdrücker sieht aus wie im Oktober | P1-8 ✅ |
-| D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 |
+| D10 | Kaderlimit hartkodiert `15` | `app/domain/kb_rules.py:40` | real 11–25, Admin-Einstellung | P1-9 ✅ (aktiver Pfad über `constraints.squad_limit`; `kb_rules.py` bleibt als toter Code unangetastet, §4.2) |
 | D11 | Keine Aufstellungs-Aktion | Gateway/Executor | teuerste Regel (−100/Slot) ohne Ausführungspfad | P0-4 |
 | D12 | Fester 120-min-Takt | `app/config.py:31`, `scheduler.py:60` | ~11 von 12 Ticks im Leerlauf; kann 20:35 statt 20:15 feuern | P1-10 |
 | D13 | `avg_points_last5` verwirft negative Werte | `app/application/player_enrichment.py` (`_avg_points_proxy`) | `ap > 0`-Filter ⇒ Spieler mit −60 Saison-Ø sieht aus wie einer ohne Daten; das aussagekräftigste Signal fällt weg | P0-3 ✅ |
@@ -949,6 +949,42 @@ mit **Tages-Cache in SQLite** — Spieltagspunkte ändern sich nur montags.
 sprengt, wird als Verstoß erkannt.
 **Prompt-Nachzug:** §1.1 auf `constraints.*` umstellen (kleiner Prompt-Edit, eigener Commit).
 
+> **[Plan-Ergänzung 2026-09-24] Der Pakettext nennt einen Endpunkt, den es nicht gibt — und drei
+> Felder, die keine Quelle haben.**
+>
+> §3.4 und der Log-Eintrag zu P0-0.1 halten bereits fest: `GET /v4/leagues/{l}/settings` liefert
+> HTTP 500 `NotFound`. Der Pakettext führt ihn trotzdem als Primärquelle und verlangt einen
+> „Contract auf die Settings-Response". Nach Wortlaut umgesetzt wäre das Paket gegen einen 500er
+> gelaufen.
+>
+> **Was wirklich abrufbar ist:** `mppu` (Kaderlimit, hier **16** — der Code hatte 15) und `tpc[]`
+> (Spieler je Verein) aus `/leagues/{l}/me`. `mppu` steht zusätzlich in `/leagues/{l}/squad`.
+>
+> **Was in keiner Response steht:** `club_limit`, `underpay_blocked`, `scoring_mode`. Geprüft
+> wurden alle 16 Discovery-Dumps. Der einzige Kandidat fürs Vereinslimit wäre `clpc`, das in
+> `/ranking` den Wert 11 trägt — in `/lineup/overview` aber 0, bei acht aufgestellten Spielern.
+> Zwei Endpunkte, zwei Bedeutungen: als Beleg untauglich. `upe` (`/me`, `false`) wäre ein
+> Kandidat für Underpay, `gpm`/`isp` für den Modus — alle drei unverifiziert.
+>
+> **Umgesetzt nach §9 (`None` + Flag, nie Default):** die drei Felder stehen mit `null` und einem
+> `missing_data:constraints.*`-Flag im Payload. Ein geratenes Vereinslimit ist in **beide**
+> Richtungen teuer: zu niedrig blockiert gültige Käufe dauerhaft, zu hoch lässt Kickbase das
+> Gebot ablehnen und der Tick ist verbraucht. `club_limit` ist über `KB_CLUB_LIMIT`
+> konfigurierbar — der Wert steht in den Admin-Einstellungen der Liga und ist ablesbar, nur nicht
+> abrufbar. Neue offene Frage: **F6** in §8.
+>
+> **Der geforderte Unit-Test bekommt eine zweite Hälfte.** „BUY, der das Vereinslimit sprengt,
+> wird als Verstoß erkannt" ist ohne bekanntes Limit nicht prüfbar. Genauso wichtig ist der
+> umgekehrte Fall: **ohne Limit darf kein Verstoß behauptet werden.** Gäbe `club_room_left()`
+> dort 0 zurück, kaufte der Bot nie wieder einen zweiten Spieler desselben Vereins — eine
+> Selbstblockade, die wie eine Regel aussieht und deshalb niemandem auffällt.
+>
+> **`kb_rules.py` wird nicht angefasst.** Der Pakettext sagt „`_MAX_SQUAD_SIZE = 15` wird
+> Konfiguration statt Konstante", §4.2 führt dieselbe Datei als toten Code mit „nicht anfassen,
+> nicht erweitern". Aufgelöst zugunsten von §4.2: D10 wirkt im **aktiven** Pfad über
+> `constraints.squad_limit` im USER-JSON. Die Konstante im Heuristik-Pfad bleibt stehen, bis
+> dieser Pfad entweder entfernt oder reaktiviert wird.
+
 #### P1-10 — Scheduler auf Ereignis-Fenster
 **Behebt:** D12 · `KickbaseScheduler` kann bereits Cron (`set_digest`, `CronTrigger`,
 Zeitzone `Europe/Berlin` ist gesetzt). Analog `set_windows()`:
@@ -1035,6 +1071,7 @@ Phase 0 (Discovery + Snapshot + Eval-Gerüst)
 | F1 | Einen eigenen Spieler listen und warten, bis in der App ein Gebot eingeht (`ofc > 0`) | `python -m scripts.inspect_endpoints` → schreibt `tmp/inspect/offers_found.json` | P0-2 |
 | F2 | In der App die Aufstellungsansicht öffnen, die 5 Startelf-Icons mit `prob` von 3–4 bekannten Spielern vergleichen | Ergebnis in §8/F2 eintragen | endgültige Bestätigung für P0-3 |
 | F5 | Dasselbe Listing nach > 72 h erneut ansehen: noch da? | `python -m scripts.answer_open_questions` | nur Prompt-Formulierung |
+| F6 | In der App *Liga → Admin-Einstellungen* öffnen: Spielerlimit pro Verein, Underpay-Option, Wertungsmodus ablesen | Vereinslimit als `KB_CLUB_LIMIT` setzen, Rest in §8/F6 eintragen | nichts (Paket ist entkoppelt), verbessert nur die Prompt-Qualität |
 
 ---
 
@@ -1096,6 +1133,22 @@ Kaderplatz, bis es angenommen oder per `DELETE /market/{p}` zurückgezogen wird.
 Sofortverkauf = garantierter Plan B, wenn das Konto bis zum Anpfiff ins Plus muss.
 **Blockiert:** nichts
 
+### F6 — Wo stehen Vereinslimit, Underpay-Regel und Wertungsmodus?
+**Status:** 🔴 offen · **[Ergänzung 2026-09-24, aus P1-9]**
+**Belegt ausgeschlossen:** `GET /v4/leagues/{l}/settings` → HTTP 500 `NotFound`. Keiner der 16
+Discovery-Dumps trägt ein Feld, das sich einem der drei Werte zuordnen ließe. `/me` liefert
+`mppu` (Kaderlimit, 16) und `tpc[]` (Spieler je Verein) — mehr nicht.
+**Kandidaten, alle unverifiziert:** `clpc` (Vereinslimit?) steht in `/ranking` auf 11, in
+`/lineup/overview` aber auf 0 bei acht aufgestellten Spielern — zwei Bedeutungen in zwei
+Endpunkten, als Beleg untauglich. `upe` (`/me`, `false`) für Underpay. `gpm: 1` / `isp: false`
+für den Modus.
+**Rest-Verfahren:** in der App unter *Liga → Admin-Einstellungen* ablesen. Vereinslimit dann als
+`KB_CLUB_LIMIT` setzen; Underpay und Modus in §8/F6 eintragen und im Prompt nachziehen.
+**Paket entkoppelt (§8.0/c):** alle drei stehen als `null` + `missing_data:constraints.*` im
+Payload. `club_room_left()` gibt ohne Limit `None` zurück, nicht 0 — der Bot behauptet damit
+keinen Verstoß, den er nicht kennt, und blockiert sich auch nicht selbst.
+**Blockiert:** nichts. Betrifft die Prompt-Formulierung und P2-12 (Risikoprofil bei H2H).
+
 ---
 
 ## 9. Risiken & Kill-Switches
@@ -1156,6 +1209,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-24 | P1-6 | **Ergaenzung:** Einstand aus `mvgl` zurueckgerechnet statt aus `prc` gelesen, `unrealized_pnl` neu, Default-0 entfernt | **`prc` steht nicht im Squad-Payload** — §3.3 fuehrte es als verifiziert, die Cassette widerspricht. Der Plan-Test (`mv - prc == mvgl`) waere nicht ausfuehrbar gewesen. Umkehrung `buy_price = mv - mvgl` gegen `/transfer` (`trp`) belegt: Saibari 28.000.000, Wolf 11.000.005, beide exakt. **Der im Plan vorgesehene `/transfer`-Fallback faellt weg:** `mvgl` deckt 8/8 Kaderspieler, die Transferhistorie nur 2 — sechs sind zugelost und stehen dort nie, also genau der Fall von D7. Er bleibt Testquelle. `buy_price` hatte Default `Decimal(0)`; ein Einstand von 0 weist den ganzen Marktwert als Gewinn aus (D1 pro Spieler) — jetzt `None` + Flag. Payload: `bought_at_price` 1/8 -> 8/8, `unrealized_pnl` neu. |
 | 2026-09-24 | P1-7 | **Ergaenzung:** `tfhmvt`/`sdmvt` fuer Kaderspieler, Historien-Cache bis `mvud`, Shortlist nach `ap` statt nach Marktwert | **Beide DoD-Haelften waren so nicht erreichbar.** (a) Die Market-Items tragen `tfhmvt`/`sdmvt` **nicht** — nur `mvt`, die Richtung ohne Hoehe. „Alle Marktspieler haben 24-h/7-d-Trends" ist ueber den Payload unmoeglich; erreichbar ist es fuer alle Kaderspieler. (b) Der Plan laesst die Historie fuer „Kader + Shortlist" stehen, also genau die Menge von heute — netto null eingesparte Requests. Der Hebel ist der **Cache**: der Marktwert aendert sich 1x taeglich, `mvud` nennt den Zeitpunkt, bei 120-min-Takt holte der Bot 11 von 12 Malen unveraenderte Daten. Ohne bekanntes `mvud` wird nicht gecacht. **Feldsemantik exakt bestaetigt** (nicht nur ±0,1 pp): `tfhmvt` = `mv - mv[-2]`, `sdmvt` = `mv - mv[-8]`, beide auf den Euro deckungsgleich mit der 365-Tage-Serie. **Payload schlaegt Historie** fuer 1 d/7 d — die Serie kann aus dem Cache kommen, `tfhmvt` ist immer frisch. Payload-Effekt: die Kader-Trends streuen erstmals (vorher 8x 0,02 % aus derselben Fake-Serie); Marius Wolf steht mit -13,2 % auf 7 Tagen da, wo vorher +0,02 % stand. |
 | 2026-09-24 | P1-8 | **Ergaenzung:** `/performance` angebunden, Fenster ueber gespielte Spieltage, `minutes_last5`/`starts_last5`/`form_matchdays_counted` neu, Spieltags-Cache bis `next_matchday_start` | **Drei Stellen haetten nach Planwortlaut nicht funktioniert.** (a) `mp` kommt als String mit Apostroph (`"96'"`) — ein int-Feld waere mit ValidationError ausgestiegen und haette die ganze Anreicherung mitgerissen. (b) Die Response traegt 11 Saisons *und* alle kommenden Spieltage; „die letzten fuenf Eintraege" haette ueber die Zukunft gemittelt. Filter `mdst == 2` trennt exakt (291 mit Minuten / 30 ohne). (c) Der Plan-Test „< 5 Spieltage ⇒ `None`" haette am 4. Spieltag **jeden** Spieler ohne Form gelassen — D9 mit neuem Etikett. Jetzt wird das kuerzere Fenster gerechnet und als `form_matchdays_counted` + Partial-Flag ausgewiesen. `starts_last5` aus `st` (5=Startelf, Median 90 min gegen 22 bei `st=3`), Unbekanntes zaehlt nicht als Start. Cache-Grenze ist `next_matchday_start`: waehrend eines laufenden Spieltags wird nicht geschrieben, sonst saehe der Bot die Live-Punkte nicht. Payload: `avg_points_last5` ist echte Form, `minutes_last5`/`starts_last5` neu bei 8/8 Kader + 10/21 Markt. |
+| 2026-09-24 | P1-9 | **Ergaenzung:** `mppu`/`tpc` gelesen, `LeagueConstraints` neu, drei Felder ohne Quelle als `null` + Flag, `KB_CLUB_LIMIT` als Konfigurationsweg | **Der Pakettext nennt einen Endpunkt, den es nicht gibt.** `/leagues/{l}/settings` → HTTP 500 `NotFound` (steht schon in §3.4 und im P0-0.1-Log, P1-9 fuehrte ihn trotzdem als Quelle inkl. „Contract auf die Settings-Response"). Abrufbar: `mppu` = **16** (Code hatte 15) und `tpc[]`. **Nicht abrufbar:** Vereinslimit, Underpay, Modus — alle 16 Discovery-Dumps geprueft. `clpc` als Kandidat verworfen: 11 in `/ranking`, 0 in `/lineup/overview` bei 8 aufgestellten. Neue offene Frage **F6**. Der geforderte Unit-Test bekam eine zweite Haelfte: ohne bekanntes Limit darf **kein** Verstoss behauptet werden — `club_room_left()` gibt `None` statt 0, sonst kauft der Bot nie wieder einen zweiten Spieler desselben Vereins. `kb_rules.py` blieb unangetastet (Widerspruch zu §4.2 zugunsten von §4.2 aufgeloest). |
 
 ---
 

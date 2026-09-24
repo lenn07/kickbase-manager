@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import IntEnum
@@ -301,9 +302,71 @@ class MarketValuePoint:
 
 @dataclass(frozen=True, slots=True)
 class LeagueMe:
-    """Meine Sicht auf eine Liga: Budget, Team-Wert, Metadaten."""
+    """Meine Sicht auf eine Liga: Budget, Limits, Metadaten.
+
+    `squad_limit` ist `mppu` („max players per user") aus `/leagues/{l}/me` —
+    real 16 in dieser Liga, während der Heuristik-Pfad 15 hartkodiert hatte
+    (Defekt D10). Kickbase erlaubt Ligaadmins 11 bis 25, der Wert gehört also
+    gelesen und nicht angenommen.
+
+    `players_per_club` kommt aus `tpc[]` (`{tid, npt}`) und sagt, wie viele
+    eigene Spieler je Verein im Kader stehen. Das **Limit** dazu liefert die
+    API nicht — siehe `LeagueConstraints`.
+    """
 
     league_id: str
     budget: Decimal
     unread_notifications: int = 0
     is_admin: bool = False
+    squad_limit: int | None = None
+    players_per_club: Mapping[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class LeagueConstraints:
+    """Die Liga-Regeln, gegen die jede Aktion geprüft werden muss.
+
+    Getrennt von `LeagueMe`, weil nicht alles aus derselben Quelle stammt und
+    zwei der fünf Felder **gar keine** Quelle haben. Der Optimizing-Plan nennt
+    für P1-9 `GET /v4/leagues/{l}/settings` — diesen Endpunkt gibt es nicht
+    (HTTP 500 `NotFound`, bereits in §3.4 und §10 des Plans festgehalten).
+    Was `/me` liefert, ist `mppu` und `tpc[]`; ein Vereinslimit, ein
+    Underpay-Flag oder den Wertungsmodus liefert es nicht.
+
+    Für die drei fehlenden gilt §9 des Plans: **`None` + `missing_data`-Flag,
+    nie ein Default.** Ein geratenes Vereinslimit ist in beide Richtungen
+    teuer — zu niedrig blockiert gültige Käufe, zu hoch lässt Kickbase das
+    Gebot ablehnen und der Tick ist verbraucht.
+
+    `club_limit` lässt sich als `KB_CLUB_LIMIT` konfigurieren: der Wert steht
+    in den Admin-Einstellungen der Liga und ist ablesbar, nur eben nicht
+    abrufbar.
+    """
+
+    squad_limit: int | None = None
+    club_limit: int | None = None
+    players_per_club: Mapping[str, int] = field(default_factory=dict)
+    underpay_blocked: bool | None = None
+    scoring_mode: str | None = None
+
+    def squad_room_left(self, squad_size: int, open_bids: int = 0) -> int | None:
+        """Wie viele Spieler noch in den Kader passen. `None` = Limit unbekannt.
+
+        Offene Gebote zählen mit: Kickbase rechnet sie gegen das Limit, ein
+        Gebot darüber hinaus wird abgelehnt (Plan §2.2, Regel 4).
+        """
+        if self.squad_limit is None:
+            return None
+        return max(0, self.squad_limit - squad_size - open_bids)
+
+    def club_room_left(self, team_id: str, open_bids_for_club: int = 0) -> int | None:
+        """Wie viele Spieler dieses Vereins noch gehen. `None` = Limit unbekannt.
+
+        Gibt bewusst `None` statt 0 zurück, wenn das Limit fehlt: „ich weiß es
+        nicht" darf sich nicht wie „keiner mehr" anfühlen — sonst kauft der
+        Bot nie wieder einen zweiten Spieler desselben Vereins.
+        """
+        if self.club_limit is None:
+            return None
+        used = self.players_per_club.get(team_id, 0) + open_bids_for_club
+        return max(0, self.club_limit - used)

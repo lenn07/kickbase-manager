@@ -120,12 +120,33 @@ class LeagueSelectionDTO(BaseModel):
     it: list[LeagueDTO] = Field(default_factory=list)
 
 
+class TeamPlayerCountDTO(BaseModel):
+    """Ein Eintrag aus `tpc[]`: wie viele eigene Spieler ein Verein stellt."""
+
+    model_config = _DTO_CONFIG
+
+    team_id: str = Field(default="", validation_alias="tid")
+    count: int = Field(default=0, validation_alias="npt")
+
+
 class LeagueMeDTO(BaseModel):
+    """`GET /v4/leagues/{l}/me` — Budget und die Liga-Limits, die es gibt.
+
+    `GET /v4/leagues/{l}/settings` existiert **nicht** (HTTP 500 `NotFound`,
+    Plan §3.4). Von den Liga-Einstellungen ist hier nur `mppu` (Kaderlimit)
+    und `tpc[]` (Spieler je Verein) abrufbar. Vereinslimit, Underpay-Regel
+    und Wertungsmodus stehen in keiner Response — siehe `LeagueConstraints`.
+    """
+
     model_config = _DTO_CONFIG
 
     budget: Decimal = Field(default=Decimal(0), validation_alias="b")
     unread_notifications: int = Field(default=0, validation_alias=AliasChoices("un", "unm"))
     is_admin: bool = Field(default=False, validation_alias="adm")
+    # `mppu` = max players per user. In dieser Liga 16 — der Heuristik-Pfad
+    # hatte 15 hartkodiert (Defekt D10).
+    squad_limit: int | None = Field(default=None, validation_alias="mppu")
+    tpc: list[TeamPlayerCountDTO] = Field(default_factory=list)
 
     def to_domain(self, league_id: str) -> LeagueMe:
         return LeagueMe(
@@ -133,6 +154,8 @@ class LeagueMeDTO(BaseModel):
             budget=self.budget,
             unread_notifications=self.unread_notifications,
             is_admin=self.is_admin,
+            squad_limit=self.squad_limit,
+            players_per_club={e.team_id: e.count for e in self.tpc if e.team_id},
         )
 
 

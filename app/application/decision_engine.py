@@ -16,7 +16,7 @@ from typing import Protocol
 
 from app.application.player_enrichment import PlayerEnrichment
 from app.domain.lineup import Lineup
-from app.domain.models import LeagueMe, MarketPlayer, Squad
+from app.domain.models import LeagueConstraints, LeagueMe, MarketPlayer, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 
 
@@ -116,6 +116,10 @@ class DecisionContext:
     # Aufstellungs-Deadline (`lis` aus `/lineup/overview`, in der Praxis der
     # Spieltagsstart). Ab hier friert Kickbase die Elf ein.
     lineup_deadline: datetime | None = None
+    # Liga-Limits (P1-9). Default: ein Objekt, in dem alles `None` ist — also
+    # „nichts bekannt", nicht „keine Limits". Der Unterschied entscheidet, ob
+    # das Modell einen Verstoß behauptet oder Unwissen einräumt.
+    constraints: LeagueConstraints = field(default_factory=LeagueConstraints)
 
 
 class DecisionEngine(Protocol):

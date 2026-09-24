@@ -33,7 +33,7 @@ from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
 from app.domain.gateways import KickbaseGateway
 from app.domain.lineup import Lineup
-from app.domain.models import MarketPlayer, MarketSnapshot, Squad
+from app.domain.models import LeagueConstraints, MarketPlayer, MarketSnapshot, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.metrics import get_metrics
@@ -73,7 +73,11 @@ class RunTickUseCase:
         smtp: SmtpGateway,
         enricher: PlayerEnricher | None = None,
         lineup_writes_enabled: bool = False,
+        club_limit: int | None = None,
     ) -> None:
+        # Aus `KB_CLUB_LIMIT`. Ohne Wert bleibt das Limit unbekannt und der
+        # Payload sagt das — es wird nicht geraten (P1-9).
+        self._club_limit = club_limit
         # Kill-Switch aus der Konfiguration (`KB_LINEUP_WRITES_ENABLED`, Default
         # aus). Aufstellungs-Writes bewegen direkt Punkte — sie gehen erst raus,
         # wenn der Shadow-Lauf sie bestätigt hat (Plan §9).
@@ -193,6 +197,15 @@ class RunTickUseCase:
             current_balance_after_open_bids=current_balance_after_open_bids,
             lineup=lineup,
             lineup_deadline=next_matchday_start,
+            constraints=LeagueConstraints(
+                squad_limit=league_me.squad_limit,
+                # Kickbase liefert das Vereinslimit nicht — es steht in den
+                # Admin-Einstellungen der Liga und kommt daher aus der
+                # Konfiguration. `None` bleibt `None` (Plan §9): lieber kein
+                # Limit als ein erfundenes.
+                club_limit=self._club_limit,
+                players_per_club=league_me.players_per_club,
+            ),
         )
 
         decision = await self._engine.decide(context)

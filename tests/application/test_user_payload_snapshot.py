@@ -30,6 +30,7 @@ from app.application.decision_engine import BuyRecord, DecisionContext, ListingR
 from app.application.player_enrichment import PlayerEnricher
 from app.application.run_tick_uc import _max_negative_allowed, _open_bids_total
 from app.domain.models import (
+    LeagueConstraints,
     MarketPlayer,
     MarketValuePoint,
     PlayerDetail,
@@ -111,6 +112,12 @@ def _build_context() -> DecisionContext:
         current_balance_after_open_bids=league_me.budget - open_bids_total,
         lineup=lineup,
         lineup_deadline=snapshot.next_matchday_start,
+        # Echte Liga-Limits aus der `/me`-Cassette. Das Vereinslimit bleibt
+        # unbekannt — die API liefert es nicht (P1-9).
+        constraints=LeagueConstraints(
+            squad_limit=league_me.squad_limit,
+            players_per_club=league_me.players_per_club,
+        ),
     )
 
 
@@ -491,6 +498,32 @@ def test_form_reports_minutes_and_its_own_window(payload: dict[str, Any]) -> Non
     # ein Request pro Spieler wäre das Ban-Risiko aus §9.
     with_form = [p for p in payload["market"] if p["form_matchdays_counted"] > 0]
     assert 0 < len(with_form) < len(payload["market"])
+
+
+def test_constraints_carry_the_league_limits_and_admit_the_gaps(
+    payload: dict[str, Any],
+) -> None:
+    """P1-9 (Defekt D10): echtes Kaderlimit, ehrliches `null` beim Rest.
+
+    Das Kaderlimit ist 16 und kommt aus `mppu`; der Code hatte 15 stehen.
+    Vereinslimit, Underpay-Regel und Wertungsmodus liefert **keine** Response
+    — `GET /leagues/{l}/settings` existiert nicht. Sie stehen trotzdem im
+    Payload, als `null` mit Flag: ein Feld, das gar nicht auftaucht, kann das
+    Modell nicht von einem unterscheiden, das jemand zu lesen vergessen hat.
+    """
+    limits = payload["constraints"]
+    assert limits["squad_limit"] == 16
+    assert limits["players_per_club"], "tpc[] ist leer — Cassette kaputt?"
+    assert limits["squad_slots_left"] == 16 - len(payload["squad"])
+
+    for field_name in ("club_limit", "underpay_blocked", "scoring_mode"):
+        assert limits[field_name] is None
+        assert f"missing_data:constraints.{field_name}" in limits["missing_data_flags"]
+    assert "missing_data:constraints.squad_limit" not in limits["missing_data_flags"]
+
+    # Die Nutzer-Guardrails dürfen dabei nicht verloren gehen.
+    for field_name in ("min_cash_reserve", "max_trade_pct", "blacklist", "interval_min"):
+        assert field_name in limits
 
 
 def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> None:
