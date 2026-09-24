@@ -68,6 +68,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P1-8** Echte Form & Minuten (`/performance`) + Spieltags-Cache
 - [x] **P1-9** Liga-Limits — `mppu`/`tpc` aus der API, drei Felder per ENV (§8/F6 beantwortet)
 - [x] **P1-10** Scheduler auf Ereignis-Fenster umstellen + Tick-Lock
+- [x] **P1-11** Offene eigene Gebote rekonstruieren (D3)  ⟵ *[Plan-Ergänzung: aus einem Betriebsbefund, siehe §6]*
 
 ### Phase 3 — P2: Top-Niveau · Status: **offen**
 - [ ] **P2-11** Spielplan & Gegnerstärke (FDR)
@@ -311,7 +312,7 @@ sähe fit aus. (P0-3)
 |---|---|---|---|---|
 | D1 | `team_value` wird nie gefüllt | `app/domain/models.py:73-74`, `app/application/run_tick_uc.py:139` | LLM liest `team_value: 0`, `max_negative_allowed: 0` ⇒ **33 %-Hebel komplett tot** | P0-1 |
 | D2 | `offers` hart auf `()` | `app/infrastructure/kickbase/dto.py:237` | `incoming_offers` immer leer ⇒ `ACCEPT_OFFER`/`DECLINE_OFFER` unbenutzbar; gelistete Spieler nur per Sofortverkauf loszuwerden | P0-2 |
-| D3 | `open_bids_total` immer 0 | `app/application/run_tick_uc.py:398` (Folge von D2) | 33 %-Check gegen offene Gebote läuft leer ⇒ stille Ablehnungen | P0-2 |
+| D3 | `open_bids_total` immer 0 | `app/application/run_tick_uc.py:398` (Folge von D2) | 33 %-Check gegen offene Gebote läuft leer ⇒ stille Ablehnungen; **im Betrieb am 24.09. bot der Bot 7× auf denselben Spieler** | P0-2 → **P1-11** ✅ |
 | D4 | Marktspieler ohne Leistungsdaten | `app/infrastructure/kickbase/dto.py:229-230` | `avg_points_last5: null` für **jeden** Marktspieler ⇒ Käufe ohne Datengrundlage | P0-3 |
 | D5 | `prob` verworfen, Startelf-Prognose erfunden | `app/application/player_enrichment.py:49-60,137` | Ersatzkeeper und Kapitän bekommen beide `0.85` | P0-3 |
 | D6 | Unbekannte `st`-Werte → `FIT` | `app/infrastructure/kickbase/dto.py` (`_to_status`) | `st=128` erscheint als fit mit 0.85 | P0-3 |
@@ -1042,6 +1043,55 @@ und Intervall-Job sich nicht doppeln (`max_instances=1`, `coalesce=True` sind be
 > „z. B. 180 min" wird **nicht** automatisch gesetzt — `interval_min` ist eine Nutzer-Einstellung,
 > und die ändert das Paket nicht hinter dem Rücken des Nutzers.
 
+#### P1-11 — Offene eigene Gebote rekonstruieren  *(Plan-Ergänzung 2026-09-24, aus dem Betrieb)*
+
+> **Dieses Paket stand nicht im Plan.** Es kommt aus einem Befund im laufenden Betrieb und
+> behebt D3 — den einzigen Defekt aus Phase 1, der als „Folge von D2, wartet auf F1" abgehakt
+> war und deshalb nie ein eigenes Paket bekam.
+
+**Der Befund.** Im Tick vom 2026-09-24 stand ein Marktspieler **siebenmal** als ausgeführter
+`BUY` im `trade_log` und lag weiterhin im Markt; ein zweiter dreimal. Gleichzeitig meldete der
+Payload `open_bids_total: 0`. Das Modell hat den Widerspruch selbst benannt („das deutet auf ein
+systematisches Problem hin") und trotzdem weiter geboten — die Daten sagten ihm, es gebe kein
+offenes Gebot. Folge: der Kader kam nicht über 7 Spieler hinaus, **4 leere Startelf-Slots =
+400 Punkte Risiko pro Spieltag**, und die 33 %-Rechnung lief gegen ein Budget, das in
+Wirklichkeit gebunden war.
+
+**Warum der Plan das nicht abgefangen hat.** §4 führt D3 als Folge von D2, und D2 hängt an F1
+(Feldname des Gebots-Arrays). Daraus wurde geschlossen, D3 sei ohne F1 nicht lösbar. Das stimmt
+für die *fremden* Gebote — für die **eigenen** nicht: die stehen im eigenen `trade_log`.
+
+**Umgesetzt.** `_open_bids()` rekonstruiert sie aus vier Bedingungen: ausgeführter BUY · Spieler
+liegt noch im Markt · steht nicht im Kader · Gebot **nach** Beginn des aktuellen Listings. Die
+vierte ist die subtile: ohne sie zählte ein Gebot auf ein früheres Listing desselben Spielers
+mit und bände Budget, das längst frei ist.
+
+- Payload: `my_open_bid_price` + `my_bid_placed_at_iso` je Marktspieler, `open_bids_count` im
+  Budget-Block. `open_bids_total` ist erstmals echt.
+- **Code-Sperre** (nicht nur Prompt, analog zur `offer_id`-Prüfung aus P0-2): ein BUY zum
+  gleichen oder niedrigeren Preis auf ein laufendes Gebot wird abgewiesen. Erhöhen bleibt
+  erlaubt — bei Konkurrenz ist das der einzige Weg zum Zuschlag.
+- Prompt §3: ein Gebot ist kein Kauf, alle können bieten, beim Ablauf gewinnt der
+  Höchstbietende. Bei `offer_count == 1` ist man selbst der einzige Bieter — Erhöhen hieße dort,
+  gegen sich selbst zu bieten.
+- Eval-Szenario `bid_already_running`.
+
+> **[Prompt-Fehler, den dieses Paket erst erzeugt hat]** Die erste Fassung von §3 schrieb „bis
+> zum Zuschlag ist der Kaderplatz nicht belegt". Das ist sachlich falsch: Kickbase rechnet offene
+> Gebote **gegen** Kaderlimit und Vereinslimit (§2.2, Regel 4/5) und lehnt ein Gebot darüber
+> hinaus schon bei der Abgabe ab. Die Eval hat es gefunden — `squad_is_full` kippte von HOLD auf
+> BUY ×3, mit einer Begründung, die das Kaderlimit nicht einmal erwähnte. Korrigiert an beiden
+> Stellen (§1.1 und §3).
+
+**Beobachtung fürs nächste Paket:** nach der Verschärfung wählt `joker_is_no_starter` HOLD statt
+BUY. Erlaubt, aber das Szenario misst seine Regel damit nicht mehr. Der Prompt ist insgesamt
+zurückhaltender geworden — bei einem Kader mit 4 leeren Slots ist das die falsche Richtung.
+Nicht nachgeschärft, um nicht auf Eval-Szenarien statt auf die Realität zu optimieren; gehört
+gegen den Shadow-Lauf geprüft.
+
+**DoD:** `open_bids_total` > 0, sobald ein Gebot läuft · kein zweiter BUY zum selben Preis auf
+denselben Spieler · Eval grün.
+
 ---
 
 ### PHASE 3 — P2: Top-Niveau
@@ -1246,6 +1296,30 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 3. Nebenbefund aus dem Payload: **Kader hat 8 Spieler, `starting_xi_count: 8`.** Drei leere
    Positionen = −300 Punkte am nächsten Spieltag (P0-4).
 
+### 9.2 Betriebsbefunde 2026-09-24 (nach Phase 2)
+
+Drei Funde aus einem einzigen Blick in einen Tick und ein Container-Log — alle drei waren im
+Code nicht sichtbar, und zwei davon liefen seit Wochen mit:
+
+1. **Der Bot bot 7× auf denselben Spieler** (Details und Behebung: P1-11 / D3). Dass er dabei
+   `dry_run=false` lief, macht es zu echten Geboten mit echtem gebundenem Kapital.
+2. **Die Log-Redaction hat nie funktioniert.** Der Filter hing am Root-**Logger**; Python wendet
+   Logger-Filter aber nur auf Records an, die direkt dort entstehen — beim Propagieren laufen
+   die **Handler** der Vorfahren, ihre Filter nicht. Die ganze App loggt über `app.*`, also lief
+   die Maskierung vollständig ins Leere. Der zugehörige Test war grün, weil er den Filter direkt
+   aufrief statt über einen echten Logger. ✅ *Filter hängt jetzt an den Handlern; neuer Test
+   loggt über einen Kind-Logger und ist gegen die alte Fassung nachweislich rot.*
+3. **Die App loggte gar nicht nach stdout.** Es gab nur den Dashboard-Broadcast, keinen
+   `StreamHandler` — `docker logs` zeigte ausschließlich uvicorn-Zeilen. Auf einem Pi ohne
+   Bildschirm ist das der erste Griff bei jeder Störung, und nach einem Neustart ist der
+   Broadcast-Puffer leer. ✅ *stdout-Handler ergänzt, mit Zeitstempel und Logger-Name.*
+
+   ⚠️ Punkt 2 und 3 zusammen sind der Grund, warum 2 so lange unentdeckt blieb: ohne stdout fiel
+   nie jemandem ein unmaskiertes Token auf, weil niemand hinsah.
+
+4. **`dry_run` steht wieder auf `false`.** §9 sieht `true` bis zum Ende des Shadow-Laufs vor.
+   Offen — die Entscheidung liegt beim Betreiber.
+
 ---
 
 ## 10. Änderungs- & Entscheidungslog
@@ -1275,6 +1349,7 @@ Paketen zu tun haben, aber die Wirksamkeit des ganzen Plans betreffen:
 | 2026-09-24 | P1-9 | **Ergaenzung:** `mppu`/`tpc` gelesen, `LeagueConstraints` neu, drei Felder ohne Quelle als `null` + Flag, `KB_CLUB_LIMIT` als Konfigurationsweg | **Der Pakettext nennt einen Endpunkt, den es nicht gibt.** `/leagues/{l}/settings` → HTTP 500 `NotFound` (steht schon in §3.4 und im P0-0.1-Log, P1-9 fuehrte ihn trotzdem als Quelle inkl. „Contract auf die Settings-Response"). Abrufbar: `mppu` = **16** (Code hatte 15) und `tpc[]`. **Nicht abrufbar:** Vereinslimit, Underpay, Modus — alle 16 Discovery-Dumps geprueft. `clpc` als Kandidat verworfen: 11 in `/ranking`, 0 in `/lineup/overview` bei 8 aufgestellten. Neue offene Frage **F6**. Der geforderte Unit-Test bekam eine zweite Haelfte: ohne bekanntes Limit darf **kein** Verstoss behauptet werden — `club_room_left()` gibt `None` statt 0, sonst kauft der Bot nie wieder einen zweiten Spieler desselben Vereins. `kb_rules.py` blieb unangetastet (Widerspruch zu §4.2 zugunsten von §4.2 aufgeloest). |
 | 2026-09-24 | P1-10 | **Ergaenzung:** Ereignis-Fenster (`set_windows`), Tick-Lock ueber alle Ausloeser, `market_meta`-Tabelle fuer die Uhren | **Zwei Annahmen des Pakets tragen nicht.** (a) Der Pakettext haelt den Doppellauf fuer geloest („`max_instances=1`, `coalesce=True` sind bereits gesetzt") — `max_instances` wirkt aber **pro Job**, und Fenster sind eigene Jobs. Das 21:45-Fenster und der Intervall-Job koennen auf dieselbe Minute fallen und liefen dann parallel: zwei Entscheidungen auf derselben Lage. Jetzt ein `asyncio.Lock` ueber alle Ausloeser; die beiden Tests sind ohne das Lock nachweislich rot. (b) Der Scheduler kennt `next_matchday_start` nicht — der entsteht erst im Tick, und `IntervalTrigger(120)` feuert erstmals nach zwei Stunden. Nach einem Neustart am Freitagabend waere genau das Deadline-Fenster weg. Jetzt haelt `market_meta` beide Uhren; der Tick schreibt, der Scheduler liest beim Start und zieht nach jedem Tick nach. Abgelaufene `DateTrigger` werden vorher gefiltert (APScheduler verwirft sie sonst still), `misfire_grace_time=300` fuer verschlafene Fenster. `interval_min` bleibt Nutzer-Einstellung und wird nicht automatisch auf 180 gesetzt. |
 | 2026-09-24 | P1-Prompt | Master-Prompt auf die Phase-2-Felder gezogen; **§8/F6 beantwortet** (Nutzer hat die Admin-Einstellungen abgelesen) | Die drei Felder ohne API-Quelle sind jetzt echt: **kein Vereinslimit**, **Unterbieten deaktiviert**, **Saisonpunkte** — als `KB_CLUB_LIMIT=unlimited` / `KB_UNDERPAY_BLOCKED=true` / `KB_SCORING_MODE=season_points`. `underpay_blocked: true` ist die inhaltlich groesste Aenderung: in dieser Liga gibt es **gar keine** Gebote unter Marktwert, auch nicht bis -10 %. **Neuer Zustand noetig:** „begrenzt nicht" und „unbekannt" erschienen beide als `club_limit: null` — jetzt trennt `club_limit_is_unlimited` sie, und das missing_data-Flag steht nur noch im zweiten Fall. `upe: false` aus `/me` widerspricht der abgelesenen Antwort und taugt damit weiterhin nicht als Quelle. Drittes neues Eval-Szenario `underpay_is_blocked` prueft die **Gebotshoehe** (weder Aktionsart noch Auswahl sind dort falsch, nur der Preis). Payload: alle `missing_data:constraints.*`-Flags sind weg. |
+| 2026-09-24 | P1-11 | **Ergaenzung aus dem Betrieb:** offene eigene Gebote aus dem `trade_log` rekonstruiert (D3), Code-Sperre gegen sinnloses Nachbieten, stdout-Logging + Redaction-Fix | **Der Bot bot 7x auf denselben Spieler**, weil `open_bids_total` konstant 0 war. D3 galt als „Folge von D2, wartet auf F1" — der Schluss war falsch: F1 braucht es nur fuer **fremde** Gebote, die eigenen stehen im eigenen `trade_log`. Vier Bedingungen, die subtilste ist „Gebot nach Beginn des aktuellen Listings" (sonst bindet ein Gebot auf ein frueheres Listing desselben Spielers Budget, das laengst frei ist). **Die Eval fand einen Prompt-Fehler, den dieses Paket selbst erzeugt hatte:** „bis zum Zuschlag ist der Kaderplatz nicht belegt" ist sachlich falsch — Kickbase rechnet offene Gebote gegen das Kaderlimit. `squad_is_full` kippte darauf von HOLD auf BUY x3, mit einer Begruendung, die das Limit nicht erwaehnte. **Zwei Logging-Befunde nebenbei** (§9.2): die Redaction hing am Logger statt an den Handlern und lief damit seit Phase 7 ins Leere; stdout gab es gar nicht. Beide haben sich gegenseitig verdeckt. Schlusslauf 25/25, 11:04 min. **Offen:** 8 von 12 Szenarien enden auf HOLD — der Prompt ist zurueckhaltender geworden, und bei 4 leeren Startelf-Slots ist das die falsche Richtung. Eigenes Szenario noetig, in dem Nichtstun teuer ist. |
 | 2026-09-24 | P1-Prompt | Eval gegen den Phase-2-Prompt: **2 von 23 rot**, korrigiert, dann **23/23 gruen** (33 + 18 + 33 calls, 10:31 min im Schlusslauf) | **Der Lauf hat einen echten Regelverstoss gefunden, den kein statischer Test zeigt.** `instant_sale_before_deadline` lieferte dreimal einstimmig HOLD mit der Begruendung „Konto -6M aber innerhalb Limit" — das Modell hielt die **33 %-Grenze** fuer massgeblich, wo die **Anpfiff-Regel** gilt (Konto >= 0, sonst 0 Punkte fuer den ganzen Spieltag). Ursache war die eigene §1.1-Erweiterung dieses Pakets: vier neue Absaetze zu Kaderlimits haben die Konto-Regel im selben Abschnitt verdraengt. P0-5 war mit demselben Szenario noch gruen — also eine **Regression durch den Prompt-Nachzug**, nicht durch Sampling. Fix: beide Stellen sagen jetzt ausdruecklich, dass `max_negative_allowed` **zwischen** den Spieltagen gilt und zum Anpfiff null ist; `debt_before_kickoff` lief als Kontrolle mit und blieb unveraendert. **Zweiter Befund war ein Szenario-Fehler, kein Prompt-Fehler:** `injured_starter` stammt aus P0-0.6 und kannte `SET_LINEUP` nicht. Das Modell nimmt den Verletzten (5 % Startelf) aus der Elf statt ihn zu verkaufen — bei 3 Tagen bis Anpfiff die bessere Aktion. Szenario erweitert, Begruendung im Docstring, damit „zu eng gefasst" von „gruengeredet" unterscheidbar bleibt. **Die drei neuen Szenarien belegen, dass die Phase-2-Felder gelesen werden:** `joker_is_no_starter` kauft den Durchspieler und nennt „88 Min/Spiel, 5/5 Starts" (P1-8), `squad_is_full` haelt bei 14/14 trotz 40 Mio Cash (P1-9), `underpay_is_blocked` bietet zum vollen Marktwert (§8/F6). **Auswertungs-Fallstrick:** der erste Lauf lief durch `| tail -80` — der Exit-Code kam von `tail`, ein Lauf mit zwei roten Tests meldete `0`. Warnung steht jetzt im Eval-Docstring. |
 
 ---

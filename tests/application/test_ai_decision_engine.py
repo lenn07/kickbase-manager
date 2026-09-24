@@ -13,6 +13,7 @@ from app.application.decision_engine import (
     BuyRecord,
     DecisionContext,
     ListingRecord,
+    OpenBid,
     RecentAction,
 )
 from app.application.player_enrichment import PlayerEnrichment
@@ -96,6 +97,7 @@ def _context(
     own_listings: dict[str, ListingRecord] | None = None,
     enrichment: dict[str, PlayerEnrichment] | None = None,
     open_bids_total: Decimal = Decimal(0),
+    open_bids: dict[str, OpenBid] | None = None,
     max_negative: Decimal = Decimal(-42_000_000),
 ) -> DecisionContext:
     return DecisionContext(
@@ -109,6 +111,7 @@ def _context(
         min_cash_reserve=0,
         team_value=Decimal(128_000_000),
         open_bids_total=open_bids_total,
+        open_bids=open_bids or {},
         now=datetime(2026, 9, 16, 14, 0, tzinfo=UTC),
         next_matchday_start=datetime(2026, 9, 18, 18, 30, tzinfo=UTC),
         interval_min=120,
@@ -691,3 +694,106 @@ def test_unknown_entry_price_is_flagged_not_zeroed() -> None:
     entry = payload["squad"][0]
     assert entry["bought_at_price"] is None
     assert "missing_data:bought_at_price" in entry["missing_data_flags"]
+
+
+# -- D3: kein sinnloses Nachbieten ---------------------------------------
+
+
+def _market(pid: str, mv: int = 10_000_000) -> MarketPlayer:
+    return MarketPlayer(
+        player=_player(pid, mv=mv), price=Decimal(mv), expires_in_s=3600, seller_id="fremd"
+    )
+
+
+async def _decide(monkeypatch: pytest.MonkeyPatch, tool_input: dict[str, Any], **ctx: Any):  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(
+        "app.application.ai_decision_engine.get_cached_system_prompt", lambda: "SYS"
+    )
+    llm = FakeLlm(response=tool_input)
+    engine = AiDecisionEngine(llm=llm, api_key="k")
+    return await engine.decide(_context(**ctx))
+
+
+def _buy(player_id: str, price: int) -> dict[str, Any]:
+    return {
+        "action": "BUY",
+        "player_id": player_id,
+        "price": price,
+        "intent": "POINTS",
+        "confidence": 0.8,
+        "reason_short": "kurz",
+        "reason_long": "lang",
+        "expected_outcome": {
+            "points_delta_next_matchday": 10,
+            "profit_estimate": 0,
+            "balance_after_action": 0,
+            "balance_after_open_bids": 0,
+        },
+        "risk_flags": [],
+    }
+
+
+async def test_rebidding_the_same_amount_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Der Defekt aus dem Betrieb: siebenmal dasselbe Gebot auf denselben Spieler.
+
+    Kickbase entscheidet erst beim Ablauf des Listings und nimmt das höchste
+    Gebot. Ein gleich hohes Nachgebot ändert daran nichts — es verbraucht nur
+    den Tick, und der Bot hat davon sieben hintereinander verbraucht.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _buy("m1", 9_000_000),
+        market=(_market("m1"),),
+        open_bids={
+            "m1": OpenBid(
+                player_id="m1",
+                price=Decimal(9_000_000),
+                placed_at=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
+            )
+        },
+    )
+    assert decision.action is TradeAction.HOLD
+    assert "läuft bereits ein eigenes Gebot" in decision.reason
+
+
+async def test_raising_an_existing_bid_is_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nachlegen muss möglich bleiben — sonst verliert der Bot jedes Bietduell.
+
+    Bei Konkurrenz ist ein höheres Gebot der einzige Weg zum Zuschlag. Die
+    Sperre darf nur das treffen, was nichts verändert.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _buy("m1", 11_000_000),
+        market=(_market("m1"),),
+        open_bids={
+            "m1": OpenBid(
+                player_id="m1",
+                price=Decimal(9_000_000),
+                placed_at=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
+            )
+        },
+    )
+    assert decision.action is TradeAction.BUY
+    assert decision.price == Decimal(11_000_000)
+
+
+async def test_open_bids_are_visible_in_the_payload() -> None:
+    """Das Modell muss sehen, dass ein Gebot läuft — sonst bietet es blind erneut."""
+    payload = _build_user_payload(
+        _context(
+            market=(_market("m1"), _market("m2")),
+            open_bids={
+                "m1": OpenBid(
+                    player_id="m1",
+                    price=Decimal(9_000_000),
+                    placed_at=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
+                )
+            },
+        )
+    )
+    by_id = {entry["player_id"]: entry for entry in payload["market"]}
+    assert by_id["m1"]["my_open_bid_price"] == 9_000_000
+    assert by_id["m1"]["my_bid_placed_at_iso"]
+    assert by_id["m2"]["my_open_bid_price"] is None
+    assert payload["budget"]["open_bids_count"] == 1

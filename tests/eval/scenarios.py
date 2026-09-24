@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from app.application.decision_engine import DecisionContext
+from app.application.decision_engine import DecisionContext, OpenBid
 from app.application.player_enrichment import PlayerEnrichment
 from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
@@ -128,6 +128,7 @@ def _context(
     market_expiry_s: int = 6 * 3600,
     buy_prices: dict[str, int] | None = None,
     squad_limit: int | None = 16,
+    open_bids: dict[str, int] | None = None,
 ) -> DecisionContext:
     """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
 
@@ -183,13 +184,18 @@ def _context(
         max_trade_pct=0.25,
         min_cash_reserve=0,
         team_value=Decimal(team_value),
-        open_bids_total=Decimal(0),
+        open_bids_total=sum((Decimal(p) for p in (open_bids or {}).values()), Decimal(0)),
+        open_bids={
+            pid: OpenBid(player_id=pid, price=Decimal(price), placed_at=NOW - timedelta(hours=3))
+            for pid, price in (open_bids or {}).items()
+        },
         now=NOW,
         next_matchday_start=NOW + timedelta(minutes=minutes_until_matchday),
         interval_min=120,
         enrichment=enrichment,
         max_negative_allowed=max_negative,
-        current_balance_after_open_bids=Decimal(cash),
+        current_balance_after_open_bids=Decimal(cash)
+        - sum((Decimal(p) for p in (open_bids or {}).values()), Decimal(0)),
         lineup=Lineup(
             formation=DEFAULT_FORMATION,
             player_ids=tuple(p.id for p in squad_players[:placed]),
@@ -612,6 +618,48 @@ def _underpay_is_blocked() -> Scenario:
     )
 
 
+def _bid_already_running() -> Scenario:
+    """Auf diesen Spieler läuft schon ein eigenes Gebot — nicht noch einmal bieten.
+
+    Der Fall aus dem Betrieb am 2026-09-24: der Bot bot siebenmal hintereinander
+    denselben Betrag auf denselben Spieler, weil `open_bids_total` konstant 0
+    war und er sein eigenes Gebot nirgends sah (Defekt D3).
+
+    Die Lage ist bewusst verlockend: Kaderlücken, Geld da, ein guter Spieler am
+    Markt. Genau dann muss `my_open_bid_price` die Wiederholung verhindern.
+    `offer_count` steht auf 1 — das ist unser eigenes Gebot, es bietet also
+    niemand dagegen, und Erhöhen wäre Bieten gegen sich selbst.
+
+    `BUY` bleibt als Aktion erlaubt: es gibt einen **zweiten** Marktspieler
+    ohne laufendes Gebot, und ihn zu kaufen ist völlig richtig. Verboten ist
+    allein die Wiederholung auf den ersten.
+    """
+    squad = _squad_of_twelve()
+    running = _player("940", "Läuft schon", Position.MIDFIELDER, 11_000_000, average_points=150.0)
+    free = _player("941", "Noch frei", Position.DEFENDER, 8_000_000, average_points=130.0)
+    return Scenario(
+        name="bid_already_running",
+        description="Eigenes Gebot über 11 Mio läuft, offer_count=1, Kader hat Platz",
+        context=_context(
+            squad_players=squad,
+            market_players=[running, free],
+            cash=30_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=3 * 24 * 60,
+            market_offer_counts={running.id: 1},
+            open_bids={running.id: 11_000_000},
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        forbidden_player_ids=frozenset({running.id}),
+        rule=(
+            "Ein Gebot ist kein Kauf: es läuft bis zum Listing-Ablauf. Bei "
+            "`my_open_bid_price != null` und `offer_count == 1` bietet man nicht gegen "
+            "sich selbst (§3)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -624,4 +672,5 @@ SCENARIOS: tuple[Scenario, ...] = (
     _joker_is_no_starter(),
     _squad_is_full(),
     _underpay_is_blocked(),
+    _bid_already_running(),
 )

@@ -24,6 +24,7 @@ from app.application.decision_engine import (
     DecisionContext,
     DecisionEngine,
     ListingRecord,
+    OpenBid,
     RecentAction,
 )
 from app.application.lineup_guard import propose_lineup_fix, to_decision
@@ -179,7 +180,10 @@ class RunTickUseCase:
             now=now,
         )
 
-        open_bids_total = _open_bids_total(market=market, manager_id=user.kb_user_id)
+        open_bids = self._collect_open_bids(
+            market=market, manager_id=user.kb_user_id, user_id=user.id, squad_ids=squad_ids
+        )
+        open_bids_total = sum((bid.price for bid in open_bids.values()), Decimal(0))
         max_negative = _max_negative_allowed(team_value=snapshot.team_value, cash=league_me.budget)
         current_balance_after_open_bids = league_me.budget - open_bids_total
 
@@ -207,6 +211,7 @@ class RunTickUseCase:
             blacklist=tuple(settings.blacklist),
             team_value=snapshot.team_value,
             open_bids_total=open_bids_total,
+            open_bids=open_bids,
             now=now,
             next_matchday_start=next_matchday_start,
             mv_update_at=snapshot.mv_update_at,
@@ -288,6 +293,36 @@ class RunTickUseCase:
             squad=squad.players,
             lineup_writes_enabled=self._lineup_writes_enabled,
         )
+
+    def _collect_open_bids(
+        self,
+        *,
+        market: list[MarketPlayer],
+        manager_id: str,
+        user_id: int,
+        squad_ids: set[str],
+    ) -> dict[str, OpenBid]:
+        """Eigene laufende Gebote sammeln und protokollieren.
+
+        Die Log-Zeile ist wichtig: der Bot hat am 2026-09-24 siebenmal auf
+        denselben Spieler geboten, ohne dass es irgendwo sichtbar war.
+        """
+        open_bids = _open_bids(
+            market=market,
+            manager_id=manager_id,
+            trades=self._trades,
+            user_id=user_id,
+            squad_ids=squad_ids,
+        )
+        if open_bids:
+            total = sum((bid.price for bid in open_bids.values()), Decimal(0))
+            _log.info(
+                "Offene eigene Gebote: %d über %s € — Spieler %s",
+                len(open_bids),
+                f"{int(total):,}".replace(",", "."),
+                ", ".join(sorted(open_bids)),
+            )
+        return open_bids
 
     async def _run_lineup_guard(
         self,
@@ -560,22 +595,60 @@ def _load_recent_actions(trades: TradeLogRepository, user_id: int) -> tuple[Rece
     return tuple(out)
 
 
-def _open_bids_total(*, market: list[MarketPlayer], manager_id: str) -> Decimal:
-    """Summe aller offenen Gebote, die WIR auf fremde Spieler abgegeben haben.
+def _open_bids(
+    *,
+    market: list[MarketPlayer],
+    manager_id: str,
+    trades: TradeLogRepository,
+    user_id: int,
+    squad_ids: set[str],
+) -> dict[str, OpenBid]:
+    """Die eigenen Gebote, die gerade noch laufen — je Spieler eines.
 
-    Kickbase liefert unsere abgegebenen Gebote in v4 nicht als eigenständiges
-    Feld — sie erscheinen als `offers`-Einträge auf fremden Listings mit
-    `offer.user_id == manager_id`. Für das 33 %-Regel-Budget müssen wir sie
-    aufsummieren.
+    **Warum das aus dem `trade_log` rekonstruiert wird.** Kickbase liefert die
+    abgegebenen Gebote nicht: das Gebots-Array im Market-Payload ist bis heute
+    unbenannt (Plan §8/F1), `mp.offers` deshalb immer leer. Vorher ergab diese
+    Funktion darum konstant 0 — der Bot sah seine eigenen laufenden Gebote
+    nicht und bot jeden Tick erneut auf dieselben Spieler. Im Betrieb am
+    2026-09-24 stand ein Spieler siebenmal als ausgeführter BUY im Log und lag
+    immer noch im Markt (Defekt D3).
+
+    Ein Gebot gilt als **offen**, wenn alle vier Bedingungen halten:
+
+    1. Es steht als ausgeführter `BUY` im `trade_log` — wir haben es abgegeben.
+    2. Der Spieler liegt **noch** im Markt. Ist das Listing weg, ist das Gebot
+       entschieden, so oder so.
+    3. Er steht **nicht** im eigenen Kader. Sonst haben wir ihn bekommen.
+    4. Das Gebot wurde **nach** dem Beginn des aktuellen Listings abgegeben.
+       Ohne diese Bedingung zählte ein Gebot auf ein früheres Listing desselben
+       Spielers mit — der Spieler war zwischendurch verkauft und neu gelistet,
+       und unser altes Gebot ist längst erloschen.
+
+    Das ist eine Untergrenze, keine Gewissheit: ob wir Höchstbietende sind,
+    sagt uns niemand. Genau deshalb steht `offer_count` daneben.
     """
-    total = Decimal(0)
+    by_player = trades.last_executed_buys(user_id)
+    open_bids: dict[str, OpenBid] = {}
     for mp in market:
-        if mp.seller_id == manager_id:
-            continue  # eigenes Listing → keine Verpflichtung
-        for offer in mp.offers:
-            if offer.user_id == manager_id:
-                total += offer.price
-    return total
+        pid = mp.player.id
+        if mp.seller_id == manager_id or pid in squad_ids:
+            continue
+        row = by_player.get(pid)
+        if row is None or row.price is None:
+            continue
+        if mp.listed_at is not None and _as_utc(row.ts) < _as_utc(mp.listed_at):
+            continue  # Gebot galt einem früheren Listing desselben Spielers
+        open_bids[pid] = OpenBid(
+            player_id=pid,
+            price=Decimal(row.price),
+            placed_at=_as_utc(row.ts),
+        )
+    return open_bids
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite gibt naive Datetimes zurück — sie sind per Konvention UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _max_negative_allowed(*, team_value: Decimal, cash: Decimal) -> Decimal:
