@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from app.application.decision_engine import DecisionContext, RecentAction
+from app.application.decision_engine import DecisionContext, OpenBid, RecentAction
 from app.application.master_prompt_loader import (
     RULES_LAST_VERIFIED,
     MasterPromptError,
@@ -124,6 +124,42 @@ _INPUT_SCHEMA: dict[str, Any] = {
         "expected_outcome",
         "risk_flags",
     ],
+}
+
+# Hauptaktion + Folgeaktionen. Drei, weil der Fall, für den das Feld existiert,
+# aus dreien besteht: verkaufen, aufstellen, nachkaufen (Plan §6/P2-16).
+MAX_ACTIONS_PER_TICK = 3
+_MAX_FOLLOW_UPS = MAX_ACTIONS_PER_TICK - 1
+
+_INPUT_SCHEMA["properties"]["follow_up_actions"] = {
+    "type": "array",
+    "maxItems": _MAX_FOLLOW_UPS,
+    "description": (
+        'NUR im Deadline-Fenster (`trading.phase == "deadline"`): weitere Aktionen dieses '
+        "Ticks, in Ausführungsreihenfolge. Höchstens zwei. Sie laufen nacheinander und brechen "
+        "beim ersten Fehler ab. Ausserhalb des Deadline-Fensters wird das Feld verworfen — "
+        "dort kommt ein nächster Tick, und eine Aktion pro Tick bleibt die Regel."
+    ),
+    "items": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": list(_PROMPT_ACTIONS)},
+            "player_id": {"type": "string"},
+            "offer_id": {"type": "string"},
+            "price": {"type": "integer", "minimum": 0},
+            "intent": {"type": "string", "enum": list(_PROMPT_INTENTS)},
+            "reason_short": {"type": "string", "maxLength": 140},
+            "lineup": {
+                "type": "object",
+                "properties": {
+                    "formation": {"type": "string"},
+                    "player_ids": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["formation", "player_ids"],
+            },
+        },
+        "required": ["action", "reason_short"],
+    },
 }
 
 
@@ -230,7 +266,7 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
         return TradeDecision.hold(reason)
 
     player_name = _lookup_player_name(context, player_id)
-    return TradeDecision(
+    decision = TradeDecision(
         action=action,
         reason=reason,
         player_id=player_id,
@@ -240,6 +276,132 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
         intent=intent,
         lineup=_parse_lineup(tool_input) if action is TradeAction.SET_LINEUP else None,
     )
+    follow_ups = _parse_follow_ups(tool_input, context, first=decision)
+    return replace(decision, follow_ups=follow_ups) if follow_ups else decision
+
+
+def _parse_follow_ups(
+    tool_input: dict[str, Any], context: DecisionContext, *, first: TradeDecision
+) -> tuple[TradeDecision, ...]:
+    """Folgeaktionen — nur im Deadline-Fenster, höchstens zwei (P2-16).
+
+    Am Freitagabend um 20:00 ist „verkaufen, aufstellen, nachkaufen" eine
+    einzige Handlung, kein Plan für drei Ticks: um 20:30 friert die Aufstellung
+    ein und das Konto muss im Plus sein. Eine Aktion pro Tick machte das
+    strukturell unmöglich.
+
+    **Ausserhalb des Fensters werden Folgeaktionen verworfen**, nicht als
+    Fehler behandelt: die Hauptaktion ist dann meist richtig, und sie
+    mitzureissen wäre teurer als das Ignorieren des Extras. Es kommt ja ein
+    nächster Tick.
+
+    Jede Folgeaktion wird gegen einen **fortgeschriebenen** Kontext geprüft:
+    nach einem Verkauf ist ein Kaderplatz frei, nach einem Kauf einer belegt.
+    Ohne diese Fortschreibung würde die Slot-Sperre genau die Kette blocken,
+    für die das Feld gebaut ist.
+    """
+    raw = tool_input.get("follow_up_actions")
+    if not raw:
+        return ()
+    if not isinstance(raw, list):
+        _log.info("follow_up_actions ist kein Array (%r) — verworfen.", type(raw).__name__)
+        return ()
+    if first.is_hold:
+        # HOLD heisst „dieser Tick tut nichts". Etwas danach zu tun ist ein
+        # Widerspruch, kein Plan.
+        _log.info("Folgeaktionen nach HOLD verworfen (%d Stück).", len(raw))
+        return ()
+    if not _is_deadline_window(context):
+        _log.info(
+            "Folgeaktionen ausserhalb des Deadline-Fensters verworfen (%d Stück) — "
+            "eine Aktion pro Tick.",
+            len(raw),
+        )
+        return ()
+
+    running = _advance_context(context, first)
+    out: list[TradeDecision] = []
+    for item in raw[:_MAX_FOLLOW_UPS]:
+        if not isinstance(item, dict):
+            raise _InvalidDecisionError(f"Folgeaktion ist kein Objekt: {item!r}")
+        decision = _parse_follow_up(item, running)
+        if decision is None:
+            continue
+        out.append(decision)
+        running = _advance_context(running, decision)
+    if len(raw) > _MAX_FOLLOW_UPS:
+        _log.info(
+            "%d Folgeaktionen geliefert, %d ausgeführt — der Rest fällt weg.",
+            len(raw),
+            _MAX_FOLLOW_UPS,
+        )
+    return tuple(out)
+
+
+def _parse_follow_up(item: dict[str, Any], context: DecisionContext) -> TradeDecision | None:
+    """Eine einzelne Folgeaktion. `None`, wenn sie nichts tut (HOLD).
+
+    Dieselbe Validierung wie die Hauptaktion — eine Folgeaktion ist keine
+    Absichtserklärung, sie geht genauso an Kickbase.
+    """
+    raw_action = item.get("action")
+    if not isinstance(raw_action, str) or raw_action not in _ACTION_MAP:
+        raise _InvalidDecisionError(f"Folgeaktion mit unbekannter Aktion: {raw_action!r}")
+    action = _ACTION_MAP[raw_action]
+    if action is TradeAction.HOLD:
+        return None
+
+    player_id = _clean_optional_str(item.get("player_id"))
+    offer_id = _clean_optional_str(item.get("offer_id"))
+    price = _coerce_price(item.get("price"))
+    _validate_action_shape(action, player_id, offer_id, price)
+    _validate_against_context(action, player_id, offer_id, price, context)
+
+    reason = str(item.get("reason_short") or "").strip() or f"Folgeaktion {action.value}"
+    return TradeDecision(
+        action=action,
+        reason=reason,
+        player_id=player_id,
+        player_name=_lookup_player_name(context, player_id),
+        price=price if action in {TradeAction.BUY, TradeAction.LIST_ON_MARKET} else None,
+        offer_id=offer_id,
+        intent=_parse_intent(item.get("intent")),
+        lineup=_parse_lineup(item) if action is TradeAction.SET_LINEUP else None,
+    )
+
+
+def _is_deadline_window(context: DecisionContext) -> bool:
+    now = context.now or datetime.now(UTC)
+    _, minutes_until = _time_until(now, context.next_matchday_start, context.interval_min)
+    return _trading_phase(minutes_until) == "deadline"
+
+
+def _advance_context(context: DecisionContext, decision: TradeDecision) -> DecisionContext:
+    """Der Kontext, wie er **nach** dieser Aktion aussieht.
+
+    Nur die Kaderbelegung wird fortgeschrieben, nicht Kontostand oder Markt:
+    sie ist das Einzige, woran die Validierung der nächsten Aktion hängt.
+    Ein Verkauf macht einen Platz frei, ein Gebot belegt einen — dieselbe
+    Rechnung, die Kickbase beim Zuschlag anstellt.
+
+    Weiter zu simulieren wäre eine Scheingenauigkeit: was ein Gebot wirklich
+    kostet, steht erst beim Zuschlag fest, und die 33 %-Grenze prüft Kickbase
+    selbst bei der Abgabe.
+    """
+    if decision.action in {TradeAction.SELL, TradeAction.ACCEPT_OFFER}:
+        players = tuple(
+            sp for sp in context.squad.players if sp.player.id != (decision.player_id or "")
+        )
+        return replace(context, squad=replace(context.squad, players=players))
+    if decision.action is TradeAction.BUY and decision.player_id:
+        bids = dict(context.open_bids)
+        bids[decision.player_id] = OpenBid(
+            player_id=decision.player_id,
+            price=decision.price or Decimal(0),
+            placed_at=context.now or datetime.now(UTC),
+        )
+        return replace(context, open_bids=bids)
+    return context
 
 
 def _parse_lineup(tool_input: dict[str, Any]) -> Lineup:

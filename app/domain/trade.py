@@ -61,6 +61,17 @@ class TradeDecision:
     intent: TradeIntent | None = None
     # Nur bei `SET_LINEUP` gesetzt: Formation + Spieler-IDs in Slot-Reihenfolge.
     lineup: Lineup | None = None
+    # Weitere Aktionen desselben Ticks, in Ausführungsreihenfolge (P2-16).
+    #
+    # Nur im **Deadline-Fenster** (< 2 h bis Anpfiff) gefüllt: dort muss der Bot
+    # „verkaufen, aufstellen, nachkaufen" in einem Zug schaffen, weil kein
+    # zweiter Tick mehr kommt. Sonst leer — eine Aktion pro Tick bleibt die
+    # Regel, und jede zusätzliche Aktion ist eine, die niemand mehr korrigiert.
+    #
+    # Die Kette bricht beim ersten Fehler ab: eine Aktion, die auf einer
+    # gescheiterten aufbaut (nachkaufen ohne den Verkauf davor), würde von
+    # Kickbase ohnehin abgelehnt und den Rest der Kette mitreissen.
+    follow_ups: tuple[TradeDecision, ...] = ()
 
     @classmethod
     def hold(cls, reason: str) -> TradeDecision:
@@ -69,3 +80,13 @@ class TradeDecision:
     @property
     def is_hold(self) -> bool:
         return self.action is TradeAction.HOLD
+
+    @property
+    def chain(self) -> tuple[TradeDecision, ...]:
+        """Die ganze Aktionskette dieses Ticks, Hauptaktion zuerst.
+
+        Aufrufer, die *alles* ausführen oder protokollieren wollen, iterieren
+        hierüber statt `follow_ups` separat zu behandeln — so kann keine
+        Aktion vergessen werden, wenn später eine dazukommt.
+        """
+        return (self, *self.follow_ups)

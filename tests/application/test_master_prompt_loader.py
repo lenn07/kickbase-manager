@@ -276,8 +276,8 @@ def test_prompt_puts_the_squad_limit_where_the_buy_impulse_is() -> None:
     """
     prompt = load_system_prompt()
     assert "**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.**" in prompt
-    assert "pro Tick wird genau eine Aktion ausgeführt" in prompt
-    assert "Kaderplatz wird nach dem\nVerkauf frei" in prompt
+    assert "wird pro Tick genau eine\nAktion ausgeführt" in prompt
+    assert "Kaderplatz wird nach dem Verkauf frei" in prompt
 
 
 def test_season_phase_and_risk_appetite_do_not_overwrite_each_other() -> None:

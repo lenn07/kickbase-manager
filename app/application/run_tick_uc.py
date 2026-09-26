@@ -254,26 +254,12 @@ class RunTickUseCase:
         )
 
         decision = await self._engine.decide(context)
-        executor = self._executor(squad=squad, dry_run=settings.dry_run)
-        result = await executor.execute(league_row.kb_league_id, decision)
-
-        row = self._trades.add(
-            TradeLogRow(
-                user_id=user.id,
-                action=decision.action.value,
-                player_id=decision.player_id,
-                player_name=decision.player_name,
-                price=int(decision.price) if decision.price is not None else None,
-                reason_text=decision.reason,
-                executed=result.executed,
-                context={
-                    "dry_run": settings.dry_run,
-                    "executor_note": result.reason,
-                    "response_ref": result.response_ref,
-                    "error": result.error,
-                    "intent": decision.intent.value if decision.intent is not None else None,
-                },
-            )
+        result, row = await self._execute_chain(
+            decision,
+            league_id=league_row.kb_league_id,
+            user_id=user.id,
+            squad=squad,
+            dry_run=settings.dry_run,
         )
 
         await self._notify_outcome(user.id, decision, result)
@@ -300,6 +286,82 @@ class RunTickUseCase:
             log_id=row.id,
             next_matchday_start=next_matchday_start,
         )
+
+    async def _execute_chain(
+        self,
+        decision: TradeDecision,
+        *,
+        league_id: str,
+        user_id: int,
+        squad: Squad,
+        dry_run: bool,
+    ) -> tuple[ExecutionResult, TradeLogRow]:
+        """Führt die Aktionskette aus und protokolliert **jede** Aktion einzeln.
+
+        Ausserhalb des Deadline-Fensters ist die Kette einelementig und das hier
+        verhält sich wie vorher. Im Fenster (< 2 h bis Anpfiff) können bis zu
+        drei Aktionen zusammengehören — „verkaufen, aufstellen, nachkaufen" ist
+        dort eine Handlung, kein Plan für drei Ticks (P2-16).
+
+        **Abbruch beim ersten Fehler.** Eine Folgeaktion baut auf der
+        vorherigen auf: der Nachkauf braucht den Kaderplatz aus dem Verkauf.
+        Scheitert der Verkauf, würde Kickbase den Kauf ohnehin ablehnen — die
+        Kette weiterzufahren verbrennt nur Ticks und erzeugt Log-Rauschen.
+
+        **Eine Zeile pro Aktion.** `buy_history`, `own_listings` und die offenen
+        Gebote werden aus dem `trade_log` rekonstruiert (P1-11); eine
+        gebündelte Zeile würde den Nachkauf für den nächsten Tick unsichtbar
+        machen, und der Bot böte erneut — genau Defekt D3.
+
+        Zurück kommen Ergebnis und Zeile der **Hauptaktion**: an ihnen hängen
+        Mail, Metriken und der `TickOutcome`.
+        """
+        executor = self._executor(squad=squad, dry_run=dry_run)
+        first_result: ExecutionResult | None = None
+        first_row: TradeLogRow | None = None
+
+        for index, step in enumerate(decision.chain):
+            result = await executor.execute(league_id, step)
+            row = self._trades.add(
+                TradeLogRow(
+                    user_id=user_id,
+                    action=step.action.value,
+                    player_id=step.player_id,
+                    player_name=step.player_name,
+                    price=int(step.price) if step.price is not None else None,
+                    reason_text=step.reason,
+                    executed=result.executed,
+                    context={
+                        "dry_run": dry_run,
+                        "executor_note": result.reason,
+                        "response_ref": result.response_ref,
+                        "error": result.error,
+                        "intent": step.intent.value if step.intent is not None else None,
+                        # Nur bei einer echten Kette gesetzt, damit die Zeilen
+                        # eines gewöhnlichen Ticks unverändert aussehen.
+                        **({"chain_index": index} if len(decision.chain) > 1 else {}),
+                    },
+                )
+            )
+            if first_result is None:
+                first_result, first_row = result, row
+            if result.error is not None:
+                if index < len(decision.chain) - 1:
+                    _log.warning(
+                        "Aktionskette nach Schritt %d abgebrochen (%s) — %d Aktion(en) entfallen.",
+                        index + 1,
+                        result.error,
+                        len(decision.chain) - index - 1,
+                    )
+                break
+
+        assert first_result is not None and first_row is not None  # chain ist nie leer
+        if len(decision.chain) > 1:
+            _log.info(
+                "Deadline-Kette: %s",
+                " → ".join(step.action.value for step in decision.chain),
+            )
+        return first_result, first_row
 
     def _executor(self, *, squad: Squad, dry_run: bool) -> TradeExecutor:
         return TradeExecutor(

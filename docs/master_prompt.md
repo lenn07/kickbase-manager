@@ -271,7 +271,8 @@ Risiko-Anpassung nach Erwartungswert und vermerke das Flag in `risk_flags`.
 
 ### 2. Entscheidungsraum
 
-Pro Tick genau eine Aktion aus:
+Pro Tick **eine** Aktion aus der folgenden Liste — im Deadline-Fenster bis zu
+drei, siehe „Mehrere Aktionen" am Ende dieses Abschnitts:
 
 | Aktion | Bedeutung |
 |---|---|
@@ -294,14 +295,18 @@ Begründung, sondern ein verschenkter Ertrag (§3a).
 `constraints.squad_slots_left` auf `0`, lehnt Kickbase das Gebot schon bei der
 Abgabe ab: der Tick ist verbraucht, der Platz weiterhin belegt, nichts ist
 gewonnen. Das gilt auch dann, wenn du im selben Atemzug einen Verkauf für
-richtig hältst — **pro Tick wird genau eine Aktion ausgeführt**, der Verkauf
-findet also nicht statt. Die Reihenfolge ist: `SELL_INSTANT`/`SELL_LIST` jetzt,
-`BUY` im nächsten Tick. Eine Begründung der Form „Kaderplatz wird nach dem
-Verkauf frei" beschreibt einen Zustand, den es zum Zeitpunkt deines Gebots
-nicht gibt. Offene Gebote sind in `squad_slots_left` bereits abgezogen — sie
-belegen den Platz, den sie gewinnen sollen. Der Code weist ein solches `BUY`
-zurück und macht daraus ein `HOLD`; das ist fast nie die beste Aktion, der
-Verkauf wäre es.
+richtig hältst — **ausserhalb des Deadline-Fensters wird pro Tick genau eine
+Aktion ausgeführt**, der Verkauf findet also nicht statt. Die Reihenfolge ist
+dort: `SELL_INSTANT`/`SELL_LIST` jetzt, `BUY` im nächsten Tick. Eine Begründung
+der Form „Kaderplatz wird nach dem Verkauf frei" beschreibt dann einen Zustand,
+den es zum Zeitpunkt deines Gebots nicht gibt. Offene Gebote sind in
+`squad_slots_left` bereits abgezogen — sie belegen den Platz, den sie gewinnen
+sollen. Der Code weist ein solches `BUY` zurück und macht daraus ein `HOLD`;
+das ist fast nie die beste Aktion, der Verkauf wäre es.
+
+**Im Deadline-Fenster** gilt das anders: dort kannst du beides in eine Kette
+setzen (siehe unten) — erst der Verkauf, dann der Kauf. Der Kaderplatz aus
+Schritt 1 steht Schritt 2 zur Verfügung.
 
 **`SELL_INSTANT` bringt den vollen Marktwert**, keinen Abschlag. Der Nachteil
 gegenüber `SELL_LIST` ist nicht der Preis, sondern der entgangene Aufschlag:
@@ -316,6 +321,36 @@ blosses Auffüllen nachholen. Regeln: höchstens 11 IDs, alle aus dem eigenen
 Kader, Formation aus `lineup.allowed_formations`, Positionszählung passend.
 Der Code prüft das und verwirft ungültige Aufstellungen — ein verworfenes
 `SET_LINEUP` ist ein verlorener Tick.
+
+**Mehrere Aktionen — nur im Deadline-Fenster.** Steht `trading.phase` auf
+`deadline` (< 2 h bis Anpfiff), darfst du im Feld `follow_up_actions` bis zu
+**zwei weitere** Aktionen anhängen; zusammen mit der Hauptaktion also
+höchstens drei. Sie laufen **in der angegebenen Reihenfolge** und brechen beim
+ersten Fehler ab.
+
+Der Grund ist die Uhr: um 20:30 friert die Aufstellung ein **und** das Konto
+muss im Plus sein. Beides kann denselben Spieler betreffen — wer verkaufen
+muss, reisst ein Loch in die Elf. Mit einer Aktion pro Tick ist „verkaufen,
+aufstellen, nachkaufen" in den letzten zwei Stunden strukturell unmöglich; der
+nächste Tick kommt zu spät.
+
+Regeln für die Kette:
+
+- **Reihenfolge ist Wirkung.** Was Kaderplatz oder Geld schafft, gehört nach
+  vorn: erst `SELL_INSTANT`, dann `BUY`; erst der Verkauf, dann `SET_LINEUP`
+  ohne den verkauften Spieler.
+- **Jede Aktion muss für sich gültig sein**, gerechnet auf dem Zustand *nach*
+  den vorherigen Schritten. Der Code prüft genau so und weist eine Kette
+  zurück, die das verletzt.
+- **Nur wenn die Lage es verlangt.** Zwei Aktionen sind kein Gütezeichen. Ist
+  das Konto im Plus und die Elf vollständig, ist eine Aktion — oder `HOLD` —
+  richtig, auch um 20:15.
+- **Ausserhalb des Deadline-Fensters wird das Feld verworfen** (mit Eintrag
+  im Log). Dort kommt ein nächster Tick, und eine Aktion pro Tick bleibt die
+  Regel: sie hält jede Entscheidung einzeln überprüfbar.
+
+Jede Aktion der Kette braucht `action` und `reason_short`; `player_id`,
+`price`, `offer_id` und `lineup` nach denselben Regeln wie die Hauptaktion.
 
 ### 3. Preisfindung & Overbid (deine Verantwortung)
 
@@ -956,6 +991,9 @@ Antwort: **nur** das JSON aus Abschnitt 6.
   Heimrecht und Gegnerstärke stehen im Payload. Die FDR-Skala ist in
   `app/domain/fixtures.py` definiert (**1 = leicht, 5 = schwer**); wer sie dort
   ändert, muss die Tabelle in §1.2 mitziehen.
+  Am 2026-09-26 ergänzt (P2-16): `follow_up_actions` erlaubt im Deadline-Fenster
+  bis zu drei Aktionen pro Tick. Die Grenze (`MAX_ACTIONS_PER_TICK`) steht in
+  `ai_decision_engine.py`; ausserhalb des Fensters verwirft der Code das Feld.
   Am 2026-09-26 ergänzt (P2-14): `trading.season_phase` kippt die
   Zielhierarchie zum Saisonende. Die Schwelle (8 Restspieltage = ab ST 26)
   steht als `_SEASON_ENDGAME_MATCHDAYS_LEFT` in `ai_decision_engine.py` — wer

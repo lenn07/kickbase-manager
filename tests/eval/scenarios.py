@@ -68,6 +68,11 @@ class Scenario:
     # nebenbei die -100-Regel statt der gemeinten. Ein Szenario, das **über**
     # die Aufstellung geht, setzt das bewusst auf False.
     expects_full_lineup: bool = True
+    # Mindestzahl der Aktionen in der Kette (P2-16). `1` = keine Prüfung. Ein
+    # Deadline-Szenario, in dem zwei Dinge gleichzeitig schieflaufen, ist mit
+    # einer Aktion nicht lösbar — und genau das muss messbar sein, sonst
+    # belegt kein Test, dass `follow_up_actions` je benutzt wird.
+    min_chain_length: int = 1
 
 
 def _player(
@@ -1436,6 +1441,47 @@ def _endgame_stops_pure_trading() -> Scenario:
     )
 
 
+def _deadline_needs_two_actions() -> Scenario:
+    """Anpfiff in 45 Minuten: Konto im Minus **und** ein leerer Startelf-Slot.
+
+    Der Fall, für den P2-16 gebaut wurde. Zwei harte Regeln verletzt, beide
+    mit derselben Deadline: um 20:30 friert die Aufstellung ein und das Konto
+    muss im Plus sein. Jede einzelne Aktion löst nur die Hälfte —
+    `SELL_INSTANT` bringt Geld und reisst dabei die Elf noch weiter auf,
+    `SET_LINEUP` schliesst die Lücke und lässt das Minus stehen. Mit einer
+    Aktion pro Tick ist die Lage vor dem Anpfiff nicht mehr zu retten; der
+    nächste Tick käme nach Spielbeginn.
+
+    Geprüft wird deshalb die **Kettenlänge**: mindestens zwei Aktionen. Welche
+    zuerst kommt, bleibt dem Modell überlassen — beide Reihenfolgen sind
+    vertretbar, solange am Ende beides erledigt ist.
+    """
+    # 12 Spieler, aber nur 10 in der Elf: ein Slot ist leer, und es gibt genug
+    # Ersatz, um ihn per SET_LINEUP zu schliessen.
+    squad = _squad_of_twelve()
+    return Scenario(
+        name="deadline_needs_two_actions",
+        description="Anpfiff in 45 min, Konto -6 Mio, 1 leerer Startelf-Slot, Bank besetzt",
+        context=_context(
+            squad_players=squad,
+            market_players=[_player("998", "Notverkauf-Ersatz", Position.MIDFIELDER, 5_000_000)],
+            cash=-6_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=45,
+            placed_in_lineup=10,
+        ),
+        allowed=frozenset({TradeAction.SELL, TradeAction.LIST_ON_MARKET, TradeAction.SET_LINEUP}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.BUY}),
+        expects_full_lineup=False,
+        min_chain_length=2,
+        rule=(
+            "Im Deadline-Fenster duerfen bis zu drei Aktionen in einer Kette laufen. Konto >= 0 "
+            "und eine volle Elf sind beide hart und beide bis 20:30 faellig — eine Aktion loest "
+            "nur eine der beiden (§2, Mehrere Aktionen)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -1463,4 +1509,6 @@ SCENARIOS: tuple[Scenario, ...] = (
     # P2-14: Saisonphasen-Gewichtung — dieselbe Lage, frueh und spaet in der Saison.
     _early_season_trades_for_capital(),
     _endgame_stops_pure_trading(),
+    # P2-16: mehrere Aktionen pro Tick im Deadline-Fenster.
+    _deadline_needs_two_actions(),
 )
