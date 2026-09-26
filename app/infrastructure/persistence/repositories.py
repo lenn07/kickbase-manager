@@ -245,6 +245,24 @@ class TradeLogRepository:
         rows = self.list_recent(user_id=user_id, limit=1)
         return rows[0] if rows else None
 
+    def list_by_action(self, *, user_id: int, action: str, limit: int = 60) -> list[TradeLogRow]:
+        """Die letzten Zeilen **einer** Aktionsart, absteigend nach Zeit.
+
+        Für den Bonus-Job (P2-15): er braucht sowohl „habe ich heute schon
+        gesammelt?" als auch die Streak über die Vortage, und beides aus
+        `list_recent` zu filtern hiesse, das Limit gegen einen aktiven
+        Handelstag zu verlieren — 20 Trades an einem Tag würden die
+        Bonus-Historie aus dem Fenster schieben.
+        """
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .where(TradeLogRow.action == action)
+            .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return list(self._session.exec(stmt))
+
     def last_executed_buys(self, user_id: int) -> dict[str, TradeLogRow]:
         """Letzter ausgeführter BUY je player_id — Basis für PROFIT-Exit.
 

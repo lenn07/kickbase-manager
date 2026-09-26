@@ -68,6 +68,19 @@ class Settings(BaseSettings):
     # geloggten Aufstellungen gegen die App bestätigt hat (Plan §9).
     lineup_writes_enabled: bool = False
 
+    # Täglicher Login-Bonus (P2-15). Default aus, und das aus einem anderen
+    # Grund als bei den Aufstellungs-Writes: `GET /v4/bonus/collect` ist ein
+    # **GET, der wie ein Write wirkt**. Was er zurückgibt und ob ein zweiter
+    # Aufruf am selben Tag harmlos ist, steht in keiner Doku und ist an keinem
+    # der 16 Discovery-Dumps ablesbar — er wurde bewusst nie abgerufen (§3.4).
+    # Der erste scharfe Aufruf ist deshalb eine bewusste Handlung, kein
+    # Nebeneffekt eines Deploys.
+    bonus_collect_enabled: bool = False
+    # Wann der Bonus-Job feuert (Stunde, Europe/Berlin). Morgens, weil der
+    # Kickbase-Tag um Mitternacht wechselt und ein verpasster Tag die Streak
+    # bricht.
+    bonus_hour: int = 9
+
     @property
     def db_path(self) -> Path:
         return self.data_dir / "kb.db"

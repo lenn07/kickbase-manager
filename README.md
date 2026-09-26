@@ -29,6 +29,7 @@ docker run -d --name kb \
   -p 8000:8000 \
   -v kb_data:/data \
   -e KB_LINEUP_WRITES_ENABLED=false \
+  -e KB_BONUS_COLLECT_ENABLED=false \
   -e KB_CLUB_LIMIT=unlimited \
   -e KB_UNDERPAY_BLOCKED=true \
   -e KB_SCORING_MODE=season_points \
@@ -67,6 +68,31 @@ Bei `false` läuft der Startelf-Guard trotzdem mit und legt jede Aufstellung,
 die er gesetzt hätte, als `SET_LINEUP`-Zeile mit `executed=false` ins
 `trade_log` — inklusive Formation und Spieler-IDs. Vergleiche diese Einträge
 eine Woche lang mit der Kickbase-App; erst dann auf `true` stellen.
+
+### Täglicher Login-Bonus
+
+`KB_BONUS_COLLECT_ENABLED` schaltet den Bonus-Job frei, `KB_BONUS_HOUR` legt
+die Stunde fest (Default 9, Europe/Berlin). Default ist `false`, und der Grund
+ist ein anderer als bei den Aufstellungs-Writes: **`GET /v4/bonus/collect` ist
+ein GET, der wie ein Write wirkt.** Was er zurückgibt und ob ein zweiter Aufruf
+am selben Tag harmlos ist, steht in keiner Dokumentation — der Endpunkt wurde
+bei der Discovery bewusst ausgelassen.
+
+Drei Sicherungen greifen unabhängig vom Schalter:
+
+- **Höchstens ein Versuch pro Kalendertag** (Berliner Datum, geprüft am
+  `trade_log`). Ein Container-Neustart um 09:05 löst keinen zweiten Call aus,
+  und auch ein *fehlgeschlagener* Versuch blockiert den Tag — der Endpunkt
+  könnte gebucht und danach beim Antworten gescheitert sein.
+- **`dry_run` gilt auch hier.** Bei `dry_run=true` wird nichts abgerufen, aber
+  eine Zeile geschrieben: so lässt sich der Job beobachten, bevor er etwas tut.
+- **Die Höhe wird am Kontostand gemessen**, nicht aus der Antwort gelesen. Die
+  Rohantwort landet unverändert im `trade_log` — der erste echte Lauf liefert
+  damit die Feldnamen, die bislang niemand kennt.
+
+Der erste scharfe Lauf gehört deshalb beobachtet: Schalter auf `true`, am
+nächsten Tag die `BONUS`-Zeile im `trade_log` gegen den Kontostand in der App
+halten.
 
 Zur Einordnung: jeder unbesetzte Startelf-Slot kostet **100 Punkte** pro
 Spieltag. Ein Kader mit acht Spielern verliert also 300 Punkte, die kein
