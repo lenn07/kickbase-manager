@@ -310,3 +310,17 @@ def test_the_chain_rule_stands_where_the_hard_rules_are() -> None:
     assert "`follow_up_actions`" in prompt
     # Und in §2 muss aus der Erlaubnis eine Pflicht werden, wenn beides offen ist.
     assert "Verlangt, wenn zwei harte Regeln offen sind" in prompt
+
+
+def test_the_prompt_ranks_the_two_deadline_penalties() -> None:
+    """100 Punkte gegen alle Punkte — der Unterschied muss dastehen.
+
+    Im Lauf vom 2026-09-26 begründete das Modell einen unzureichenden Verkauf
+    mit „kein anderer Spieler verfügbar ohne Startelf-Loch": es vermied die
+    -100 und nahm dafür ein negatives Konto in Kauf, das **alle** Punkte des
+    Spieltags kostet. Beide Regeln standen im Prompt, ihr Verhältnis nicht.
+    """
+    prompt = load_system_prompt()
+    assert "Die beiden Strafen sind nicht gleich gross." in prompt
+    assert "um eine Grössenordnung" in prompt
+    assert "`budget.cash_needed_before_kickoff`" in prompt

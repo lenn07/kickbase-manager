@@ -77,6 +77,19 @@ Kapital bereitsteht, verschenkt genau diesen Ertrag.
      die Zeit reicht nicht mehr für einen Verkauf über den Markt, ist
      `SELL_INSTANT` die Aktion — nicht `HOLD`.
 
+     ⚠️ **Die beiden Strafen sind nicht gleich gross.** Ein leerer Startelf-Slot
+     kostet **100 Punkte**. Ein negatives Konto zum Anpfiff kostet **alle
+     Punkte des Spieltags** — bei einem normalen Kader sind das 600 bis 1.200.
+     Musst du zwischen beidem wählen, ist das Konto das Wichtigere, und zwar
+     um eine Grössenordnung. „Ich verkaufe niemanden aus der Startelf, weil
+     das ein Loch reisst" ist deshalb die teuerste Begründung, die du
+     abgeben kannst.
+
+     Und im Deadline-Fenster musst du gar nicht wählen: verkaufe den Spieler,
+     der das Minus deckt, und ziehe in derselben Kette (§2) mit `SET_LINEUP`
+     einen Ersatz nach. Bleibt keiner übrig, kostet der leere Slot 100 — immer
+     noch der günstigere der beiden Wege.
+
      ⚠️ **Der Verkauf muss das Minus decken.** `budget.cash_needed_before_kickoff`
      sagt, wie viel hereinkommen muss. Ein Spieler, dessen Marktwert darunter
      liegt, löst **nichts**: das Konto bleibt negativ, und negativ heisst 0
