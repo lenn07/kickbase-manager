@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from app.application.decision_engine import BuyRecord, DecisionContext, OpenBid
 from app.application.player_enrichment import PlayerEnrichment
+from app.domain.fixtures import TeamOutlook
 from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
     LeagueConstraints,
@@ -75,12 +76,13 @@ def _player(
     *,
     status: PlayerStatus = PlayerStatus.FIT,
     average_points: float = 120.0,
+    team_id: str = "2",
 ) -> Player:
     return Player(
         id=pid,
         first_name="",
         last_name=name,
-        team_id="2",
+        team_id=team_id,
         position=position,
         status=status,
         market_value=Decimal(market_value),
@@ -131,6 +133,30 @@ def _enrichment(
     )
 
 
+def _neutral_outlook(team_id: str) -> TeamOutlook:
+    """Ein Gegner aus dem Tabellenmittelfeld, Heimspiel — bewusst unauffällig.
+
+    Seit P2-11 stehen Gegner und Schwierigkeit im Payload. Ohne einen Default
+    hier trüge **jeder** Spieler in **jedem** Szenario `missing_data:fixtures`,
+    und §1.2 verlangt dann ausdrücklich, ohne Spielplan zu entscheiden — die
+    Eval würde also weiter den Zustand vor P2-11 messen. Umgekehrt darf der
+    Default nicht auffällig sein: ein Szenario, in dem alle gegen Bayern
+    spielen, prüft nebenbei die Gegnerstärke statt der gemeinten Regel. Genau
+    dieselbe Überlegung wie bei `mv_max_30d_pct` (siehe `_enrichment`).
+    """
+    return TeamOutlook(
+        team_id=team_id,
+        next_opponent_id="99",
+        next_opponent_name="Mittelfeld-Gegner",
+        next_opponent_rank=9,
+        is_home=True,
+        fdr=3,
+        fdr_next3=3.0,
+        next_kickoff=NOW + timedelta(days=3),
+        next_matchday=5,
+    )
+
+
 def _context(
     *,
     squad_players: list[Player],
@@ -147,6 +173,7 @@ def _context(
     open_bids: dict[str, int] | None = None,
     held_days: dict[str, int] | None = None,
     hours_until_mv_update: int = 8,
+    team_outlook_overrides: dict[str, TeamOutlook] | None = None,
 ) -> DecisionContext:
     """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
 
@@ -187,6 +214,8 @@ def _context(
     )
     enrichment = {p.id: _enrichment(p) for p in squad_players + market_players}
     enrichment.update(enrichment_overrides or {})
+    outlook = {p.team_id: _neutral_outlook(p.team_id) for p in squad_players + market_players}
+    outlook.update(team_outlook_overrides or {})
 
     # 33 %-Regel, wie `run_tick_uc._max_negative_allowed` sie rechnet.
     basis = Decimal(team_value) + min(Decimal(0), Decimal(cash))
@@ -248,6 +277,7 @@ def _context(
             underpay_blocked=True,
             scoring_mode="season_points",
         ),
+        team_outlook=outlook,
     )
 
 
@@ -1012,6 +1042,84 @@ def _stale_trade_frees_the_slot() -> Scenario:
     )
 
 
+def _easier_fixture_wins_the_duel() -> Scenario:
+    """Zwei identische Stürmer, ein Unterschied: der Gegner am nächsten Spieltag.
+
+    Der Fall, für den P2-11 gebaut wurde. Bis dahin standen Restspielplan und
+    Gegnerstärke nicht im Payload, und §1.2 verbot ausdrücklich, mit ihnen zu
+    rechnen — die beiden Spieler hier waren für das Modell **nicht
+    unterscheidbar**. Jetzt spielt der eine zu Hause gegen den Tabellenletzten
+    (`fdr` 1), der andere auswärts beim Tabellenführer (`fdr` 5).
+
+    Die Lage ist `matchday_prep` (20 h bis Anpfiff): Punkte gehen dort vor
+    Trading, die Gegnerstärke ist also entscheidungsrelevant und nicht bloß
+    Beiwerk. Geprüft wird nicht „kaufe jemanden", sondern: **wenn** gekauft
+    wird, dann nicht der mit dem schweren Spiel. Dieselbe Konstruktion wie in
+    `joker_is_no_starter` — eine Regel über die Auswahl, nicht über die Aktion.
+
+    Und es ist gleichzeitig der Wächter gegen eine verdrehte FDR-Skala: bei
+    invertierter Richtung wählt das Modell zuverlässig den falschen Spieler.
+    """
+    squad = _squad_of_twelve()
+    easy = _player(
+        "980", "Heim gegen Letzten", Position.FORWARD, 9_000_000, average_points=120.0, team_id="28"
+    )
+    hard = _player(
+        "981",
+        "Auswaerts beim Ersten",
+        Position.FORWARD,
+        9_000_000,
+        average_points=120.0,
+        team_id="15",
+    )
+    outlook = {
+        "28": TeamOutlook(
+            team_id="28",
+            next_opponent_id="15",
+            next_opponent_name="Tabellenletzter",
+            next_opponent_rank=18,
+            is_home=True,
+            fdr=1,
+            fdr_next3=1.3,
+            next_kickoff=NOW + timedelta(minutes=20 * 60),
+            next_matchday=5,
+        ),
+        "15": TeamOutlook(
+            team_id="15",
+            next_opponent_id="28",
+            next_opponent_name="Tabellenfuehrer",
+            next_opponent_rank=1,
+            is_home=False,
+            fdr=5,
+            fdr_next3=4.7,
+            next_kickoff=NOW + timedelta(minutes=20 * 60),
+            next_matchday=5,
+        ),
+    }
+    return Scenario(
+        name="easier_fixture_wins_the_duel",
+        description=(
+            "Zwei gleichwertige Stuermer — einer heim gegen Platz 18, einer auswaerts bei Platz 1"
+        ),
+        context=_context(
+            squad_players=squad,
+            market_players=[easy, hard],
+            cash=20_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=20 * 60,
+            team_outlook_overrides=outlook,
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        forbidden_player_ids=frozenset({hard.id}),
+        rule=(
+            "`fdr` 1 = leichtester Gegner, 5 = schwerster. Bei gleichen Punkten entscheidet "
+            "der Spielplan; die Defensive/Offensive gegen schwache Gegner ist die "
+            "verlaesslichste Punktequelle (§1.2)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -1031,4 +1139,6 @@ SCENARIOS: tuple[Scenario, ...] = (
     _no_trade_without_a_mv_update(),
     _trading_window_fills_free_slots(),
     _stale_trade_frees_the_slot(),
+    # P2-11: Spielplan & Gegnerstaerke.
+    _easier_fixture_wins_the_duel(),
 )

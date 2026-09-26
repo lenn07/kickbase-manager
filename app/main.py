@@ -18,6 +18,7 @@ from app.application.decision_engine import DecisionEngine, HoldOnlyDecisionEngi
 from app.application.digest_scheduling import apply_digest_settings
 from app.application.player_enrichment import PlayerEnricher
 from app.application.run_tick_uc import RunTickUseCase, TickOutcome
+from app.application.team_context import TeamContextProvider
 from app.config import Settings, get_settings
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.kickbase.client import HttpxKickbaseClient
@@ -32,6 +33,7 @@ from app.infrastructure.metrics.middleware import PrometheusMiddleware
 from app.infrastructure.notifications.smtp_client import AiosmtplibClient
 from app.infrastructure.persistence.db import init_db, make_engine
 from app.infrastructure.persistence.repositories import (
+    CompetitionContextCacheRepository,
     CredentialRepository,
     MarketMetaRepository,
     MarketValueCacheRepository,
@@ -218,6 +220,11 @@ async def _run_tick(engine: Engine, vault: FernetVault, settings: Settings) -> T
                 cache=MarketValueCacheRepository(db),
                 performance_cache=PlayerPerformanceCacheRepository(db),
             )
+            # Tabelle + Spielplan der Bundesliga (P2-11): zwei Calls pro Tag,
+            # gecacht bis zum nächsten Anpfiff.
+            team_context = TeamContextProvider(
+                kickbase, cache=CompetitionContextCacheRepository(db)
+            )
             uc = RunTickUseCase(
                 session=db,
                 vault=vault,
@@ -225,6 +232,7 @@ async def _run_tick(engine: Engine, vault: FernetVault, settings: Settings) -> T
                 engine=decision_engine,
                 smtp=smtp,
                 enricher=enricher,
+                team_context=team_context,
                 lineup_writes_enabled=settings.lineup_writes_enabled,
                 club_limit=settings.club_limit_value,
                 club_limit_is_unlimited=settings.club_limit_is_unlimited,

@@ -24,6 +24,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.lineup import DEFAULT_FORMATION, Lineup
 from app.domain.models import (
+    Fixture,
     League,
     LeagueMe,
     MarketPlayer,
@@ -39,6 +40,7 @@ from app.domain.models import (
     Session,
     Squad,
     SquadPlayer,
+    TeamStanding,
 )
 
 _log = logging.getLogger(__name__)
@@ -537,6 +539,12 @@ class LineupOverviewDTO(BaseModel):
 # ---------- Matchdays ----------
 
 
+# `st` des Matches: 2 = beendet. Über alle 34 Spieltage der Cassette
+# ausnahmslos gültig — die vier gespielten tragen `st: 2` plus Tore, die
+# dreißig kommenden `st: 0` und keine.
+_MATCH_STATUS_FINISHED = 2
+
+
 class MatchDTO(BaseModel):
     model_config = _DTO_CONFIG
 
@@ -544,6 +552,32 @@ class MatchDTO(BaseModel):
     day: int = Field(default=0)
     starts_at: datetime = Field(validation_alias="dt")
     status: int = Field(default=0, validation_alias="st")
+    # Die Paarung. Bis P2-11 hat der DTO sie weggeworfen und nur die
+    # Anpfiffzeiten behalten — dabei steht hier der komplette Restspielplan
+    # aller 34 Spieltage, für **einen** HTTP-Call (siehe `Fixture`).
+    home_team_id: str = Field(default="", validation_alias="t1")
+    away_team_id: str = Field(default="", validation_alias="t2")
+
+    @property
+    def is_finished(self) -> bool:
+        return self.status == _MATCH_STATUS_FINISHED
+
+    def to_fixture(self, fallback_day: int) -> Fixture | None:
+        """`None`, wenn die Paarung unvollständig ist.
+
+        Eine Zeile ohne beide Team-IDs ist als Fixture wertlos: sie würde einen
+        Verein mit leerer Gegner-ID in den Spielplan schreiben, und der stünde
+        dann im USER-JSON als Gegner „" mit unbekannter Stärke.
+        """
+        if not self.home_team_id or not self.away_team_id:
+            return None
+        return Fixture(
+            matchday=self.day or fallback_day,
+            kickoff=self.starts_at,
+            home_team_id=self.home_team_id,
+            away_team_id=self.away_team_id,
+            is_finished=self.is_finished,
+        )
 
 
 class MatchdayGroupDTO(BaseModel):
@@ -577,6 +611,70 @@ class MatchdaysResponseDTO(BaseModel):
                 )
             )
         return result
+
+    def to_fixtures(self) -> list[Fixture]:
+        """Alle Paarungen der Response, aufsteigend nach Anpfiff.
+
+        Zweite Sicht auf dieselben Daten wie `to_domain()`: dort interessieren
+        die Spieltags-Fenster (Deadline-Regel), hier die Gegner (P2-11). Der
+        Spieltag kommt aus der Gruppe, falls das Match ihn nicht mitschickt —
+        die Gruppen-`day` ist in der Cassette immer gesetzt, die Match-`day`
+        nicht garantiert.
+        """
+        fixtures = [
+            fixture
+            for group in self.it
+            for match in group.it
+            if (fixture := match.to_fixture(group.day)) is not None
+        ]
+        return sorted(fixtures, key=lambda f: (f.kickoff, f.matchday))
+
+
+# ---------- Competition Table ----------
+
+
+class TableRowDTO(BaseModel):
+    """Eine Tabellenzeile aus `GET /v4/competitions/1/table`.
+
+    `sp` (Kickbase-Punkte des Vereins) bleibt ungelesen: es misst die
+    Fantasy-Ausbeute, nicht die Spielstärke. Für die Gegnerstärke zählt die
+    sportliche Tabelle — Platz, Punkte, Tordifferenz.
+    """
+
+    model_config = _DTO_CONFIG
+
+    team_id: str = Field(validation_alias="tid")
+    team_name: str = Field(default="", validation_alias="tn")
+    rank: int = Field(default=0, validation_alias="cpl")
+    points: int = Field(default=0, validation_alias="cp")
+    matches_played: int = Field(default=0, validation_alias="mc")
+    goal_difference: int = Field(default=0, validation_alias="gd")
+
+    def to_domain(self) -> TeamStanding:
+        return TeamStanding(
+            team_id=self.team_id,
+            team_name=self.team_name,
+            rank=self.rank,
+            points=self.points,
+            matches_played=self.matches_played,
+            goal_difference=self.goal_difference,
+        )
+
+
+class CompetitionTableDTO(BaseModel):
+    model_config = _DTO_CONFIG
+
+    it: list[TableRowDTO] = Field(default_factory=list)
+
+    def to_domain(self) -> list[TeamStanding]:
+        """Nach Tabellenplatz sortiert, Zeilen ohne Platz am Ende.
+
+        Kickbase liefert die Zeilen **unsortiert** (die echte Response beginnt
+        mit Bayern auf Platz 2, dann Stuttgart auf 15). Wer sich auf die
+        Reihenfolge verlässt, liest den falschen Verein als Tabellenführer.
+        """
+        standings = [row.to_domain() for row in self.it]
+        return sorted(standings, key=lambda s: s.rank if s.rank > 0 else len(standings) + 1)
 
 
 # ---------- Market Value History ----------

@@ -29,20 +29,26 @@ from app.application.ai_decision_engine import _build_user_payload
 from app.application.decision_engine import BuyRecord, DecisionContext, ListingRecord, RecentAction
 from app.application.player_enrichment import PlayerEnricher
 from app.application.run_tick_uc import _max_negative_allowed
+from app.application.team_context import TeamContextProvider
+from app.domain.fixtures import TeamOutlook
 from app.domain.models import (
+    Fixture,
     LeagueConstraints,
     MarketPlayer,
     MarketValuePoint,
     PlayerDetail,
     PlayerPerformance,
     Squad,
+    TeamStanding,
 )
 from app.domain.trade import TradeAction, TradeIntent
 from app.infrastructure.kickbase.dto import (
+    CompetitionTableDTO,
     LeagueMeDTO,
     LineupOverviewDTO,
     MarketResponseDTO,
     MarketValueResponseDTO,
+    MatchdaysResponseDTO,
     PlayerDetailDTO,
     PlayerPerformanceResponseDTO,
     SquadResponseDTO,
@@ -126,6 +132,11 @@ def _build_context() -> DecisionContext:
             underpay_blocked=True,
             scoring_mode="season_points",
         ),
+        # Tabelle und Spielplan aus den echten Cassettes (P2-11): am 23.09. sind
+        # vier Spieltage gespielt, der fünfte ist für den 09.10. angesetzt. Der
+        # Snapshot zeigt damit die Lage, in der der Bot entscheidet — Bayern auf
+        # Platz 2 mit +12 Toren, Gladbach Letzter mit -10.
+        team_outlook=_team_outlook(),
     )
 
 
@@ -167,6 +178,35 @@ class _StaticGateway:
     async def get_player_performance(self, league_id: str, player_id: str) -> PlayerPerformance:
         del league_id
         return replace(self._performance, player_id=player_id)
+
+
+class _FixtureGateway:
+    """Liefert Tabelle und Spielplan aus den Cassettes — sonst nichts.
+
+    Der Provider soll im Snapshot seinen echten Pfad laufen (FDR-Bänder,
+    Tordifferenz-Korrektur, Auswahl des nächsten Spiels), nur ohne HTTP.
+    """
+
+    def __init__(self, standings: list[TeamStanding], fixtures: list[Fixture]) -> None:
+        self._standings = standings
+        self._fixtures = fixtures
+
+    async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
+        del competition_id
+        return list(self._standings)
+
+    async def list_fixtures(self, competition_id: str = "1") -> list[Fixture]:
+        del competition_id
+        return list(self._fixtures)
+
+
+def _team_outlook() -> dict[str, TeamOutlook]:
+    standings = CompetitionTableDTO.model_validate(
+        load_cassette_payload("competition_table")
+    ).to_domain()
+    fixtures = MatchdaysResponseDTO.model_validate(load_cassette_payload("matchdays")).to_fixtures()
+    provider = TeamContextProvider(_FixtureGateway(standings, fixtures))  # type: ignore[arg-type]
+    return asyncio.run(provider.load(now=NOW))
 
 
 def _enrich(
@@ -641,3 +681,53 @@ def test_negative_season_average_is_data_not_a_gap(payload: dict[str, Any]) -> N
     ]
     assert negatives, "Cassette ohne negativen Saison-Ø — Test aussagelos"
     assert all("missing_data:avg_points_last5" not in p["missing_data_flags"] for p in negatives)
+
+
+def test_every_player_carries_its_next_fixture(payload: dict[str, Any]) -> None:
+    """P2-11: Gegner, Heimrecht und Schwierigkeit stehen an **jedem** Spieler.
+
+    Vor P2-11 verbot §1.2 des Prompts ausdrücklich, mit Restspielplan und
+    Gegnerstärke zu rechnen — die Daten fehlten. Gemessen wird deshalb dreierlei:
+    die Felder sind da, sie sind gefüllt (die Cassette hat für jedes Team ein
+    kommendes Spiel), und die Schwierigkeit **streut**. Ein konstanter FDR wäre
+    schlimmer als keiner: er sähe nach Information aus und wäre keine.
+    """
+    entries = payload["squad"] + payload["market"]
+    for entry in entries:
+        for field_name in ("next_opponent", "next_opponent_rank", "is_home", "fdr", "fdr_next3"):
+            assert field_name in entry, f"{entry['player_id']}: `{field_name}` fehlt"
+
+    known = [e for e in entries if e["fdr"] is not None]
+    assert len(known) == len(entries), (
+        "Die Cassette hat für jeden Verein ein kommendes Spiel — "
+        f"ohne FDR: {[e['name'] for e in entries if e['fdr'] is None]}"
+    )
+    assert all(1 <= e["fdr"] <= 5 for e in known)
+    assert len({e["fdr"] for e in known}) > 1, (
+        "Alle Spieler haben dieselbe Gegnerstärke — die FDR-Ableitung greift nicht."
+    )
+    # Heim und Auswärts müssen beide vorkommen, sonst prüft `is_home` nichts.
+    assert {e["is_home"] for e in entries} == {True, False}
+    # Kein Flag, wo der Spielplan bekannt ist.
+    assert all("missing_data:fixtures" not in e["missing_data_flags"] for e in known)
+
+
+def test_fixture_difficulty_points_the_right_way(payload: dict[str, Any]) -> None:
+    """Die Skala darf nicht verdreht sein: 1 = leicht, 5 = schwer.
+
+    Dieselbe Falle wie bei `prob` (Plan §8/F2), nur mit umgekehrtem Vorzeichen
+    der Folgen: eine invertierte Skala lässt das Modell systematisch die Spieler
+    mit den schwersten Spielen kaufen. Der Test hängt sie an die Tabelle der
+    Cassette — Spitzenteams müssen höhere Werte erzeugen als Kellerkinder.
+    """
+    by_opponent = {
+        entry["next_opponent"]: entry["fdr"]
+        for entry in payload["squad"] + payload["market"]
+        if entry["fdr"] is not None
+    }
+    # Dortmund (Platz 1) und Bayern (Platz 2, +12 Tore) sind die schwersten
+    # Gegner der Cassette, Gladbach (Platz 18) und Union (17, -13) die leichtesten.
+    hard = [by_opponent[name] for name in ("Dortmund", "Bayern") if name in by_opponent]
+    easy = [by_opponent[name] for name in ("M'gladbach", "Union Berlin") if name in by_opponent]
+    assert hard and easy, f"Erwartete Gegner fehlen im Payload: {sorted(by_opponent)}"
+    assert min(hard) > max(easy), f"FDR-Skala verdreht: schwere Gegner {hard}, leichte {easy}"

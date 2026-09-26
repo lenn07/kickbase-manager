@@ -577,3 +577,46 @@ async def test_get_lineup_without_a_formation_falls_back_to_the_default() -> Non
 
     assert lineup.formation in FORMATIONS
     assert lineup.player_ids == ()
+
+
+async def test_competition_endpoints_hit_the_right_paths() -> None:
+    """Tabelle und Spielplan (P2-11) — zwei Calls für alle Spieler.
+
+    Beide Pfade sind ligaunabhängig (`/competitions/{id}/…`, nicht
+    `/leagues/{id}/…`). Ein Tippfehler darin fällt sonst erst im Betrieb auf,
+    und zwar als stilles `missing_data:fixtures` in jedem Payload.
+    """
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v4/user/login":
+            return httpx.Response(200, json=_LOGIN_OK)
+        seen.append(request.url.path)
+        if request.url.path.endswith("/table"):
+            return httpx.Response(
+                200,
+                json={"it": [{"tid": "3", "tn": "Dortmund", "cpl": 1, "cp": 12, "mc": 4, "gd": 7}]},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "day": 5,
+                "it": [
+                    {
+                        "day": 5,
+                        "it": [
+                            {"mi": "2", "dt": "2026-10-09T18:30:00Z", "t1": "13", "t2": "2"},
+                        ],
+                    }
+                ],
+            },
+        )
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        await client.login("a@b.de", "pw")
+        standings = await client.get_competition_table()
+        fixtures = await client.list_fixtures()
+
+    assert seen == ["/v4/competitions/1/table", "/v4/competitions/1/matchdays"]
+    assert standings[0].team_name == "Dortmund"
+    assert fixtures[0].away_team_id == "2"

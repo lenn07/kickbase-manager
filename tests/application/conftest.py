@@ -11,6 +11,7 @@ import pytest
 from app.domain.exceptions import AuthError
 from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
+    Fixture,
     League,
     LeagueMe,
     MarketSnapshot,
@@ -18,6 +19,7 @@ from app.domain.models import (
     Matchday,
     PlayerDetail,
     Squad,
+    TeamStanding,
 )
 from app.domain.models import (
     Session as KbSession,
@@ -121,6 +123,15 @@ class FakeKickbase:
         self.lineups_written.append(lineup)
 
     async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]:
+        return []
+
+    async def list_fixtures(self, competition_id: str = "1") -> list[Fixture]:
+        # Leer heißt „kein Spielplan bekannt" — der Payload sagt dann
+        # `missing_data:fixtures`. Tests, die den Spielplan brauchen, überschreiben
+        # die Methode (siehe `_FixtureKickbase` in test_run_tick_uc.py).
+        return []
+
+    async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
         return []
 
     async def get_market_value_history(

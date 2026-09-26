@@ -10,9 +10,11 @@ from app.application.decision_engine import (
 )
 from app.application.run_tick_uc import RunTickUseCase, _max_negative_allowed
 from app.application.setup_service import SetupService, SmtpFormInput
+from app.application.team_context import TeamContextProvider
 from app.domain.exceptions import TransportError
 from app.domain.lineup import Lineup
 from app.domain.models import (
+    Fixture,
     LeagueMe,
     MarketPlayer,
     MarketSnapshot,
@@ -22,6 +24,7 @@ from app.domain.models import (
     Position,
     Squad,
     SquadPlayer,
+    TeamStanding,
 )
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import FernetVault
@@ -662,3 +665,140 @@ async def test_tick_persists_the_clocks_for_the_scheduler(
     # Und derselbe Wert kommt zurück, damit der Scheduler ohne DB-Zugriff
     # direkt nachziehen kann.
     assert outcome.next_matchday_start == kickoff
+
+
+# -- P2-11: Spielplan & Gegnerstärke -------------------------------------
+
+
+class _FixtureKickbase(FakeKickbase):
+    """Liefert Tabelle und Spielplan — und zählt, wie oft sie geholt werden."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.table_calls = 0
+        self.fixture_calls = 0
+
+    async def get_squad(self, league_id: str, manager_id: str) -> Squad:
+        player = Player(
+            id="p1",
+            first_name="Dayot",
+            last_name="Upamecano",
+            team_id="2",
+            position=Position.DEFENDER,
+            status=PlayerStatus.FIT,
+            market_value=Decimal(33_000_000),
+            average_points=178.0,
+            total_points=712,
+        )
+        return Squad(
+            league_id=league_id,
+            manager_id=manager_id,
+            players=(SquadPlayer(player=player, lineup_order=1),),
+        )
+
+    async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
+        self.table_calls += 1
+        return [
+            TeamStanding(
+                team_id="3",
+                team_name="Dortmund",
+                rank=1,
+                points=12,
+                matches_played=4,
+                goal_difference=7,
+            ),
+            TeamStanding(
+                team_id="2",
+                team_name="Bayern",
+                rank=2,
+                points=10,
+                matches_played=4,
+                goal_difference=12,
+            ),
+        ]
+
+    async def list_fixtures(self, competition_id: str = "1") -> list[Fixture]:
+        self.fixture_calls += 1
+        return [
+            Fixture(
+                matchday=5,
+                kickoff=datetime.now(UTC) + timedelta(days=3),
+                home_team_id="3",
+                away_team_id="2",
+                is_finished=False,
+            )
+        ]
+
+
+async def test_fixtures_reach_the_decision_context(db_session: Session, vault: FernetVault) -> None:
+    """Der Spielplan muss bis in den Kontext kommen — sonst bleibt §1.2 blind."""
+    kb = _FixtureKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("ok"))
+    await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        team_context=TeamContextProvider(kb),
+    ).run()
+
+    outlook = engine.contexts[0].team_outlook["2"]
+    assert outlook.next_opponent_name == "Dortmund"
+    assert outlook.is_home is False
+    assert outlook.fdr == 5
+
+
+async def test_tick_runs_without_a_fixture_provider(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Ohne Provider bleibt `team_outlook` leer — der Tick läuft trotzdem durch.
+
+    Der Zustand vor P2-11, nur jetzt benannt: der Payload setzt dann
+    `missing_data:fixtures` und der Prompt entscheidet ohne Gegner.
+    """
+    kb = _FixtureKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("ok"))
+    outcome = await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    assert outcome.decision is not None
+    assert engine.contexts[0].team_outlook == {}
+    assert kb.table_calls == 0
+
+
+async def test_fixture_failure_does_not_cost_the_tick(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Gegnerstärke ist Komfort. Konto und Elf hängen nicht daran."""
+
+    class _BrokenFixtures(_FixtureKickbase):
+        async def list_fixtures(self, competition_id: str = "1") -> list[Fixture]:
+            raise TransportError("tabelle weg")
+
+        async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
+            raise TransportError("tabelle weg")
+
+    kb = _BrokenFixtures()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("ok"))
+    outcome = await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        team_context=TeamContextProvider(kb),
+    ).run()
+
+    assert outcome.decision is not None
+    assert engine.contexts[0].team_outlook == {}

@@ -23,6 +23,7 @@ from app.domain.exceptions import (
 from app.domain.gateways import SessionStore
 from app.domain.lineup import Lineup
 from app.domain.models import (
+    Fixture,
     League,
     LeagueMe,
     MarketSnapshot,
@@ -32,10 +33,12 @@ from app.domain.models import (
     PlayerPerformance,
     Session,
     Squad,
+    TeamStanding,
 )
 from app.infrastructure.kickbase.config import KickbaseClientConfig
 from app.infrastructure.kickbase.dto import (
     BidResponseDTO,
+    CompetitionTableDTO,
     LeagueMeDTO,
     LeagueSelectionDTO,
     LineupOverviewDTO,
@@ -195,6 +198,14 @@ class HttpxKickbaseClient:
     async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]:
         data = await self._request("GET", f"/v4/competitions/{competition_id}/matchdays")
         return MatchdaysResponseDTO.model_validate(data).to_domain()
+
+    async def list_fixtures(self, competition_id: str = "1") -> list[Fixture]:
+        data = await self._request("GET", f"/v4/competitions/{competition_id}/matchdays")
+        return MatchdaysResponseDTO.model_validate(data).to_fixtures()
+
+    async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
+        data = await self._request("GET", f"/v4/competitions/{competition_id}/table")
+        return CompetitionTableDTO.model_validate(data).to_domain()
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7

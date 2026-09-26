@@ -80,3 +80,22 @@ def test_every_scenario_leaves_a_way_out() -> None:
         assert TradeAction.HOLD in scenario.allowed or scenario.forbidden, (
             f"{scenario.name}: HOLD verboten, aber keine Begründung über `forbidden`"
         )
+
+
+def test_every_scenario_knows_its_next_opponent() -> None:
+    """Seit P2-11 gehört der Spielplan zur Lage — sonst misst die Eval den Vorzustand.
+
+    Ohne Gegner im Payload steht an jedem Spieler `missing_data:fixtures`, und
+    §1.2 verlangt dann ausdrücklich, ohne Spielplan zu entscheiden. Die Eval
+    würde also weiter den Zustand vor P2-11 prüfen, während der Bot produktiv
+    mit Gegnerstärke arbeitet.
+    """
+    for scenario in SCENARIOS:
+        payload = _build_user_payload(scenario.context)
+        for entry in payload["squad"] + payload["market"]:
+            assert entry["fdr"] is not None, (
+                f"{scenario.name}: {entry['name']} ohne Gegnerstärke — "
+                "fehlt ein Outlook für dessen `team_id`?"
+            )
+            assert 1 <= entry["fdr"] <= 5, f"{scenario.name}: fdr {entry['fdr']} außerhalb 1..5"
+            assert "missing_data:fixtures" not in entry["missing_data_flags"], scenario.name

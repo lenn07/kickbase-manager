@@ -30,8 +30,10 @@ from app.application.decision_engine import (
 from app.application.lineup_guard import propose_lineup_fix, to_decision
 from app.application.player_enrichment import PlayerEnricher, PlayerEnrichment
 from app.application.setup_state import read_setup_state
+from app.application.team_context import TeamContextProvider
 from app.application.trade_executor import ExecutionResult, TradeExecutor
 from app.domain.exceptions import KickbaseError
+from app.domain.fixtures import TeamOutlook
 from app.domain.gateways import KickbaseGateway
 from app.domain.lineup import Lineup
 from app.domain.models import LeagueConstraints, MarketPlayer, MarketSnapshot, Squad
@@ -78,6 +80,7 @@ class RunTickUseCase:
         engine: DecisionEngine,
         smtp: SmtpGateway,
         enricher: PlayerEnricher | None = None,
+        team_context: TeamContextProvider | None = None,
         lineup_writes_enabled: bool = False,
         club_limit: int | None = None,
         club_limit_is_unlimited: bool = False,
@@ -101,6 +104,10 @@ class RunTickUseCase:
         self._engine = engine
         self._smtp = smtp
         self._enricher = enricher
+        # Spielplan-Kontext (P2-11). Ohne Provider bleibt `team_outlook` leer und
+        # der Payload sagt `missing_data:fixtures` — derselbe Zustand wie vor
+        # P2-11, nur jetzt benannt.
+        self._team_context = team_context
         self._users = UserRepository(session)
         self._leagues = LeagueRepository(session)
         self._settings = SettingsRepository(session)
@@ -171,7 +178,7 @@ class RunTickUseCase:
             now=now,
         )
         recent_actions = _load_recent_actions(self._trades, user.id)
-        enrichment = await self._enrich_players(
+        enrichment, team_outlook = await self._load_prompt_signals(
             league_row.kb_league_id,
             squad,
             market,
@@ -236,6 +243,7 @@ class RunTickUseCase:
                 underpay_blocked=self._underpay_blocked,
                 scoring_mode=self._scoring_mode,
             ),
+            team_outlook=team_outlook,
         )
 
         decision = await self._engine.decide(context)
@@ -374,6 +382,36 @@ class RunTickUseCase:
             )
         )
 
+    async def _load_prompt_signals(
+        self,
+        league_id: str,
+        squad: Squad,
+        market: list[MarketPlayer],
+        *,
+        snapshot: MarketSnapshot,
+        next_matchday_start: datetime | None,
+        now: datetime,
+    ) -> tuple[dict[str, PlayerEnrichment], dict[str, TeamOutlook]]:
+        """Die beiden Zusatzsignal-Quellen des Prompts: Spieler und Spielplan.
+
+        Gemeinsam gehalten, weil sie dieselbe Eigenschaft teilen — beide dürfen
+        ausfallen, ohne den Tick zu verbrauchen. Was nicht ausfallen darf, steht
+        im Block darüber (`get_league_me`, `get_squad`, `get_market`,
+        `get_lineup`) und bricht den Tick mit einer ERROR-Zeile ab.
+        """
+        enrichment = await self._enrich_players(
+            league_id,
+            squad,
+            market,
+            snapshot=snapshot,
+            next_matchday_start=next_matchday_start,
+            now=now,
+        )
+        team_outlook = await self._load_team_outlook(
+            next_matchday_start=next_matchday_start, now=now
+        )
+        return enrichment, team_outlook
+
     async def _enrich_players(
         self,
         league_id: str,
@@ -399,6 +437,24 @@ class RunTickUseCase:
             )
         except KickbaseError as exc:
             _log.info("Enrichment fehlgeschlagen (%s) — Prompt läuft ohne Zusatzsignale.", exc)
+            return {}
+
+    async def _load_team_outlook(
+        self, *, next_matchday_start: datetime | None, now: datetime
+    ) -> dict[str, TeamOutlook]:
+        """Gegnerstärke je Verein (P2-11) — ein Ausfall darf den Tick nicht kosten.
+
+        Der Provider fängt Kickbase-Fehler schon selbst ab und liefert dann ein
+        leeres Mapping. Das `except` hier ist die zweite Sicherung: der
+        Spielplan ist ein Komfort-Signal, die Regel-Compliance (Konto, Elf)
+        hängt nicht an ihm.
+        """
+        if self._team_context is None:
+            return {}
+        try:
+            return await self._team_context.load(next_matchday_start=next_matchday_start, now=now)
+        except KickbaseError as exc:
+            _log.info("Spielplan-Kontext fehlgeschlagen (%s) — Prompt läuft ohne Gegner.", exc)
             return {}
 
     async def _next_matchday_start(self, snapshot: MarketSnapshot) -> datetime | None:

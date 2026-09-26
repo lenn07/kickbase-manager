@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Protocol
 
 from app.application.player_enrichment import PlayerEnrichment
+from app.domain.fixtures import TeamOutlook
 from app.domain.lineup import Lineup
 from app.domain.models import LeagueConstraints, LeagueMe, MarketPlayer, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
@@ -148,6 +149,11 @@ class DecisionContext:
     # „nichts bekannt", nicht „keine Limits". Der Unterschied entscheidet, ob
     # das Modell einen Verstoß behauptet oder Unwissen einräumt.
     constraints: LeagueConstraints = field(default_factory=LeagueConstraints)
+    # Gegner, Heimrecht und Schwierigkeit je **Verein** (P2-11). Nach `team_id`
+    # indiziert, nicht nach Spieler: der Spielplan gilt für die Mannschaft, und
+    # elf Kaderspieler desselben Clubs teilen ihn. Leeres Mapping = kein
+    # Spielplan bekannt; der Payload setzt dann `missing_data:fixtures`.
+    team_outlook: Mapping[str, TeamOutlook] = field(default_factory=dict)
 
 
 class DecisionEngine(Protocol):

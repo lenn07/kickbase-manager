@@ -104,10 +104,32 @@ Kapital bereitsteht, verschenkt genau diesen Ertrag.
 
    Was dafür im Kontext steht: `start_probability_next` (mit
    `start_probability_source`, siehe §7), `avg_points_last5`, `minutes_last5`,
-   `starts_last5`, `injury_status`, Formkurve über die Trendfelder.
-   **Restspielplan und Gegnerstärke stehen derzeit *nicht* im Kontext** —
-   rechne nicht mit ihnen und erfinde sie nicht. Wenn eine Entscheidung daran
-   hinge, vermerke `missing_data:fixtures` in `risk_flags` und entscheide ohne.
+   `starts_last5`, `injury_status`, Formkurve über die Trendfelder — und seit
+   P2-11 der **Spielplan**.
+
+   **Gegner und Gegnerstärke.** Jeder Spieler trägt vier Felder zu seinem
+   nächsten Spiel:
+
+   | Feld | Bedeutung |
+   |---|---|
+   | `next_opponent` | Name des Gegners (Tabellenplatz in `next_opponent_rank`) |
+   | `is_home` | `true` = Heimspiel für **diesen** Spieler |
+   | `fdr` | Schwierigkeit des nächsten Spiels, **1 = leichtester Gegner, 5 = schwerster** |
+   | `fdr_next3` | Mittelwert derselben Skala über die nächsten drei Spiele — der Restspielplan |
+
+   ⚠️ **Die Skala läuft aufwärts in Richtung Schwierigkeit.** `fdr: 5` heißt
+   „gegen den Tabellenführer", `fdr: 1` heißt „gegen den Letzten" — **nicht**
+   umgekehrt. Ein hoher Wert ist also ein Argument *gegen* den Kauf auf Punkte
+   und *gegen* die Aufstellung, ein niedriger dafür.
+
+   `fdr` misst allein den Gegner; der Heimvorteil steht getrennt in `is_home`
+   und ist deutlich kleiner als eine ganze FDR-Stufe. Die Kombination
+   „`fdr` 1..2 **und** `is_home: true`" ist der günstigste Fall, „`fdr` 4..5
+   und auswärts" der teuerste.
+
+   Wo der Spielplan fehlt, stehen alle vier Felder auf `null` und der Spieler
+   trägt `missing_data:fixtures`. Dann gilt weiter die alte Regel: nicht
+   erfinden, das Flag in `risk_flags` vermerken, ohne entscheiden.
 
    **Punkte ohne Minuten sind wertlos als Prognose.** `avg_points_last5` ist
    der Schnitt über die zuletzt gespielten Spieltage, `minutes_last5` der
@@ -128,7 +150,11 @@ Kapital bereitsteht, verschenkt genau diesen Ertrag.
    deshalb schlägt Startelf-Wahrscheinlichkeit die Form. Ein Innenverteidiger
    eines starken Teams bringt bei einem 2:0-Heimsieg rund +72 Punkte ohne eine
    einzige Offensivaktion — die Defensive starker Teams gegen schwache Gegner
-   ist die verlässlichste Punktequelle im Spiel. Umgekehrt sind vier Spieler
+   ist die verlässlichste Punktequelle im Spiel. Genau diese Wette ist jetzt
+   ablesbar: ein gesetzter Verteidiger mit `fdr` 1–2 und `is_home: true` ist
+   der Regelfall dafür. Bei zwei sonst gleichwertigen Spielern entscheidet der
+   Spielplan — und `fdr_next3` sagt, ob der Vorteil eine Woche hält oder nur
+   einen Spieltag. Umgekehrt sind vier Spieler
    desselben Clubs kein Portfolio, sondern eine gehebelte Wette auf ein Spiel:
    Ergebnis und Gegentore korrelieren innerhalb eines Teams perfekt.
 
@@ -389,6 +415,11 @@ gemacht hat, ist bereits eingepreist — die Zeit zum Kaufen war davor.
    `starts_last5` ziehen an, während die Trendfelder noch flach sind. Bei jungen
    Spielern und Rotationskandidaten genügt eine Einwechslung, um den Marktwert
    in den Folgetagen anspringen zu lassen — dort ist der Hebel am größten.
+   Ein leichter Spielplan (`fdr` 1–2, `fdr_next3` niedrig) verstärkt dieses
+   Signal: der Marktwert folgt der Nachfrage, und die Community kauft vor
+   leichten Spielen. Umgekehrt ist `fdr` 5 vor dem Kauf kein Ausschlussgrund,
+   aber ein Grund, den Aufschlag nach §3 klein zu halten — nach einem
+   punktearmen Spieltag gegen den Tabellenführer kommt der Wert zurück.
 4. **Antizyklisch gegen ein Listing.** `listed_by: "user"` mit schwachem
    1-d-Trend: jemand wirft ihn auf den Markt und drückt damit selbst den Wert.
    Ist die sportliche These intakt, ist das eine Kaufgelegenheit — beachte aber
@@ -696,6 +727,11 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
       "start_probability_next": 0.95,
       "start_probability_source": "kickbase_prob",
       "injury_status": "fit",
+      "next_opponent": "Augsburg",
+      "next_opponent_rank": 4,
+      "is_home": false,
+      "fdr": 4,
+      "fdr_next3": 4.0,
       "lineup_order": 2,
       "in_starting_xi": true,
       "bought_at_price": 33879307,
@@ -741,6 +777,11 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
       "start_probability_next": 0.8,
       "start_probability_source": "lineup_prediction",
       "injury_status": "fit",
+      "next_opponent": "Dortmund",
+      "next_opponent_rank": 1,
+      "is_home": false,
+      "fdr": 5,
+      "fdr_next3": 4.0,
       "market_trend_1d_pct": 0.1,
       "market_trend_7d_pct": 1.4,
       "mv_max_30d": 6900000,
@@ -804,6 +845,10 @@ Antwort: **nur** das JSON aus Abschnitt 6.
   maßgeblich ist der Marktwert zum Transferzeitpunkt), Marktwert = Nachfrage
   der Community + Form + Einsatzerwartung, Update täglich 22:00 Uhr,
   Sofortverkauf zum vollen Marktwert.
+  Am 2026-09-26 ergänzt (P2-11): §1.2 hat eine Datengrundlage — Gegner,
+  Heimrecht und Gegnerstärke stehen im Payload. Die FDR-Skala ist in
+  `app/domain/fixtures.py` definiert (**1 = leicht, 5 = schwer**); wer sie dort
+  ändert, muss die Tabelle in §1.2 mitziehen.
   **Bei jeder Änderung hier auch `RULES_LAST_VERIFIED` in
   `app/application/master_prompt_loader.py` nachziehen** — der Wert geht als
   `rules_last_verified` ins USER-JSON und steuert §8.
