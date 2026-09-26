@@ -622,6 +622,51 @@ def _budget_block(context: DecisionContext) -> dict[str, Any]:
     }
 
 
+_FLAG_FIXTURES_MISSING = "missing_data:fixtures"
+
+
+def _fixture_fields(team_id: str, context: DecisionContext) -> tuple[dict[str, Any], list[str]]:
+    """Gegner, Heimrecht und Schwierigkeit — plus das Flag, wenn nichts bekannt ist.
+
+    Gilt je Verein und wird deshalb an jeden Spieler dieses Vereins gehängt
+    statt als eigener Block mit `team_id`-Schlüssel: das Modell trifft seine
+    Entscheidung über einen Spieler, und ein Join über zwei Blöcke ist eine
+    Fehlerquelle, die vier Felder nicht wert ist.
+
+    `fdr` läuft von 1 (leichtester Gegner) bis 5 (schwerster) — die Richtung
+    steht in `app/domain/fixtures.py` und im Prompt §1.2. `is_home` bleibt
+    daneben statt in die Zahl einzugehen: der Heimvorteil ist real, aber eine
+    ganze FDR-Stufe wäre dafür erfunden (Plan §9).
+
+    Der Prompt nennt das Flag `missing_data:fixtures` seit P0-5 — damals als
+    Dauerzustand, seit P2-11 als Ausnahme.
+    """
+    outlook = context.team_outlook.get(team_id)
+    if outlook is None or not outlook.is_known:
+        return (
+            {
+                "next_opponent": None,
+                "next_opponent_rank": None,
+                "is_home": None,
+                "fdr": None,
+                "fdr_next3": None,
+            },
+            [_FLAG_FIXTURES_MISSING],
+        )
+    fields: dict[str, Any] = {
+        # Klartext-Name, damit eine verdrehte Skala im Log auffällt: „fdr 5
+        # gegen Union Berlin" ist als Fehler erkennbar, „fdr 5 gegen 40" nicht.
+        # Ohne Tabellenzeile bleibt die Team-ID als Notbehelf.
+        "next_opponent": outlook.next_opponent_name or outlook.next_opponent_id,
+        "next_opponent_rank": outlook.next_opponent_rank,
+        "is_home": outlook.is_home,
+        "fdr": outlook.fdr,
+        "fdr_next3": outlook.fdr_next3,
+    }
+    flags = [] if outlook.fdr is not None else [_FLAG_FIXTURES_MISSING]
+    return fields, flags
+
+
 def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
     player = sp.player
     enrichment = context.enrichment.get(player.id)
@@ -683,7 +728,10 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         # Zahl sieht eine alte Position aus wie eine frische.
         entry["bought_at_iso"] = _to_iso(buy.bought_at) if buy.bought_at else None
         entry["days_held"] = _days_since(buy.bought_at, context.now)
+    fixture_fields, fixture_flags = _fixture_fields(player.team_id, context)
+    entry.update(fixture_fields)
     flags = list(enrichment.missing_data_flags) if enrichment else []
+    flags.extend(fixture_flags)
     if entry["bought_at_price"] is None:
         flags.append("missing_data:bought_at_price")
     if enrichment or flags:
@@ -767,8 +815,12 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
         "is_new_on_market": mp.is_new,
         "listed_at_iso": _to_iso(mp.listed_at) if mp.listed_at else None,
     }
-    if enrichment:
-        entry["missing_data_flags"] = list(enrichment.missing_data_flags)
+    fixture_fields, fixture_flags = _fixture_fields(player.team_id, context)
+    entry.update(fixture_fields)
+    flags = list(enrichment.missing_data_flags) if enrichment else []
+    flags.extend(fixture_flags)
+    if enrichment or flags:
+        entry["missing_data_flags"] = flags
     return entry
 
 

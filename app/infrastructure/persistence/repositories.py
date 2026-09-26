@@ -13,8 +13,16 @@ from decimal import Decimal
 
 from sqlmodel import Session, select
 
-from app.domain.models import MarketValuePoint, MatchdayPerformance, PlayerPerformance
+from app.domain.models import (
+    CompetitionContext,
+    Fixture,
+    MarketValuePoint,
+    MatchdayPerformance,
+    PlayerPerformance,
+    TeamStanding,
+)
 from app.infrastructure.persistence.models import (
+    CompetitionContextCacheRow,
     CredentialRow,
     LeagueRow,
     MarketMetaRow,
@@ -440,6 +448,72 @@ class PlayerPerformanceCacheRepository:
         row.fetched_at = datetime.now(UTC)
         row.valid_until = valid_until
         self._session.commit()
+
+
+class CompetitionContextCacheRepository:
+    """Tages-Cache für Tabelle + Spielplan — implementiert `CompetitionContextCache`.
+
+    Eine Zeile je Wettbewerb, und sie wird überschrieben statt gelöscht: die
+    Tabelle wächst damit nicht mit der Zahl der Ticks, sondern bleibt bei
+    einer Zeile. Abgelaufene Einträge liefert `get` nicht aus — wie in den
+    beiden Spieler-Caches wird der Ablauf gelesen, nicht aufgeräumt.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self, competition_id: str, *, now: datetime) -> CompetitionContext | None:
+        row = self._row(competition_id)
+        if row is None or _as_utc(row.valid_until) <= now:
+            return None
+        return CompetitionContext(
+            standings=tuple(
+                TeamStanding(
+                    team_id=str(team_id),
+                    team_name=str(name),
+                    rank=int(rank),
+                    points=int(points),
+                    matches_played=int(matches),
+                    goal_difference=int(goal_diff),
+                )
+                for team_id, name, rank, points, matches, goal_diff in row.standings
+            ),
+            fixtures=tuple(
+                Fixture(
+                    matchday=int(matchday),
+                    kickoff=datetime.fromisoformat(kickoff),
+                    home_team_id=str(home),
+                    away_team_id=str(away),
+                    is_finished=bool(finished),
+                )
+                for matchday, kickoff, home, away, finished in row.fixtures
+            ),
+        )
+
+    def put(
+        self, competition_id: str, context: CompetitionContext, *, valid_until: datetime
+    ) -> None:
+        row = self._row(competition_id)
+        if row is None:
+            row = CompetitionContextCacheRow(competition_id=competition_id, valid_until=valid_until)
+            self._session.add(row)
+        row.standings = [
+            [s.team_id, s.team_name, s.rank, s.points, s.matches_played, s.goal_difference]
+            for s in context.standings
+        ]
+        row.fixtures = [
+            [f.matchday, f.kickoff.isoformat(), f.home_team_id, f.away_team_id, f.is_finished]
+            for f in context.fixtures
+        ]
+        row.fetched_at = datetime.now(UTC)
+        row.valid_until = valid_until
+        self._session.commit()
+
+    def _row(self, competition_id: str) -> CompetitionContextCacheRow | None:
+        stmt = select(CompetitionContextCacheRow).where(
+            CompetitionContextCacheRow.competition_id == competition_id
+        )
+        return self._session.exec(stmt).first()
 
 
 class MarketMetaRepository:

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from app.domain.models import PlayerStatus, Position
 from app.infrastructure.kickbase.dto import (
+    CompetitionTableDTO,
     LeagueMeDTO,
     LoginResponseDTO,
     MarketResponseDTO,
@@ -419,3 +420,110 @@ def test_player_detail_maps_the_lineup_prediction() -> None:
 def test_player_detail_without_prediction_stays_none() -> None:
     detail = PlayerDetailDTO.model_validate({"i": "1991"}).to_domain("1991")
     assert detail.is_predicted_starter is None
+
+
+# ---------- Tabelle + Spielplan (P2-11) ----------
+
+
+def test_competition_table_sorts_by_rank() -> None:
+    """Kickbase liefert die Zeilen **unsortiert** — die echte Response beginnt mit
+    Bayern auf Platz 2, dann Stuttgart auf 15.
+
+    Wer sich auf die Reihenfolge verlässt, liest den falschen Verein als
+    Tabellenführer und dreht damit die halbe Gegnerstärke.
+    """
+    payload = {
+        "it": [
+            {"tid": "2", "tn": "Bayern", "cpl": 2, "cp": 10, "mc": 4, "gd": 12},
+            {"tid": "9", "tn": "Stuttgart", "cpl": 15, "cp": 3, "mc": 4, "gd": -3},
+            {"tid": "3", "tn": "Dortmund", "cpl": 1, "cp": 12, "mc": 4, "gd": 7},
+        ]
+    }
+    standings = CompetitionTableDTO.model_validate(payload).to_domain()
+
+    assert [s.team_id for s in standings] == ["3", "2", "9"]
+    assert standings[0].team_name == "Dortmund"
+    assert standings[0].points == 12
+    assert standings[1].goal_difference == 12
+    assert standings[1].matches_played == 4
+
+
+def test_competition_table_rows_without_a_rank_go_last() -> None:
+    """Platz 0 heißt „kein Platz" — sonst stünde die Zeile vor dem Tabellenführer."""
+    payload = {
+        "it": [
+            {"tid": "99", "tn": "Ohne Platz"},
+            {"tid": "3", "tn": "Dortmund", "cpl": 1},
+        ]
+    }
+    standings = CompetitionTableDTO.model_validate(payload).to_domain()
+    assert [s.team_id for s in standings] == ["3", "99"]
+
+
+def test_matchdays_response_also_yields_the_fixtures() -> None:
+    """Dieselbe Response, zwei Sichten: Spieltags-Fenster **und** Paarungen.
+
+    Der komplette Restspielplan steht hier — für einen HTTP-Call. Der
+    Optimizing-Plan hatte für P2-11 `mdsum[]` aus dem Spieler-Detail vorgesehen,
+    also einen Call pro Spieler (Plan-Korrektur in §6/P2-11).
+    """
+    payload = {
+        "day": 5,
+        "it": [
+            {
+                "day": 4,
+                "it": [
+                    {
+                        "mi": "1",
+                        "day": 4,
+                        "dt": "2026-09-18T18:30:00Z",
+                        "t1": "2",
+                        "t2": "40",
+                        "st": 2,
+                    }
+                ],
+            },
+            {
+                "day": 5,
+                "it": [
+                    {"mi": "2", "day": 5, "dt": "2026-10-09T18:30:00Z", "t1": "13", "t2": "2"},
+                    {"mi": "3", "day": 5, "dt": "2026-10-10T13:30:00Z", "t1": "3", "t2": "10"},
+                ],
+            },
+        ],
+    }
+    dto = MatchdaysResponseDTO.model_validate(payload)
+    fixtures = dto.to_fixtures()
+
+    assert [f.matchday for f in fixtures] == [4, 5, 5]
+    assert fixtures[0].is_finished is True
+    assert fixtures[1].is_finished is False
+    assert fixtures[1].home_team_id == "13"
+    assert fixtures[1].away_team_id == "2"
+    assert fixtures[1].opponent_of("2") == "13"
+    assert fixtures[1].is_home_for("2") is False
+    # Die Spieltags-Sicht bleibt unverändert nutzbar.
+    assert [md.number for md in dto.to_domain()] == [4, 5]
+
+
+def test_fixture_without_both_teams_is_dropped() -> None:
+    """Eine halbe Paarung würde einen Gegner mit leerer ID in den Prompt schreiben."""
+    payload = {
+        "it": [
+            {
+                "day": 5,
+                "it": [
+                    {"mi": "1", "dt": "2026-10-09T18:30:00Z", "t1": "2"},
+                    {"mi": "2", "dt": "2026-10-09T18:30:00Z", "t1": "3", "t2": "10"},
+                ],
+            }
+        ]
+    }
+    fixtures = MatchdaysResponseDTO.model_validate(payload).to_fixtures()
+    assert [f.home_team_id for f in fixtures] == ["3"]
+
+
+def test_fixture_takes_the_matchday_from_its_group_when_missing() -> None:
+    payload = {"it": [{"day": 7, "it": [{"dt": "2026-10-23T18:30:00Z", "t1": "2", "t2": "3"}]}]}
+    fixtures = MatchdaysResponseDTO.model_validate(payload).to_fixtures()
+    assert fixtures[0].matchday == 7

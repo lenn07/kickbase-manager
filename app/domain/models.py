@@ -304,6 +304,76 @@ class Matchday:
 
 
 @dataclass(frozen=True, slots=True)
+class TeamStanding:
+    """Eine Zeile der Bundesliga-Tabelle aus `GET /v4/competitions/1/table`.
+
+    Wire-Felder: `tid`, `tn`, `cpl` (Platz), `cp` (Punkte), `mc` (Spiele),
+    `gd` (Tordifferenz). Das ebenfalls gelieferte `sp` (Kickbase-Punkte des
+    Teams) bleibt draußen: es misst die Fantasy-Ausbeute des Kaders, nicht die
+    Spielstärke — und für die Frage „wie schwer ist der nächste Gegner" ist die
+    sportliche Tabelle die Quelle.
+
+    `matches_played` gehört dazu, weil die Tordifferenz ohne sie nicht lesbar
+    ist: +8 nach vier Spielen ist eine andere Aussage als +8 nach 30.
+    """
+
+    team_id: str
+    team_name: str
+    rank: int
+    points: int
+    matches_played: int
+    goal_difference: int
+
+
+@dataclass(frozen=True, slots=True)
+class Fixture:
+    """Eine Paarung aus `GET /v4/competitions/1/matchdays`.
+
+    Dieselbe Response, aus der `Matchday` schon die Anpfiffzeiten zieht — sie
+    trägt **alle 34 Spieltage** mit `t1`/`t2`/`dt`/`st`, also den kompletten
+    Restspielplan für einen einzigen HTTP-Call. Der Optimizing-Plan hatte für
+    P2-11 `mdsum[]` aus `GET /leagues/{l}/players/{p}` vorgesehen; das wäre ein
+    Call **pro Spieler** für eine Information, die pro *Team* gilt (siehe
+    Plan-Korrektur in §6/P2-11).
+
+    `is_finished` kommt aus `st == 2`. In der Cassette gilt das über alle 34
+    Spieltage ausnahmslos: die vier gespielten tragen `st: 2` und Tore, die
+    dreißig kommenden `st: 0` und keine.
+    """
+
+    matchday: int
+    kickoff: datetime
+    home_team_id: str
+    away_team_id: str
+    is_finished: bool
+
+    def opponent_of(self, team_id: str) -> str | None:
+        """Der Gegner dieses Teams — `None`, wenn es gar nicht mitspielt."""
+        if team_id == self.home_team_id:
+            return self.away_team_id
+        if team_id == self.away_team_id:
+            return self.home_team_id
+        return None
+
+    def is_home_for(self, team_id: str) -> bool:
+        return team_id == self.home_team_id
+
+
+@dataclass(frozen=True, slots=True)
+class CompetitionContext:
+    """Tabelle **und** Spielplan eines Wettbewerbs — der Inhalt des Tages-Caches.
+
+    Zwei HTTP-Calls, ein Cache-Eintrag: beide Antworten beschreiben denselben
+    Zustand der Liga und werden gemeinsam gültig oder ungültig. Getrennt
+    gecacht könnte eine frische Tabelle auf einen veralteten Spielplan treffen
+    — der nächste Gegner käme dann aus der Vorwoche, die Stärke aus heute.
+    """
+
+    standings: tuple[TeamStanding, ...] = ()
+    fixtures: tuple[Fixture, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class MarketValuePoint:
     day: datetime
     value: Decimal

@@ -175,15 +175,39 @@ def test_prompt_does_not_read_the_offer_count_as_competition() -> None:
     assert "es zählt die **eigenen**" in prompt
 
 
-def test_prompt_does_not_promise_data_the_payload_lacks() -> None:
-    """Der alte Prompt verlangte Restspielplan und Gegnerstärke — beides fehlt.
+def test_prompt_only_promises_fields_the_payload_carries() -> None:
+    """P2-11 dreht diesen Wächter um.
 
-    Ein Modell, das nach nicht vorhandenen Feldern greift, erfindet sie. Seit
-    P0-5 steht ausdrücklich im Prompt, dass sie fehlen (P2-11 liefert sie).
+    Bis dahin verlangte §1.2 Restspielplan und Gegnerstärke, ohne dass ein
+    einziges Feld dafür im Payload stand — P0-5 hat das mit einem ausdrücklichen
+    „stehen derzeit *nicht* im Kontext" geschlossen, und dieser Test hat auf
+    genau diesen Satz geprüft. Seit P2-11 sind die Felder da; der Satz muss
+    **weg**, sonst verbietet der Prompt die Nutzung vorhandener Daten.
+
+    Was bleibt, ist die Regel für den Ausfall: fehlt der Spielplan, trägt der
+    Spieler `missing_data:fixtures` und es wird nichts erfunden.
     """
     prompt = load_system_prompt()
-    assert "derzeit *nicht* im Kontext" in prompt
-    assert "erfinde sie nicht" in prompt
+    assert "derzeit *nicht* im Kontext" not in prompt, (
+        "§1.2 verbietet die Nutzung von Daten, die seit P2-11 im Payload stehen."
+    )
+    for field_name in ("`next_opponent`", "`is_home`", "`fdr`", "`fdr_next3`"):
+        assert field_name in prompt, f"{field_name} fehlt in §1.2"
+    assert "missing_data:fixtures" in prompt
+    assert "nicht erfinden" in prompt or "erfinden" in prompt
+
+
+def test_prompt_states_the_fdr_direction_unambiguously() -> None:
+    """Die Skalenrichtung muss im Prompt stehen, nicht nur im Code.
+
+    Dieselbe Falle wie bei `prob` (Plan §8/F2): eine verdrehte Skala lässt das
+    Modell systematisch die Spieler mit den schwersten Spielen bevorzugen.
+    Der Code definiert die Richtung in `app/domain/fixtures.py`; steht sie im
+    Prompt nicht oder anders, entscheidet das Modell gegen die Daten.
+    """
+    prompt = load_system_prompt()
+    assert "1 = leichtester Gegner, 5 = schwerster" in prompt
+    assert "Die Skala läuft aufwärts in Richtung Schwierigkeit." in prompt
 
 
 def test_rules_last_verified_matches_the_prompt_file() -> None:

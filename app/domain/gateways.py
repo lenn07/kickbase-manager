@@ -9,6 +9,8 @@ from typing import Protocol, runtime_checkable
 
 from app.domain.lineup import Lineup
 from app.domain.models import (
+    CompetitionContext,
+    Fixture,
     League,
     LeagueMe,
     MarketSnapshot,
@@ -18,6 +20,7 @@ from app.domain.models import (
     PlayerPerformance,
     Session,
     Squad,
+    TeamStanding,
 )
 
 
@@ -94,6 +97,29 @@ class PlayerPerformanceCache(Protocol):
         performance: PlayerPerformance,
         *,
         valid_until: datetime,
+    ) -> None: ...
+
+
+@runtime_checkable
+class CompetitionContextCache(Protocol):
+    """Tages-Cache für Tabelle + Spielplan (P2-11).
+
+    Die dritte Haltbarkeits-Frage im Projekt, und sie hat eine eigene Antwort:
+    der Marktwert-Cache läuft bis `mvud`, der Spieltags-Cache bis zum nächsten
+    Anpfiff — die Tabelle ändert sich ebenfalls nur durch gespielte Spiele, aber
+    der Spielplan kann dazwischen verlegt werden. Gültigkeit ist deshalb
+    „nächster Anpfiff, höchstens 24 Stunden" (siehe `TeamContextProvider`).
+
+    Ein Eintrag je Wettbewerb, nicht je Liga: Tabelle und Spielplan der
+    Bundesliga sind für alle Kickbase-Ligen dieselben.
+    """
+
+    def get(self, competition_id: str, *, now: datetime) -> CompetitionContext | None:
+        """Noch gültiger Eintrag oder `None`."""
+        ...
+
+    def put(
+        self, competition_id: str, context: CompetitionContext, *, valid_until: datetime
     ) -> None: ...
 
 
@@ -177,6 +203,25 @@ class KickbaseGateway(Protocol):
         ...
 
     async def list_matchdays(self, competition_id: str = "1") -> list[Matchday]: ...
+
+    async def list_fixtures(self, competition_id: str = "1") -> list[Fixture]:
+        """Alle Paarungen der Saison — Quelle des Restspielplans (P2-11).
+
+        Trifft **denselben** Endpunkt wie `list_matchdays()`: `/matchdays`
+        liefert alle 34 Spieltage mit `t1`/`t2`/`dt`/`st`. Zwei Methoden, weil
+        die Aufrufer verschiedene Fragen stellen — der Tick will den nächsten
+        Anpfiff (eine Zahl), der Spielplan-Kontext die Gegner (306 Zeilen) — und
+        weil der Spielplan über den Tages-Cache läuft, der Anpfiff nicht.
+        """
+        ...
+
+    async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
+        """Die Bundesliga-Tabelle, nach Platz sortiert (P2-11).
+
+        Ligaweit, nicht spielerbezogen: 18 Zeilen beantworten die Frage nach der
+        Gegnerstärke für jeden Spieler im Kader und auf dem Markt.
+        """
+        ...
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7

@@ -137,6 +137,29 @@ class PlayerPerformanceCacheRow(SQLModel, table=True):
     valid_until: datetime = Field(index=True)
 
 
+class CompetitionContextCacheRow(SQLModel, table=True):
+    """Gecachte Tabelle + Spielplan eines Wettbewerbs (P2-11).
+
+    Eine Zeile je Wettbewerb — die Bundesliga-Tabelle ist für jede Kickbase-Liga
+    dieselbe, anders als bei den beiden Spieler-Caches gibt es hier also keinen
+    Liga-Schlüssel.
+
+    `standings` hält `[[team_id, name, platz, punkte, spiele, tordifferenz], …]`,
+    `fixtures` `[[spieltag, anpfiff-ISO, heim, gast, beendet], …]`. Wie beim
+    Marktwert-Cache bewusst als JSON statt als Zeilen pro Eintrag: die 306
+    Paarungen werden immer als Ganzes geholt und als Ganzes ersetzt.
+    """
+
+    __tablename__ = "competition_context_cache"
+
+    id: int | None = Field(default=None, primary_key=True)
+    competition_id: str = Field(index=True, unique=True)
+    standings: list[list[Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    fixtures: list[list[Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    fetched_at: datetime = Field(default_factory=_now)
+    valid_until: datetime = Field(index=True)
+
+
 class MarketMetaRow(SQLModel, table=True):
     """Die beiden Uhren aus dem Market-Root, zwischen Ticks aufbewahrt (P1-10).
 
