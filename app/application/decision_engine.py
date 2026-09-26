@@ -17,7 +17,7 @@ from typing import Protocol
 from app.application.player_enrichment import PlayerEnrichment
 from app.domain.fixtures import TeamOutlook
 from app.domain.lineup import Lineup
-from app.domain.models import LeagueConstraints, LeagueMe, MarketPlayer, Squad
+from app.domain.models import LeagueConstraints, LeagueMe, LeagueRanking, MarketPlayer, Squad
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 
 
@@ -154,6 +154,11 @@ class DecisionContext:
     # elf Kaderspieler desselben Clubs teilen ihn. Leeres Mapping = kein
     # Spielplan bekannt; der Payload setzt dann `missing_data:fixtures`.
     team_outlook: Mapping[str, TeamOutlook] = field(default_factory=dict)
+    # Ligatabelle: Rang, Rueckstand, Restspieltage (P2-12). `None` = nicht
+    # geladen; der Payload setzt dann `missing_data:league_ranking`. Ohne diese
+    # Zahlen kann das Modell seinen Risikoappetit nicht wählen — 3000 Punkte
+    # Rueckstand an Spieltag 5 verlangen etwas anderes als an Spieltag 30.
+    league_ranking: LeagueRanking | None = None
 
 
 class DecisionEngine(Protocol):

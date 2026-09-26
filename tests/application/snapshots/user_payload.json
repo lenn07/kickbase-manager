@@ -29,6 +29,51 @@
     "underpay_blocked": true
   },
   "incoming_offers": [],
+  "league": {
+    "managers_total": 4,
+    "matchday": 4,
+    "matchdays_left": 30,
+    "missing_data_flags": [],
+    "my_rank": 3,
+    "my_season_points": 3311,
+    "name": "Noob_League",
+    "points_behind_leader": 780,
+    "points_to_next_rank": 186,
+    "rivals": [
+      {
+        "is_me": false,
+        "matchday_points": 1200,
+        "points_vs_me": 780,
+        "rank": 1,
+        "season_points": 4091,
+        "team_value": 206311718
+      },
+      {
+        "is_me": false,
+        "matchday_points": 1448,
+        "points_vs_me": 186,
+        "rank": 2,
+        "season_points": 3497,
+        "team_value": 191751776
+      },
+      {
+        "is_me": true,
+        "matchday_points": 589,
+        "points_vs_me": 0,
+        "rank": 3,
+        "season_points": 3311,
+        "team_value": 148592138
+      },
+      {
+        "is_me": false,
+        "matchday_points": 670,
+        "points_vs_me": -683,
+        "rank": 4,
+        "season_points": 2628,
+        "team_value": 145320340
+      }
+    ]
+  },
   "lineup": {
     "allowed_formations": [
       "3-4-3",

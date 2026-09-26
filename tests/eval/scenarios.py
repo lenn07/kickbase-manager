@@ -23,6 +23,8 @@ from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
     LeagueConstraints,
     LeagueMe,
+    LeagueRanking,
+    ManagerStanding,
     MarketPlayer,
     Player,
     PlayerStatus,
@@ -157,6 +159,48 @@ def _neutral_outlook(team_id: str) -> TeamOutlook:
     )
 
 
+def _ranking(
+    *,
+    my_rank: int = 2,
+    spread: int = 200,
+    matchday: int = 4,
+    total_matchdays: int = 34,
+    managers_total: int = 4,
+) -> LeagueRanking:
+    """Eine Ligatabelle, in der ich auf `my_rank` stehe.
+
+    `spread` ist der Punktabstand zwischen zwei benachbarten Rängen — daraus
+    folgt alles andere: der Rückstand auf Platz 1 ist `(my_rank - 1) * spread`,
+    der Vorsprung auf den Verfolger ebenfalls `spread`. Eine Zahl steuert die
+    ganze Lage, in beide Richtungen.
+
+    Default: Platz 2 von 4, 200 Punkte hinter dem Führenden, Spieltag 4 von 34
+    — unauffällig und früh in der Saison. Dieselbe Überlegung wie beim
+    Spielplan-Default: ohne Ligakontext trüge jedes Szenario
+    `missing_data:league_ranking` und der Prompt entschiede ausdrücklich ohne
+    ihn; mit einem auffälligen (großer Rückstand, Saisonende) prüfte jedes
+    Szenario nebenbei den Risikoappetit statt der gemeinten Regel.
+    """
+    last_place_points = 3000
+    return LeagueRanking(
+        league_id=LEAGUE_ID,
+        league_name="Eval-Liga",
+        matchday=matchday,
+        total_matchdays=total_matchdays,
+        managers=tuple(
+            ManagerStanding(
+                manager_id=MANAGER_ID if rank == my_rank else f"rival-{rank}",
+                name=f"Manager {rank}",
+                season_points=last_place_points + (managers_total - rank) * spread,
+                matchday_points=0,
+                rank=rank,
+                team_value=Decimal(150_000_000),
+            )
+            for rank in range(1, managers_total + 1)
+        ),
+    )
+
+
 def _context(
     *,
     squad_players: list[Player],
@@ -184,6 +228,7 @@ def _context(
     # `test_scenarios_build.py`.
     hours_until_mv_update: int = 4,
     team_outlook_overrides: dict[str, TeamOutlook] | None = None,
+    league_ranking: LeagueRanking | None = None,
 ) -> DecisionContext:
     """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
 
@@ -288,6 +333,7 @@ def _context(
             scoring_mode="season_points",
         ),
         team_outlook=outlook,
+        league_ranking=league_ranking or _ranking(),
     )
 
 
@@ -1164,6 +1210,137 @@ def _easier_fixture_wins_the_duel() -> Scenario:
     )
 
 
+def _late_season_squad_with_one_gap() -> list[Player]:
+    """Zehn Spieler — ein Startelf-Slot bleibt leer und ist nur durch Kauf zu füllen.
+
+    Dieselbe Konstruktion wie in `easier_fixture_wins_the_duel`, und aus
+    demselben Grund: eine Regel über die **Auswahl** wird nur geprüft, wenn das
+    Modell überhaupt wählt. Mit vollständiger Elf ist `HOLD` vertretbar, und das
+    Szenario meldet grün, ohne die Regel berührt zu haben.
+    """
+    return [
+        _player("101", "Keeper", Position.GOALKEEPER, 8_000_000),
+        *[_player(f"20{i}", f"Abwehr{i}", Position.DEFENDER, 12_000_000) for i in range(1, 5)],
+        *[
+            _player(f"30{i}", f"Mittelfeld{i}", Position.MIDFIELDER, 15_000_000)
+            for i in range(1, 5)
+        ],
+        _player("401", "Sturm1", Position.FORWARD, 18_000_000),
+    ]
+
+
+def _variance_pair() -> tuple[Player, Player]:
+    """Zwei Stürmer mit demselben Preis: der eine sicher, der andere volatil.
+
+    „Sicher" heißt hier: gesetzt (95 % Startelf), durchspielend, aber mit
+    gedeckeltem Ertrag (95 Punkte Schnitt). „Volatil" heißt: doppelt so hoher
+    Schnitt bei halber Einsatzsicherheit — ein Spieler, der ein Spiel entscheidet
+    oder gar nicht aufläuft. Der **Erwartungswert** beider liegt nah beieinander
+    (95 gegen 0,5 x 190); was sie unterscheidet, ist die Streuung.
+    """
+    safe = _player("990", "Sicherer Ertrag", Position.FORWARD, 9_000_000, average_points=95.0)
+    volatile = _player("991", "Hohes Ceiling", Position.FORWARD, 9_000_000, average_points=190.0)
+    return safe, volatile
+
+
+def _variance_enrichment(safe: Player, volatile: Player) -> dict[str, PlayerEnrichment]:
+    return {
+        safe.id: _enrichment(safe, start_probability=0.95, minutes_last5=89.0, starts_last5=5),
+        volatile.id: _enrichment(
+            volatile, start_probability=0.50, minutes_last5=55.0, starts_last5=2
+        ),
+    }
+
+
+def _trailing_late_needs_variance() -> Scenario:
+    """Platz 4 von 4, 3000 Punkte zurück, zwei Spieltage übrig.
+
+    Der Fall, für den P2-12 gebaut wurde. Bis dahin stand im Payload kein Feld
+    dazu, wo der Manager in der Liga steht — jede Lage sah aus wie die erste
+    Woche einer offenen Saison, und das Modell maximierte immer denselben
+    Erwartungswert.
+
+    Bei Saisonpunkten gewinnt die Summe. Wer 3000 Punkte zurückliegt und noch
+    zwei Spieltage hat, holt das mit dem sicheren 95-Punkte-Mann **nicht** auf —
+    der erhöht den Erwartungswert und lässt den Abstand, wo er ist. Die einzige
+    Linie, die noch zu einem anderen Ergebnis führt, ist Varianz. Umgekehrt
+    gespiegelt in `leading_late_protects_the_lead`: identische Lage, nur
+    führend statt letzter, und dort ist derselbe Spieler die falsche Wahl.
+
+    Verboten ist deshalb die **Auswahl** des sicheren Spielers, nicht der Kauf.
+    """
+    safe, volatile = _variance_pair()
+    squad = _late_season_squad_with_one_gap()
+    return Scenario(
+        name="trailing_late_needs_variance",
+        description="Platz 4/4, 3000 Punkte zurueck, 2 Spieltage uebrig, 1 leerer Startelf-Slot",
+        context=_context(
+            squad_players=squad,
+            market_players=[safe, volatile],
+            cash=20_000_000,
+            team_value=120_000_000,
+            minutes_until_matchday=2 * 24 * 60,
+            placed_in_lineup=len(squad),
+            enrichment_overrides=_variance_enrichment(safe, volatile),
+            market_expiry_s=12 * 3600,
+            league_ranking=_ranking(my_rank=4, spread=1000, matchday=32),
+        ),
+        allowed=frozenset({TradeAction.BUY}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.SELL, TradeAction.ACCEPT_OFFER}),
+        forbidden_player_ids=frozenset({safe.id}),
+        expects_full_lineup=False,
+        min_bid_ratio=1.0,
+        rule=(
+            "Bei Saisonpunkten zaehlt die Summe: 3000 Punkte Rueckstand bei 2 Restspieltagen "
+            "sind mit dem sicheren Erwartungswert nicht aufzuholen, nur mit Varianz "
+            "(§1, Wertungsmodus + `league.points_behind_leader` x `league.matchdays_left`)"
+        ),
+    )
+
+
+def _leading_late_protects_the_lead() -> Scenario:
+    """Dieselbe Lage, nur führend: Platz 1 mit 3000 Punkten Vorsprung.
+
+    Das Gegenstück zu `trailing_late_needs_variance` — gleicher Kader, gleicher
+    Markt, gleiche zwei Restspieltage, gespiegelter Ligakontext. Wer 3000 Punkte
+    vorn liegt, braucht keinen Spieler, der ein Spiel entscheidet **oder gar
+    nicht aufläuft**; er braucht die 95 sicheren Punkte. Varianz kann hier nur
+    schaden, weil sie die einzige Möglichkeit ist, den Vorsprung noch zu
+    verlieren.
+
+    Erst beide Szenarien zusammen belegen die Regel: ein Modell, das den
+    Ligakontext ignoriert, wählt in beiden denselben Spieler und fällt genau in
+    einem von beiden durch.
+    """
+    safe, volatile = _variance_pair()
+    squad = _late_season_squad_with_one_gap()
+    return Scenario(
+        name="leading_late_protects_the_lead",
+        description="Platz 1/4, 3000 Punkte Vorsprung, 2 Spieltage uebrig, 1 leerer Startelf-Slot",
+        context=_context(
+            squad_players=squad,
+            market_players=[safe, volatile],
+            cash=20_000_000,
+            team_value=120_000_000,
+            minutes_until_matchday=2 * 24 * 60,
+            placed_in_lineup=len(squad),
+            enrichment_overrides=_variance_enrichment(safe, volatile),
+            market_expiry_s=12 * 3600,
+            league_ranking=_ranking(my_rank=1, spread=3000, matchday=32),
+        ),
+        allowed=frozenset({TradeAction.BUY}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.SELL, TradeAction.ACCEPT_OFFER}),
+        forbidden_player_ids=frozenset({volatile.id}),
+        expects_full_lineup=False,
+        min_bid_ratio=1.0,
+        rule=(
+            "Ein Vorsprung von 3000 Punkten bei 2 Restspieltagen wird mit dem sicheren "
+            "Ertrag verteidigt, nicht mit Varianz — sie ist der einzige Weg, ihn noch zu "
+            "verlieren (§1, Wertungsmodus + `league`-Block)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -1185,4 +1362,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     _stale_trade_frees_the_slot(),
     # P2-11: Spielplan & Gegnerstaerke.
     _easier_fixture_wins_the_duel(),
+    # P2-12: Ligakontext — dieselbe Lage, gespiegelter Tabellenstand.
+    _trailing_late_needs_variance(),
+    _leading_late_protects_the_lead(),
 )

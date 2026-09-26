@@ -33,6 +33,7 @@ from app.application.master_prompt_loader import (
 )
 from app.domain.lineup import FORMATIONS, LINEUP_SIZE, Lineup
 from app.domain.models import (
+    ManagerStanding,
     MarketOffer,
     MarketPlayer,
     Position,
@@ -453,8 +454,101 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         "incoming_offers": _incoming_offers(context),
         "recent_actions": [_recent_action(a) for a in context.recent_actions],
         "constraints": _constraints_block(context),
+        "league": _league_block(context),
     }
     return payload
+
+
+_FLAG_RANKING_MISSING = "missing_data:league_ranking"
+_FLAG_H2H_OPPONENT_MISSING = "missing_data:h2h_opponent"
+_SCORING_MODE_H2H = "head_to_head"
+
+
+def _league_block(context: DecisionContext) -> dict[str, Any]:
+    """Wo ich in der Liga stehe — die Grundlage für den Risikoappetit (P2-12).
+
+    Der Teamwert ist kein Siegkriterium, die **Saisonpunkte** sind es. Ohne
+    diesen Block wusste das Modell nicht, ob es führt oder hinterherläuft, und
+    hat jede Lage gleich behandelt: maximaler Erwartungswert, egal ob er reicht.
+    Aufholen verlangt aber Varianz, Verteidigen verlangt das Gegenteil, und
+    welche der beiden Strategien richtig ist, steht in genau zwei Zahlen —
+    `points_behind_leader` und `matchdays_left`.
+
+    **Die Namen der Mitspieler bleiben draußen.** Der Payload geht an die
+    Anthropic-API; Rang, Punkte und Teamwert tragen jede Entscheidung, ein
+    Klarname trägt keine. Dieselbe Linie, die die Cassette-Redaktion in
+    `tests/.../vcr_config.py` für das Repo zieht.
+    """
+    ranking = context.league_ranking
+    if ranking is None or not ranking.managers:
+        return {"missing_data_flags": [_FLAG_RANKING_MISSING]}
+
+    manager_id = context.squad.manager_id
+    me = ranking.standing_of(manager_id)
+    leader = ranking.leader
+    ahead = ranking.ahead_of(manager_id)
+    is_h2h = context.constraints.scoring_mode == _SCORING_MODE_H2H
+
+    flags: list[str] = []
+    if me is None:
+        # Die eigene Zeile fehlt in `us[]` — dann sind Rang und Rückstand nicht
+        # bestimmbar, die Tabelle der Rivalen aber sehr wohl.
+        flags.append(_FLAG_RANKING_MISSING)
+    if is_h2h:
+        # Kickbase nennt den Wochengegner in keiner Response — auch nicht im
+        # Ranking. Im H2H-Modus fehlt damit genau die Zahl, gegen die man
+        # spielt; das gehört gesagt, nicht geraten (Plan §9).
+        flags.append(_FLAG_H2H_OPPONENT_MISSING)
+
+    block: dict[str, Any] = {
+        "name": ranking.league_name,
+        "managers_total": len(ranking.managers),
+        "my_rank": me.rank if me else None,
+        "my_season_points": me.season_points if me else None,
+        # Abstand nach oben, zweimal: der Rückstand auf Platz 1 sagt, ob die
+        # Saison noch zu gewinnen ist, der Abstand zum Vordermann, was der
+        # nächste Spieltag einbringen kann. `0` heißt „ich führe".
+        "points_behind_leader": _points_gap(me, leader),
+        "points_to_next_rank": _points_gap(me, ahead),
+        "matchday": ranking.matchday,
+        # Die Saison-Uhr. 3000 Punkte Rückstand sind an Spieltag 5 eine
+        # Aufgabe und an Spieltag 30 ein verlorenes Spiel.
+        "matchdays_left": ranking.matchdays_left,
+        "rivals": [_rival_entry(m, me, is_h2h=is_h2h) for m in ranking.managers],
+        "missing_data_flags": flags,
+    }
+    if is_h2h and me is not None:
+        block["my_h2h_match_points"] = me.h2h_match_points
+    return block
+
+
+def _points_gap(me: ManagerStanding | None, other: ManagerStanding | None) -> int | None:
+    """Wie viele Punkte `other` vor mir liegt. 0 = niemand davor."""
+    if me is None:
+        return None
+    if other is None:
+        return 0
+    return max(0, other.season_points - me.season_points)
+
+
+def _rival_entry(
+    manager: ManagerStanding, me: ManagerStanding | None, *, is_h2h: bool
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "rank": manager.rank,
+        "season_points": manager.season_points,
+        "matchday_points": manager.matchday_points,
+        # Der einzige Hinweis auf die Finanzkraft der Rivalen, den Kickbase
+        # herausgibt: wer 60 Mio mehr Teamwert hat, kann Spieler halten, die
+        # man selbst nicht bezahlen kann.
+        "team_value": _int(manager.team_value),
+        # Positiv = liegt vor mir. `null`, solange die eigene Zeile fehlt.
+        "points_vs_me": (manager.season_points - me.season_points) if me else None,
+        "is_me": me is not None and manager.manager_id == me.manager_id,
+    }
+    if is_h2h:
+        entry["h2h_match_points"] = manager.h2h_match_points
+    return entry
 
 
 _TRADING_PHASE_DEADLINE_MIN = 120

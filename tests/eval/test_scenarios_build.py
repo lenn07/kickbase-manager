@@ -159,3 +159,40 @@ def test_selection_rules_force_a_choice() -> None:
             f"{scenario.name}: verbietet eine Auswahl, erlaubt HOLD und bietet nur "
             f"{len(market)} Marktspieler — die Regel kann nicht geprüft werden."
         )
+
+
+def test_every_scenario_knows_where_it_stands_in_the_league() -> None:
+    """Seit P2-12 gehört der Tabellenstand zur Lage.
+
+    Ohne ihn trägt der `league`-Block `missing_data:league_ranking`, und §1
+    verlangt dann, den Risikoappetit nicht zu wählen. Die Eval würde also
+    weiter den Zustand vor P2-12 messen — derselbe Fallstrick wie beim
+    Spielplan.
+    """
+    for scenario in SCENARIOS:
+        league = _build_user_payload(scenario.context)["league"]
+        assert league["my_rank"] is not None, f"{scenario.name}: kein eigener Rang"
+        assert league["matchdays_left"] is not None, f"{scenario.name}: keine Saison-Uhr"
+        assert "missing_data:league_ranking" not in league["missing_data_flags"], scenario.name
+
+
+def test_the_mirrored_league_scenarios_differ_only_in_the_table() -> None:
+    """Das Paar aus P2-12 belegt seine Regel nur, wenn sonst alles gleich ist.
+
+    Zwei Szenarien, ein Unterschied: einmal 3000 Punkte zurück, einmal 3000
+    voraus. Weicht noch etwas anderes ab — Kader, Markt, Restlaufzeit,
+    Anreicherung —, kann ein abweichendes Modellverhalten auch daher kommen,
+    und der Nachweis ist keiner mehr.
+    """
+    by_name = {s.name: s for s in SCENARIOS}
+    trailing = _build_user_payload(by_name["trailing_late_needs_variance"].context)
+    leading = _build_user_payload(by_name["leading_late_protects_the_lead"].context)
+
+    for block in ("squad", "market", "lineup", "budget", "trading", "constraints"):
+        assert trailing[block] == leading[block], f"Block `{block}` unterscheidet sich"
+
+    assert trailing["league"]["points_behind_leader"] == 3000
+    assert leading["league"]["points_behind_leader"] == 0
+    assert trailing["league"]["my_rank"] == 4
+    assert leading["league"]["my_rank"] == 1
+    assert trailing["league"]["matchdays_left"] == leading["league"]["matchdays_left"] == 2
