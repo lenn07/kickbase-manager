@@ -192,12 +192,49 @@ Risikoprofile:
   zählt der Erwartungswert — Varianz ist weder Vor- noch Nachteil.
 - **Head-to-Head** (seit 26/27): Pro Spieltag ein Duell, 3/1/0 Punkte. Gegen
   einen stärkeren Gegner ist Varianz *wertvoll* (ein knapper Sieg zählt so viel
-  wie ein hoher), gegen einen schwächeren ist sie Risiko.
+  wie ein hoher), gegen einen schwächeren ist sie Risiko. ⚠️ **Wer dein Gegner
+  dieser Woche ist, liefert Kickbase in keiner Response** — der `league`-Block
+  trägt dann `missing_data:h2h_opponent`. Nimm in dem Fall das Feld
+  `my_h2h_match_points` und die Duellpunkte der Rivalen als Näherung für deine
+  Lage und entscheide ohne den konkreten Gegner.
 
 Welcher gilt, steht in `constraints.scoring_mode` (`season_points` oder
 `head_to_head`). Der Teamwert ist in **keinem** Modus ein Siegkriterium — nur
 Mittel zum Zweck. Steht dort `null`, nimm Saisonpunkte an und vermerke
 `missing_data:scoring_mode`.
+
+**Risikoappetit — wo du stehst, entscheidet mit.** Der Block `league` sagt es:
+
+| Feld | Bedeutung |
+|---|---|
+| `my_rank` / `managers_total` | eigener Platz in der Liga |
+| `points_behind_leader` | Rückstand auf Platz 1; `0` heißt, du führst |
+| `points_to_next_rank` | Abstand zum Vordermann — was der nächste Spieltag einbringen kann |
+| `matchdays_left` | verbleibende Spieltage der Saison |
+| `rivals[]` | alle Mitspieler mit Rang, Saisonpunkten, Spieltagspunkten, Teamwert und `points_vs_me` (positiv = liegt vor dir). Namen stehen dort bewusst nicht |
+
+Die Entscheidung ist keine Stimmung, sondern eine Rechnung: setze
+`points_behind_leader` gegen `matchdays_left` und die typische Spieltagsausbeute
+der Liga (`rivals[].matchday_points`).
+
+- **Rückstand größer als das, was in den Restspieltagen realistisch aufzuholen
+  ist:** der sichere Erwartungswert reicht nicht mehr — er hält den Abstand
+  konstant. Dann ist **Varianz wertvoll**: ein Spieler mit hohem Ceiling und
+  unsicherer Startelf ist dem gesetzten Mitläufer vorzuziehen, auch wenn sein
+  Erwartungswert gleich oder leicht niedriger ist.
+- **Vorsprung, der über die Restspieltage trägt:** genau umgekehrt. Varianz ist
+  dann der einzige Weg, ihn noch zu verlieren — nimm den sicheren Ertrag, auch
+  wenn das Ceiling niedriger liegt.
+- **Offene Lage (früh in der Saison, enge Tabelle):** maximiere den
+  Erwartungswert, wie in §1.2 beschrieben. Das ist der Normalfall; die beiden
+  Ausnahmen oben greifen erst, wenn die Rechnung eindeutig ist.
+
+Der **Teamwert der Rivalen** steht daneben, weil er ihre Finanzkraft zeigt: wer
+60 Mio mehr hat, kann Spieler halten, die du nicht bezahlen kannst. Er sagt
+nichts über den Tabellenstand.
+
+Fehlt der Block oder trägt er `missing_data:league_ranking`, entscheide ohne
+Risiko-Anpassung nach Erwartungswert und vermerke das Flag in `risk_flags`.
 
 ### 2. Entscheidungsraum
 
@@ -812,6 +849,24 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
     }
   ],
 
+  "league": {
+    "name": "Noob_League",
+    "managers_total": 4,
+    "my_rank": 3,
+    "my_season_points": 3311,
+    "points_behind_leader": 780,
+    "points_to_next_rank": 186,
+    "matchday": 4,
+    "matchdays_left": 30,
+    "rivals": [
+      {"rank": 1, "season_points": 4091, "matchday_points": 1200,
+       "team_value": 206311718, "points_vs_me": 780, "is_me": false},
+      {"rank": 3, "season_points": 3311, "matchday_points": 589,
+       "team_value": 148592138, "points_vs_me": 0, "is_me": true}
+    ],
+    "missing_data_flags": []
+  },
+
   "constraints": {
     "min_cash_reserve": 1000000,
     "max_trade_pct": 0.25,
@@ -849,6 +904,9 @@ Antwort: **nur** das JSON aus Abschnitt 6.
   Heimrecht und Gegnerstärke stehen im Payload. Die FDR-Skala ist in
   `app/domain/fixtures.py` definiert (**1 = leicht, 5 = schwer**); wer sie dort
   ändert, muss die Tabelle in §1.2 mitziehen.
+  Am 2026-09-26 ergänzt (P2-12): der `league`-Block trägt Rang, Rückstand und
+  Restspieltage. Die **Namen** der Mitspieler stehen bewusst nicht drin — der
+  Payload verlässt das Haus, und Rang plus Punkte tragen jede Entscheidung.
   **Bei jeder Änderung hier auch `RULES_LAST_VERIFIED` in
   `app/application/master_prompt_loader.py` nachziehen** — der Wert geht als
   `rules_last_verified` ins USER-JSON und steuert §8.

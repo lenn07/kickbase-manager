@@ -27,6 +27,8 @@ from app.domain.models import (
     Fixture,
     League,
     LeagueMe,
+    LeagueRanking,
+    ManagerStanding,
     MarketPlayer,
     MarketSnapshot,
     MarketValuePoint,
@@ -628,6 +630,67 @@ class MatchdaysResponseDTO(BaseModel):
             if (fixture := match.to_fixture(group.day)) is not None
         ]
         return sorted(fixtures, key=lambda f: (f.kickoff, f.matchday))
+
+
+# ---------- Ligatabelle ----------
+
+
+class ManagerStandingDTO(BaseModel):
+    """Ein Manager aus `us[]`.
+
+    `lp[]` (die Aufstellung dieses Managers) wird bewusst nicht gelesen —
+    siehe `ManagerStanding`.
+    """
+
+    model_config = _DTO_CONFIG
+
+    manager_id: str = Field(validation_alias="i")
+    name: str = Field(default="", validation_alias="n")
+    season_points: int = Field(default=0, validation_alias="sp")
+    matchday_points: int = Field(default=0, validation_alias="mdp")
+    rank: int = Field(default=0, validation_alias="spl")
+    team_value: Decimal = Field(default=Decimal(0), validation_alias="tv")
+    h2h_match_points: int = Field(default=0, validation_alias="hhmp")
+    h2h_season_points: int = Field(default=0, validation_alias="hhsp")
+
+    def to_domain(self) -> ManagerStanding:
+        return ManagerStanding(
+            manager_id=self.manager_id,
+            name=self.name,
+            season_points=self.season_points,
+            matchday_points=self.matchday_points,
+            rank=self.rank,
+            team_value=self.team_value,
+            h2h_match_points=self.h2h_match_points,
+            h2h_season_points=self.h2h_season_points,
+        )
+
+
+class RankingResponseDTO(BaseModel):
+    model_config = _DTO_CONFIG
+
+    us: list[ManagerStandingDTO] = Field(default_factory=list)
+    league_name: str = Field(default="", validation_alias="ti")
+    # ⚠️ `day` heisst hier **letzter gewerteter** Spieltag (4), waehrend
+    # `/competitions/1/matchdays` zeitgleich `day: 5` fuer den naechsten
+    # anstehenden meldet. Gleicher Name, andere Bedeutung.
+    matchday: int = Field(default=0, validation_alias="day")
+    total_matchdays: int = Field(default=0, validation_alias="nd")
+
+    def to_domain(self, league_id: str) -> LeagueRanking:
+        """Nach Platz sortiert — wie bei der Bundesliga-Tabelle nicht verlassen
+        wir uns auf die Reihenfolge der Response."""
+        managers = sorted(
+            (dto.to_domain() for dto in self.us),
+            key=lambda m: m.rank if m.rank > 0 else len(self.us) + 1,
+        )
+        return LeagueRanking(
+            league_id=league_id,
+            league_name=self.league_name,
+            matchday=self.matchday,
+            total_matchdays=self.total_matchdays,
+            managers=tuple(managers),
+        )
 
 
 # ---------- Competition Table ----------

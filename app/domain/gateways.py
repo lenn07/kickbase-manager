@@ -13,6 +13,7 @@ from app.domain.models import (
     Fixture,
     League,
     LeagueMe,
+    LeagueRanking,
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
@@ -212,6 +213,15 @@ class KickbaseGateway(Protocol):
         die Aufrufer verschiedene Fragen stellen — der Tick will den nächsten
         Anpfiff (eine Zahl), der Spielplan-Kontext die Gegner (306 Zeilen) — und
         weil der Spielplan über den Tages-Cache läuft, der Anpfiff nicht.
+        """
+        ...
+
+    async def get_ranking(self, league_id: str) -> LeagueRanking:
+        """Ligatabelle der eigenen Liga: Rang, Punkte, Teamwert je Mitspieler (P2-12).
+
+        Ein Call, und er wird **nicht** gecacht: anders als Bundesliga-Tabelle
+        und Spielplan bewegt sich diese Tabelle waehrend eines laufenden
+        Spieltags live mit — und genau dann ist sie interessant.
         """
         ...
 

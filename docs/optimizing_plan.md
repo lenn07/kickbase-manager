@@ -72,7 +72,7 @@ prüfen — offene Fragen blockieren manche Pakete.
 
 ### Phase 3 — P2: Top-Niveau · Status: **in Arbeit** — Eval 37/37 (2026-09-26)
 - [x] **P2-11** Spielplan & Gegnerstärke (FDR) — Spielplan aus `/matchdays` statt `mdsum[]`  ⟵ *[Plan-Korrektur, siehe §6]*
-- [ ] **P2-12** Ligakontext (Rang, Rückstand, H2H-Gegner)
+- [x] **P2-12** Ligakontext (Rang, Rückstand, Restspieltage) — H2H-Wochengegner gibt es in **keiner** Response  ⟵ *[Plan-Korrektur, siehe §6]*
 - [x] **P2-13** Overbid-Kalibrierung **ohne** `offer_count` + Trading-Playbook  ⟵ *[Plan-Korrektur: `ofc` ist kein Konkurrenzmaß, siehe Changelog 2026-09-26]*
 - [ ] **P2-14** Saisonphasen-Gewichtung Trading ↔ Punkte
 - [ ] **P2-15** Täglicher Bonus (`/v4/bonus/collect`)
@@ -297,7 +297,7 @@ sähe fit aus. (P0-3)
 | `GET /v4/leagues/{l}/me` | `b` (Cash), `tpc[]` = **Spieler je Verein** (`{tid, npt}`), `mppu` = **Kaderlimit** (hier 16), `gpm`/`isp` = Modus-Flags | P1-9 |
 | `GET /v4/leagues/{l}/players/{p}/performance` | `it[].ph[]` mit `day, p` (Punkte), `mp` (**Minuten, als String `"96'"`**), `md`, `t1/t2`, `st` (Einsatzart: 5=Startelf, 3=eingewechselt, 4=ohne Einsatz, 1=nicht im Kader), `mdst` (2=gespielt). ⚠️ **alle Saisons seit 2016/17 + alle kommenden Spieltage**, ~105 KB je Spieler | P1-8 |
 | `GET /v4/leagues/{l}/players/{p}` | `sl` (Startelf-Prognose als **bool**, Quelle `plpt`=„Ligainsider"), `mdsum[]` (**kommende Spiele**), `g`, `a`, `y`, `r`, `sec` | P0-3 ✅ · **nicht** P2-11: `mdsum[]` kostet einen Call *pro Spieler* für eine Information, die pro *Verein* gilt |
-| `GET /v4/leagues/{l}/ranking` | `us[]` mit `sp` (Saisonpunkte), `mdp`, `spl` (Platz), `tv`, **`lp[]` = Aufstellungen der Rivalen** | P2-12 |
+| `GET /v4/leagues/{l}/ranking` | `us[]` mit `sp` (Saisonpunkte), `mdp`, `spl` (Platz), `tv`, `hhmp`/`hhsp` (H2H), **`lp[]` = Aufstellungen der Rivalen**. Root: `ti` (Liganame), `day` = **letzter gewerteter** Spieltag (4, während `/matchdays` zeitgleich 5 für den nächsten meldet), `nd` = Saisonlänge (34) | P2-12 ✅ (`lp[]` bleibt ungelesen — elf nackte IDs je Manager ohne Namen und ohne Besitzliste sind im Prompt Ballast) |
 | `GET /v4/competitions/1/table` | `tid, tn, cp, cpl, mc, gd, sp` → Gegnerstärke/FDR. ⚠️ Zeilen kommen **unsortiert** (echte Response: Bayern/Platz 2 zuerst, dann Stuttgart/15). `sp` ist die Kickbase-Punktausbeute des Vereins, nicht seine Spielstärke — für FDR irrelevant | P2-11 ✅ |
 | `GET /v4/competitions/1/matchdays` | **Der komplette Spielplan**: alle 34 Spieltage mit `it[].it[].t1/t2/dt/st` (+ `t1sy`/`t2sy` als Kürzel). `st == 2` = beendet, gilt über alle 34 Spieltage der Cassette ausnahmslos. Ein Call für alle Vereine ⇒ **Ersatz für den `mdsum[]`-Weg** aus P2-11 | P0-1 (Fallback) / P2-11 ✅ |
 | `GET /v4/leagues/{l}/managers/{m}/transfer` | Transferhistorie: `pi, tty, trp` (Preis), `dt`, `othnm` | P1-6 (Fallback) |
@@ -1113,7 +1113,7 @@ denselben Spieler · Eval grün.
 | # | Paket | Kern | Test-Schwerpunkt |
 |---|---|---|---|
 | **P2-11** ✅ | Spielplan & Gegnerstärke | `/competitions/1/table` + `/competitions/1/matchdays` ⇒ pro Spieler `next_opponent`, `next_opponent_rank`, `is_home`, `fdr` (1–5 aus Tabellenplatz + Tordifferenz), `fdr_next3`. Tages-Cache. Erst damit hat Prompt-§1.2 eine Datengrundlage. ⟵ *[Plan-Korrektur: **nicht** `mdsum[]`, siehe unten]* | Unit auf die FDR-Ableitung; Snapshot; Eval `easier_fixture_wins_the_duel` |
-| **P2-12** | Ligakontext | `/leagues/{l}/ranking` ⇒ `my_rank`, `points_behind_leader`, `matchdays_left`, `rivals[]`. Bei H2H zusätzlich der Gegner der Woche. Prompt: Risikoappetit = f(Rückstand × Restspieltage). | Eval: gleicher Kader, einmal führend / einmal 3000 Punkte zurück ⇒ unterschiedliche Aktion |
+| **P2-12** ✅ | Ligakontext | `/leagues/{l}/ranking` ⇒ `my_rank`, `points_behind_leader`, `points_to_next_rank`, `matchdays_left`, `rivals[]`. Prompt §1: Risikoappetit = f(Rückstand × Restspieltage). ⟵ *[Plan-Korrektur: den H2H-Wochengegner gibt es nicht, siehe unten]* | Eval: `trailing_late_needs_variance` / `leading_late_protects_the_lead` — identische Lage, gespiegelter Tabellenstand |
 | **P2-13** | Overbid-Kalibrierung + Trading-Playbook | Drift-Anteil (`market_trend_1d_pct` × `mv_updates_until_expiry`) + geschätzte Nachfrage + Listing-Typ (`listed_by`) ⇒ Leitbänder statt „+15 %"-Konstante. `offer_count` fällt als Konkurrenzmaß **weg**. Dazu `trading`-Block (Phase, Slot-Ökonomie, `days_held`) und Prompt-§3a. | Eval: `overbid_covers_the_mv_drift` (Untergrenze), `no_overbid_without_pressure` (Obergrenze), `trading_window_fills_free_slots`, `stale_trade_frees_the_slot` |
 | **P2-14** | Saisonphasen-Gewichtung | `matchdays_left` ins JSON; Prompt §1: Trading-Gewicht fällt linear gegen 0 ab ST 26 | Eval: identisches Szenario an ST 5 vs. ST 30 |
 | **P2-15** | Täglicher Bonus | `GET /v4/bonus/collect` als **eigener Cron-Job**, nicht im Entscheidungs-Tick. Streak-Zähler im `trade_log`. ⚠️ vorher in `dry_run` verifizieren, dass der Call idempotent ist. | manueller Erstlauf + Kontostand-Vergleich |
@@ -1134,6 +1134,31 @@ denselben Spieler · Eval grün.
 > Spiel — eine ganze FDR-Stufe wäre dafür eine erfundene Zahl, und die verbietet §9. `fdr` misst
 > deshalb allein den Gegner, `is_home` steht als eigenes Feld daneben, und der Prompt sagt
 > ausdrücklich, dass die Kombination aus beidem die Aussage trägt.
+>
+> **[Plan-Korrektur 2026-09-26, P2-12] Den H2H-Gegner der Woche gibt es in keiner Response.**
+> Der Pakettext verlangt „bei H2H zusätzlich der Gegner der Woche". `/ranking` liefert `hhmp`
+> (Duellpunkte) und `hhsp` (kumulierte Punkte) je Manager — **wer gegen wen spielt, steht
+> nirgends**, weder im Ranking-Root noch in einem der 16 Discovery-Dumps. Nach §9 gilt damit:
+> nicht raten. Im H2H-Modus trägt der `league`-Block das Flag `missing_data:h2h_opponent`, die
+> Duellpunkte kommen als Näherung mit, und der Prompt sagt ausdrücklich, dass der konkrete Gegner
+> fehlt. In Saisonpunkt-Ligen (die verifizierte Einstellung dieser Liga, §8/F6) erscheinen die
+> H2H-Felder gar nicht erst — sie stünden dort konstant auf 0 und wären reines Rauschen.
+>
+> **Zweite Abweichung: `lp[]` bleibt ungelesen.** §3.4 führt die Aufstellungen der Rivalen als
+> Inhalt des Endpunkts. Elf nackte Spieler-IDs je Manager, ohne Namen und ohne Besitzliste, sind
+> im Prompt aber Ballast — bei 18 Managern wären es 198 IDs. Für die Frage „wie viele Rivalen
+> haben denselben Spieler" (effective ownership) wäre es die richtige Quelle; das ist eine eigene
+> Frage und nicht Teil von P2-12.
+>
+> **Dritte Abweichung: keine Namen im Payload.** `rivals[]` trägt Rang, Punkte, Spieltagspunkte
+> und Teamwert — aber keinen Managernamen. Der Payload geht an die Anthropic-API; Rang und Punkte
+> tragen jede Entscheidung, ein Klarname trägt keine. Dieselbe Linie, die die Cassette-Redaktion
+> (`tests/infrastructure/kickbase/vcr_config.py`) fürs Repo zieht.
+>
+> **Vierte Abweichung: kein Cache.** P2-11 cacht Tabelle und Spielplan einen Tag lang, weil sie
+> sich zwischen zwei Spieltagen nicht bewegen. Die **Liga**tabelle bewegt sich sehr wohl — `mdp`
+> und `spl` ändern sich mit jedem Tor — und genau dann ist sie interessant. Ein Call pro Tick,
+> bewusst.
 >
 > **Dritte Ergänzung: `fdr_next3`.** Der Pakettext fordert in §1.2 des Prompts „Restspielplan", die
 > Feldliste nennt aber nur das *nächste* Spiel. Ein Mittelwert über die nächsten drei Spiele kostet

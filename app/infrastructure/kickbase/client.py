@@ -26,6 +26,7 @@ from app.domain.models import (
     Fixture,
     League,
     LeagueMe,
+    LeagueRanking,
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
@@ -48,6 +49,7 @@ from app.infrastructure.kickbase.dto import (
     MatchdaysResponseDTO,
     PlayerDetailDTO,
     PlayerPerformanceResponseDTO,
+    RankingResponseDTO,
     SquadResponseDTO,
 )
 from app.infrastructure.kickbase.rate_limit import AsyncRateLimiter
@@ -206,6 +208,10 @@ class HttpxKickbaseClient:
     async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
         data = await self._request("GET", f"/v4/competitions/{competition_id}/table")
         return CompetitionTableDTO.model_validate(data).to_domain()
+
+    async def get_ranking(self, league_id: str) -> LeagueRanking:
+        data = await self._request("GET", f"/v4/leagues/{league_id}/ranking")
+        return RankingResponseDTO.model_validate(data).to_domain(league_id)
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7

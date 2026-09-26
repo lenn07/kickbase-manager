@@ -360,6 +360,90 @@ class Fixture:
 
 
 @dataclass(frozen=True, slots=True)
+class ManagerStanding:
+    """Ein Mitspieler in der Ligatabelle — aus `GET /v4/leagues/{l}/ranking`.
+
+    Wire-Felder: `i`, `n`, `sp` (Saisonpunkte), `mdp` (Punkte des laufenden
+    Spieltags), `spl` (Platz), `tv` (Teamwert), `hhmp`/`hhsp` (Head-to-Head).
+
+    Der **Teamwert der Rivalen** ist hier kein Nebenprodukt: er ist das einzige
+    Maß für ihre Finanzkraft, das Kickbase herausgibt. Ein Verfolger mit 60 Mio
+    mehr Teamwert kann sich Spieler leisten, die man selbst nicht halten kann.
+
+    `lp[]` (die Aufstellungen der Rivalen) bleibt ungelesen: elf nackte
+    Spieler-IDs je Manager ohne Namen und ohne Besitzliste sind im Prompt
+    Ballast. Für „wie viele Rivalen haben denselben Spieler" wäre es die
+    richtige Quelle — das ist aber eine eigene Frage und kein Teil von P2-12.
+    """
+
+    manager_id: str
+    name: str
+    season_points: int
+    matchday_points: int
+    rank: int
+    team_value: Decimal
+    # Nur in Head-to-Head-Ligen belegt: `hhmp` = Duellpunkte (3/1/0), `hhsp` =
+    # kumulierte Punkte als Tiebreak. In Saisonpunkt-Ligen beide 0 — der
+    # Payload zeigt sie deshalb nur im H2H-Modus.
+    h2h_match_points: int = 0
+    h2h_season_points: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class LeagueRanking:
+    """Die Ligatabelle samt Saison-Uhr.
+
+    `matchday` ist der Spieltag, auf den sich die Tabelle bezieht — im
+    Ranking-Root steht dort `day: 4`, während `/competitions/1/matchdays`
+    zeitgleich `day: 5` meldet. Die beiden Felder heißen gleich und bedeuten
+    Verschiedenes: das Ranking zählt den letzten **gewerteten** Spieltag, der
+    Spielplan den nächsten **anstehenden**. Wer sie verwechselt, rechnet
+    `matchdays_left` um eins daneben.
+
+    `total_matchdays` ist `nd` (34 in der Bundesliga) und wird gelesen statt
+    angenommen: bei einer 2.-Liga- oder Pokal-Competition stimmt die Konstante
+    nicht mehr.
+    """
+
+    league_id: str
+    league_name: str = ""
+    matchday: int = 0
+    total_matchdays: int = 0
+    managers: tuple[ManagerStanding, ...] = ()
+
+    @property
+    def matchdays_left(self) -> int | None:
+        """Wie viele Spieltage noch zu spielen sind. `None`, wenn `nd` fehlt.
+
+        Die Zahl, an der der Risikoappetit hängt: 3000 Punkte Rückstand sind an
+        Spieltag 5 eine Aufgabe und an Spieltag 30 ein verlorenes Spiel.
+        """
+        if self.total_matchdays <= 0:
+            return None
+        return max(0, self.total_matchdays - self.matchday)
+
+    def standing_of(self, manager_id: str) -> ManagerStanding | None:
+        return next((m for m in self.managers if m.manager_id == manager_id), None)
+
+    @property
+    def leader(self) -> ManagerStanding | None:
+        return min(self.managers, key=lambda m: m.rank) if self.managers else None
+
+    def ahead_of(self, manager_id: str) -> ManagerStanding | None:
+        """Der Manager direkt über mir — `None`, wenn ich führe.
+
+        Der Rückstand auf den Tabellenführer sagt, ob die Saison noch zu
+        gewinnen ist; der Abstand zum Vordermann sagt, was der nächste Spieltag
+        einbringen kann. Beides zusammen trägt die Risiko-Entscheidung.
+        """
+        me = self.standing_of(manager_id)
+        if me is None:
+            return None
+        better = [m for m in self.managers if m.rank < me.rank]
+        return max(better, key=lambda m: m.rank) if better else None
+
+
+@dataclass(frozen=True, slots=True)
 class CompetitionContext:
     """Tabelle **und** Spielplan eines Wettbewerbs — der Inhalt des Tages-Caches.
 

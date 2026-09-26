@@ -214,3 +214,36 @@ def test_rules_last_verified_matches_the_prompt_file() -> None:
     """Sonst meldet das Modell `rules_may_be_stale` für einen frischen Prompt."""
     raw = (Path(__file__).resolve().parents[2] / "docs" / "master_prompt.md").read_text()
     assert f"Fixiert am {RULES_LAST_VERIFIED.isoformat()}" in raw
+
+
+def test_prompt_explains_how_to_use_the_league_standing() -> None:
+    """P2-12: der Ligakontext muss als Rechnung im Prompt stehen, nicht als Stimmung.
+
+    „Sei mutiger, wenn du zurückliegst" ist keine Anweisung, die ein Modell
+    anwenden kann — es braucht die beiden Zahlen und die Richtung: Rückstand
+    gegen Restspieltage, und was daraus für die Auswahl folgt. Ohne den
+    Ausfall-Satz wäre zudem offen, was bei fehlendem Block gilt.
+    """
+    prompt = load_system_prompt()
+    for field_name in (
+        "`league`",
+        "`points_behind_leader`",
+        "`points_to_next_rank`",
+        "`matchdays_left`",
+        "`rivals[]`",
+    ):
+        assert field_name in prompt, f"{field_name} fehlt in §1"
+    assert "Varianz ist\n  dann der einzige Weg" in prompt or "Varianz" in prompt
+    assert "missing_data:league_ranking" in prompt
+
+
+def test_prompt_does_not_promise_the_rivals_names() -> None:
+    """Der Payload schickt keine Klarnamen — der Prompt darf sie nicht anfordern.
+
+    Ein Modell, das nach einem Feld greift, das nicht kommt, erfindet es (§7).
+    Und der Grund für das Fehlen ist kein Versehen: der Payload geht an die
+    Anthropic-API, Rang und Punkte tragen jede Entscheidung, ein Name trägt
+    keine.
+    """
+    prompt = load_system_prompt()
+    assert "Namen stehen dort bewusst nicht" in prompt

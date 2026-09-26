@@ -100,7 +100,16 @@ Keys: `mppu`, `it[]` mit `i, n, ap, p, mv, mvgl, mvt, sdmvt, tfhmvt, lo, lst, md
 ### `GET /v4/leagues/{l}/ranking`
 `us[]` je Manager: `i, n, sp (Saisonpunkte), mdp (Spieltagspunkte), spl (Platz), mdpl, tv,
 hhmp, hhsp (Head-to-Head), lp[] (Spieler-IDs der Aufstellung), lipc, ppc, shp`
-Root: `day, nd (34), lfmd, shmdn, gpm, ti, clpc` → P2-12.
+Root: `day, nd (34), lfmd, shmdn, gpm, ti, clpc` → seit P2-12 **gelesen**
+(`i`, `sp`, `mdp`, `spl`, `tv`, `hhmp`, `hhsp`, `ti`, `day`, `nd`).
+
+⚠️ **`day` heißt hier etwas anderes als im Spielplan.** Im Ranking-Root stand am 23.09. `day: 4`
+— der letzte **gewertete** Spieltag —, während `/competitions/1/matchdays` zeitgleich `day: 5`
+für den nächsten **anstehenden** meldete. `matchdays_left = nd - day` rechnet mit der
+Ranking-Bedeutung; mit der anderen wäre das Ergebnis um eins daneben.
+
+**Was der Endpunkt *nicht* liefert:** den Head-to-Head-Gegner der laufenden Woche. `hhmp`/`hhsp`
+sind reine Zähler; kein Feld nennt die Paarung. In keinem der 16 Discovery-Dumps taucht eine auf.
 
 ### `GET /v4/competitions/1/table`
 `it[]` je Verein: `tid, tn, cp (Punkte), cpl (Platz), pcpl (Vorplatz), mc (Spiele), gd, sp, mi`

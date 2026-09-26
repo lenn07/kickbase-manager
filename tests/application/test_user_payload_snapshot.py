@@ -51,6 +51,7 @@ from app.infrastructure.kickbase.dto import (
     MatchdaysResponseDTO,
     PlayerDetailDTO,
     PlayerPerformanceResponseDTO,
+    RankingResponseDTO,
     SquadResponseDTO,
 )
 
@@ -137,6 +138,11 @@ def _build_context() -> DecisionContext:
         # Snapshot zeigt damit die Lage, in der der Bot entscheidet — Bayern auf
         # Platz 2 mit +12 Toren, Gladbach Letzter mit -10.
         team_outlook=_team_outlook(),
+        # Die echte Ligatabelle aus der Cassette (P2-12): vier Manager, eigener
+        # Platz 3 von 4, 780 Punkte hinter dem Führenden, Spieltag 4 von 34.
+        league_ranking=RankingResponseDTO.model_validate(
+            load_cassette_payload("ranking")
+        ).to_domain(FAKE_LEAGUE_ID),
     )
 
 
@@ -731,3 +737,65 @@ def test_fixture_difficulty_points_the_right_way(payload: dict[str, Any]) -> Non
     easy = [by_opponent[name] for name in ("M'gladbach", "Union Berlin") if name in by_opponent]
     assert hard and easy, f"Erwartete Gegner fehlen im Payload: {sorted(by_opponent)}"
     assert min(hard) > max(easy), f"FDR-Skala verdreht: schwere Gegner {hard}, leichte {easy}"
+
+
+def test_league_block_shows_where_the_manager_stands(payload: dict[str, Any]) -> None:
+    """P2-12: Rang, Rückstand und Saison-Uhr stehen im Payload.
+
+    Der Teamwert ist in keinem Modus ein Siegkriterium — die Saisonpunkte sind
+    es. Ohne diesen Block hat das Modell jede Lage gleich behandelt: maximaler
+    Erwartungswert, egal ob er zum Aufholen reicht. Aufholen verlangt aber
+    Varianz und Verteidigen das Gegenteil.
+    """
+    league = payload["league"]
+    assert league["my_rank"] == 3
+    assert league["managers_total"] == 4
+    assert league["my_season_points"] == 3311
+    # 4091 (Platz 1) minus 3311, und 3497 (Platz 2) minus 3311.
+    assert league["points_behind_leader"] == 780
+    assert league["points_to_next_rank"] == 186
+    assert league["matchday"] == 4
+    assert league["matchdays_left"] == 30
+    assert league["missing_data_flags"] == []
+
+    rivals = league["rivals"]
+    assert [r["rank"] for r in rivals] == [1, 2, 3, 4]
+    assert sum(1 for r in rivals if r["is_me"]) == 1
+    me = next(r for r in rivals if r["is_me"])
+    assert me["points_vs_me"] == 0
+    # Positiv = liegt vor mir, negativ = dahinter.
+    assert rivals[0]["points_vs_me"] == 780
+    assert rivals[3]["points_vs_me"] == -683
+    # Der Teamwert der Rivalen ist das einzige Maß für ihre Finanzkraft.
+    assert all(r["team_value"] > 0 for r in rivals)
+
+
+def test_league_block_never_ships_the_rivals_names(payload: dict[str, Any]) -> None:
+    """Der Payload geht an die Anthropic-API — Klarnamen Dritter haben dort nichts zu suchen.
+
+    Rang, Punkte und Teamwert tragen jede Entscheidung; ein Name trägt keine.
+    Dieselbe Linie, die die Cassette-Redaktion fürs Repo zieht (`vcr_config.py`).
+    Der Liganame bleibt: den hat der Nutzer selbst vergeben.
+    """
+    for rival in payload["league"]["rivals"]:
+        assert "name" not in rival, "Managername im Payload — Datensparsamkeit verletzt"
+    assert set(payload["league"]["rivals"][0]) == {
+        "rank",
+        "season_points",
+        "matchday_points",
+        "team_value",
+        "points_vs_me",
+        "is_me",
+    }
+
+
+def test_head_to_head_fields_stay_out_of_a_season_points_league(payload: dict[str, Any]) -> None:
+    """`hhmp`/`hhsp` sind hier 0 und würden nur Rauschen in den Prompt tragen.
+
+    Im H2H-Modus kommen sie dazu — zusammen mit dem Flag für den Wochengegner,
+    den Kickbase in **keiner** Response nennt.
+    """
+    assert payload["constraints"]["scoring_mode"] == "season_points"
+    assert "my_h2h_match_points" not in payload["league"]
+    assert all("h2h_match_points" not in r for r in payload["league"]["rivals"])
+    assert "missing_data:h2h_opponent" not in payload["league"]["missing_data_flags"]

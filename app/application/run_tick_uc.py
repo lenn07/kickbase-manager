@@ -36,7 +36,13 @@ from app.domain.exceptions import KickbaseError
 from app.domain.fixtures import TeamOutlook
 from app.domain.gateways import KickbaseGateway
 from app.domain.lineup import Lineup
-from app.domain.models import LeagueConstraints, MarketPlayer, MarketSnapshot, Squad
+from app.domain.models import (
+    LeagueConstraints,
+    LeagueRanking,
+    MarketPlayer,
+    MarketSnapshot,
+    Squad,
+)
 from app.domain.trade import TradeAction, TradeDecision, TradeIntent
 from app.infrastructure.crypto.vault import CryptoError, FernetVault
 from app.infrastructure.metrics import get_metrics
@@ -178,7 +184,7 @@ class RunTickUseCase:
             now=now,
         )
         recent_actions = _load_recent_actions(self._trades, user.id)
-        enrichment, team_outlook = await self._load_prompt_signals(
+        enrichment, team_outlook, ranking = await self._load_prompt_signals(
             league_row.kb_league_id,
             squad,
             market,
@@ -244,6 +250,7 @@ class RunTickUseCase:
                 scoring_mode=self._scoring_mode,
             ),
             team_outlook=team_outlook,
+            league_ranking=ranking,
         )
 
         decision = await self._engine.decide(context)
@@ -391,10 +398,10 @@ class RunTickUseCase:
         snapshot: MarketSnapshot,
         next_matchday_start: datetime | None,
         now: datetime,
-    ) -> tuple[dict[str, PlayerEnrichment], dict[str, TeamOutlook]]:
-        """Die beiden Zusatzsignal-Quellen des Prompts: Spieler und Spielplan.
+    ) -> tuple[dict[str, PlayerEnrichment], dict[str, TeamOutlook], LeagueRanking | None]:
+        """Die drei Zusatzsignal-Quellen des Prompts: Spieler, Spielplan, Ligatabelle.
 
-        Gemeinsam gehalten, weil sie dieselbe Eigenschaft teilen — beide dürfen
+        Gemeinsam gehalten, weil sie dieselbe Eigenschaft teilen — jede darf
         ausfallen, ohne den Tick zu verbrauchen. Was nicht ausfallen darf, steht
         im Block darüber (`get_league_me`, `get_squad`, `get_market`,
         `get_lineup`) und bricht den Tick mit einer ERROR-Zeile ab.
@@ -410,7 +417,25 @@ class RunTickUseCase:
         team_outlook = await self._load_team_outlook(
             next_matchday_start=next_matchday_start, now=now
         )
-        return enrichment, team_outlook
+        ranking = await self._load_ranking(league_id)
+        return enrichment, team_outlook, ranking
+
+    async def _load_ranking(self, league_id: str) -> LeagueRanking | None:
+        """Ligatabelle (P2-12) — ein Call pro Tick, bewusst ohne Cache.
+
+        Anders als Bundesliga-Tabelle und Spielplan (P2-11) bewegt sich diese
+        Tabelle **während** eines Spieltags: `mdp` und `spl` ändern sich mit
+        jedem Tor. Ein Tages-Cache würde sie genau dann einfrieren, wenn sie
+        etwas zu sagen hat.
+
+        `None` bei jedem Kickbase-Fehler: der Rang entscheidet über den
+        Risikoappetit, nicht über die Regel-Compliance.
+        """
+        try:
+            return await self._kickbase.get_ranking(league_id)
+        except KickbaseError as exc:
+            _log.info("Ligatabelle nicht verfügbar (%s) — Prompt läuft ohne Rang.", exc)
+            return None
 
     async def _enrich_players(
         self,

@@ -16,6 +16,8 @@ from app.domain.lineup import Lineup
 from app.domain.models import (
     Fixture,
     LeagueMe,
+    LeagueRanking,
+    ManagerStanding,
     MarketPlayer,
     MarketSnapshot,
     Matchday,
@@ -802,3 +804,86 @@ async def test_fixture_failure_does_not_cost_the_tick(
 
     assert outcome.decision is not None
     assert engine.contexts[0].team_outlook == {}
+
+
+# -- P2-12: Ligakontext ---------------------------------------------------
+
+
+class _RankingKickbase(FakeKickbase):
+    """Liefert eine Ligatabelle — und zählt, wie oft sie geholt wird."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self.ranking_calls = 0
+
+    async def get_ranking(self, league_id: str) -> LeagueRanking:
+        self.ranking_calls += 1
+        return LeagueRanking(
+            league_id=league_id,
+            league_name="Noob_League",
+            matchday=4,
+            total_matchdays=34,
+            managers=(
+                ManagerStanding(
+                    manager_id="rival",
+                    name="Erster",
+                    season_points=4091,
+                    matchday_points=1200,
+                    rank=1,
+                    team_value=Decimal(206_311_718),
+                ),
+                ManagerStanding(
+                    manager_id="u1",
+                    name="Ich",
+                    season_points=3311,
+                    matchday_points=589,
+                    rank=2,
+                    team_value=Decimal(148_592_138),
+                ),
+            ),
+        )
+
+
+async def test_ranking_reaches_the_decision_context(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Ohne Rang und Restspieltage kann das Modell seinen Risikoappetit nicht wählen."""
+    kb = _RankingKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("ok"))
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    ranking = engine.contexts[0].league_ranking
+    assert ranking is not None
+    assert ranking.matchdays_left == 30
+    me = ranking.standing_of("u1")
+    assert me is not None and me.rank == 2
+    # Genau ein Call pro Tick — die Tabelle wird bewusst nicht gecacht, weil sie
+    # sich während eines laufenden Spieltags bewegt.
+    assert kb.ranking_calls == 1
+
+
+async def test_ranking_failure_does_not_cost_the_tick(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Der Rang entscheidet über den Risikoappetit, nicht über die Regel-Compliance."""
+
+    class _BrokenRanking(_RankingKickbase):
+        async def get_ranking(self, league_id: str) -> LeagueRanking:
+            raise TransportError("ranking weg")
+
+    kb = _BrokenRanking()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+
+    engine = FixedDecisionEngine(TradeDecision.hold("ok"))
+    outcome = await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    assert outcome.decision is not None
+    assert engine.contexts[0].league_ranking is None

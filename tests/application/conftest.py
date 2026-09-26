@@ -14,6 +14,7 @@ from app.domain.models import (
     Fixture,
     League,
     LeagueMe,
+    LeagueRanking,
     MarketSnapshot,
     MarketValuePoint,
     Matchday,
@@ -133,6 +134,12 @@ class FakeKickbase:
 
     async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
         return []
+
+    async def get_ranking(self, league_id: str) -> LeagueRanking:
+        # Leere Tabelle heisst „kein Ligakontext bekannt" — der Payload sagt
+        # dann `missing_data:league_ranking`. Tests zum Rang ueberschreiben die
+        # Methode (siehe `_RankingKickbase` in test_run_tick_uc.py).
+        return LeagueRanking(league_id=league_id)
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7

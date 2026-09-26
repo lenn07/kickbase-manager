@@ -11,6 +11,7 @@ from app.infrastructure.kickbase.dto import (
     MarketResponseDTO,
     MatchdaysResponseDTO,
     PlayerDetailDTO,
+    RankingResponseDTO,
     SquadResponseDTO,
 )
 
@@ -527,3 +528,52 @@ def test_fixture_takes_the_matchday_from_its_group_when_missing() -> None:
     payload = {"it": [{"day": 7, "it": [{"dt": "2026-10-23T18:30:00Z", "t1": "2", "t2": "3"}]}]}
     fixtures = MatchdaysResponseDTO.model_validate(payload).to_fixtures()
     assert fixtures[0].matchday == 7
+
+
+# ---------- Ligatabelle (P2-12) ----------
+
+
+def test_ranking_maps_the_league_context() -> None:
+    payload = {
+        "ti": "Noob_League",
+        "day": 4,
+        "nd": 34,
+        "us": [
+            {"i": "8898876", "n": "Erster", "sp": 4091, "mdp": 1200, "spl": 1, "tv": 206311718.0},
+            {"i": "9999999", "n": "Ich", "sp": 3311, "mdp": 589, "spl": 3, "tv": 148592138.0},
+        ],
+    }
+    ranking = RankingResponseDTO.model_validate(payload).to_domain("L1")
+
+    assert ranking.league_name == "Noob_League"
+    assert ranking.matchday == 4
+    assert ranking.total_matchdays == 34
+    assert ranking.matchdays_left == 30
+    me = ranking.standing_of("9999999")
+    assert me is not None
+    assert me.season_points == 3311
+    assert me.rank == 3
+    assert me.team_value == Decimal("148592138.0")
+
+
+def test_ranking_sorts_by_rank_not_by_response_order() -> None:
+    """Wie bei der Bundesliga-Tabelle: der Reihenfolge der Response nicht trauen."""
+    payload = {
+        "us": [
+            {"i": "c", "spl": 4, "sp": 2628},
+            {"i": "a", "spl": 1, "sp": 4091},
+            {"i": "b", "spl": 2, "sp": 3497},
+        ]
+    }
+    ranking = RankingResponseDTO.model_validate(payload).to_domain("L1")
+    assert [m.manager_id for m in ranking.managers] == ["a", "b", "c"]
+    leader = ranking.leader
+    assert leader is not None and leader.manager_id == "a"
+
+
+def test_ranking_reads_the_head_to_head_counters() -> None:
+    """In Saisonpunkt-Ligen stehen sie auf 0 — das ist eine Aussage, kein Fehlen."""
+    payload = {"us": [{"i": "a", "spl": 1, "sp": 100, "hhmp": 6, "hhsp": 2}]}
+    manager = RankingResponseDTO.model_validate(payload).to_domain("L1").managers[0]
+    assert manager.h2h_match_points == 6
+    assert manager.h2h_season_points == 2
