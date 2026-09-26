@@ -119,7 +119,9 @@ class CollectDailyBonusUseCase:
 
         if settings.dry_run:
             streak = _streak(history, now)
-            self._log_row(user.id, outcome="dry_run", amount=None, streak=streak, response=None)
+            self._log_row(
+                user.id, outcome="dry_run", amount=None, streak=streak, response=None, now=now
+            )
             return BonusOutcome(outcome="dry_run", streak=streak)
 
         try:
@@ -129,14 +131,25 @@ class CollectDailyBonusUseCase:
         except KickbaseError as exc:
             _log.warning("Bonus-Abholung fehlgeschlagen: %s", exc)
             self._log_row(
-                user.id, outcome="error", amount=None, streak=0, response=None, error=str(exc)
+                user.id,
+                outcome="error",
+                amount=None,
+                streak=0,
+                response=None,
+                error=str(exc),
+                now=now,
             )
             return BonusOutcome(outcome="error", error=str(exc))
 
         amount = None if before is None or after is None else after - before
         streak = _streak(history, now) + 1
         self._log_row(
-            user.id, outcome="collected", amount=amount, streak=streak, response=dict(response)
+            user.id,
+            outcome="collected",
+            amount=amount,
+            streak=streak,
+            response=dict(response),
+            now=now,
         )
         _log.info(
             "Login-Bonus abgeholt: %s € (Streak %d). Rohantwort-Felder: %s",
@@ -157,11 +170,23 @@ class CollectDailyBonusUseCase:
         amount: Decimal | None,
         streak: int,
         response: dict[str, Any] | None,
+        now: datetime,
         error: str | None = None,
     ) -> None:
+        """Schreibt die Zeile mit dem Zeitpunkt der **Aktion**, nicht dem der DB.
+
+        `TradeLogRow.ts` hat eine Default-Factory auf die Wall-Clock. Die
+        Tagessperre liest genau dieses Feld — läuft der Use-Case mit einem
+        übergebenen `now` (Tests, Nachträge), schrieb er Zeilen, die er selbst
+        nicht mehr als „heute" erkennt. Am 2026-09-27 fielen drei Tests darauf
+        um, die tags zuvor grün waren: dieselbe Klasse von Fehler wie die
+        Wall-Clock in der DTO-Schicht, die den Payload-Snapshot unbrauchbar
+        machte (Plan §6/P0-1).
+        """
         self._trades.add(
             TradeLogRow(
                 user_id=user_id,
+                ts=now,
                 action=BONUS_ACTION,
                 price=int(amount) if amount is not None else None,
                 reason_text=f"Täglicher Login-Bonus ({outcome}), Streak {streak}",

@@ -282,3 +282,28 @@ async def test_incomplete_setup_is_skipped(db_session: Session, vault: FernetVau
     )
     assert outcome.outcome == "skipped_setup"
     assert kb.collect_calls == 0
+
+
+async def test_the_log_row_carries_the_action_time_not_the_wall_clock(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Die Tagessperre liest `ts` — also muss `ts` der Zeitpunkt der Aktion sein.
+
+    `TradeLogRow.ts` hat eine Default-Factory auf die Wall-Clock. Solange der
+    Testtag und `NOW` zufällig zusammenfielen, blieb das unsichtbar; am
+    2026-09-27 fielen drei Tests um, die tags zuvor grün waren, weil der
+    Use-Case Zeilen schrieb, die er selbst nicht mehr als „heute" erkannte.
+
+    Dieselbe Klasse von Fehler wie die Wall-Clock in der DTO-Schicht, die den
+    Payload-Snapshot unbrauchbar machte (Plan §6/P0-1).
+    """
+    kb = _BonusKickbase()
+    user_id = await _setup(db_session, vault, kb)
+    _set_dry_run(db_session, user_id, dry_run=False)
+    past = datetime(2026, 5, 1, 7, 0, tzinfo=UTC)
+
+    await CollectDailyBonusUseCase(session=db_session, kickbase=kb, enabled=True).run(now=past)
+
+    row = TradeLogRepository(db_session).list_by_action(user_id=user_id, action=BONUS_ACTION)[0]
+    stored = row.ts if row.ts.tzinfo else row.ts.replace(tzinfo=UTC)
+    assert stored == past
