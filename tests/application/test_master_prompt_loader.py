@@ -96,7 +96,10 @@ def test_prompt_covers_the_rules_that_came_with_phase_one() -> None:
         "SET_LINEUP",  # P0-4
         "mv_update_at_iso",  # P0-1, die zweite Uhr
         "start_probability_source",  # P0-3, Herkunft der Prognose
-        "offer_count",  # P0-2, Konkurrenz beim Overbid
+        # P0-2: der Zähler eingehender Gebote auf **eigenen** Listings. Nicht
+        # mehr als Konkurrenzmaß beim Overbid — siehe
+        # `test_prompt_does_not_read_the_offer_count_as_competition`.
+        "listing.offer_count",
         "allowed_formations",
         "Head-to-Head",  # Wertungsmodus
         "underpay_blocked",  # Underpay-Block, seit §8/F6 als Feld statt als Prosa
@@ -123,6 +126,53 @@ def test_prompt_covers_the_fields_that_came_with_phase_two() -> None:
         "scoring_mode",  # P1-9 / §8/F6
     ):
         assert expected in prompt, f"Der Prompt erwähnt {expected!r} nicht"
+
+
+def test_prompt_covers_the_fields_that_came_with_p2_13() -> None:
+    """Overbid-Kalibrierung und Trading-Playbook brauchen ihre Felder im Text.
+
+    Der `trading`-Block und die beiden Update-Zähler kosten Tokens in jedem
+    Tick. Ein Feld, das der Prompt nicht nennt, wird nicht gelesen — man zahlt
+    es, ohne etwas dafür zu bekommen.
+    """
+    prompt = load_system_prompt()
+    for expected in (
+        "trading.phase",  # Zielhierarchie kippt darüber
+        "mv_updates_until_expiry",  # Drift-Anteil des Overbids
+        "mv_updates_until_matchday",  # bleibt überhaupt Zeit für einen Trade?
+        "squad_slots_free",  # Slot-Ökonomie
+        "spendable_before_debt_limit",  # 33 %-Spielraum dieses Ticks
+        "profit_positions",
+        "days_held",  # totes Kapital erkennen
+        "my_open_bid_count",
+        "listed_by",  # Manager-Listing braucht einen Aufschlag
+    ):
+        assert expected in prompt, f"Der Prompt erwähnt {expected!r} nicht"
+
+
+def test_prompt_does_not_read_the_offer_count_as_competition() -> None:
+    """`ofc` ist auf fremden Listings **kein** Konkurrenzmaß (P2-13).
+
+    Bis P2-13 stand im Prompt, `offer_count` sage, „wie viele bereits geboten
+    haben", und daraus leitete er zwei falsche Regeln ab: bei `== 1` sei man der
+    einzige Bieter, bei `== 0` genüge der Marktwert. Kickbase zeigt fremde
+    Gebote aber nirgends an — der Zähler meint auf fremden Listings die eigenen
+    Gebote. Der Rückfall ist leicht: der Feldname klingt wie das Gegenteil.
+
+    Geprüft wird beides — dass die alten Formulierungen weg sind **und** dass
+    die Unsichtbarkeit ausdrücklich dasteht. Nur das Erste wäre zu schwach: ein
+    Prompt, der zum Thema schweigt, lädt das Modell ein, vom Feldnamen auf die
+    Bedeutung zu schließen.
+    """
+    prompt = load_system_prompt()
+    for wrong in (
+        "`offer_count` sagt, wie viele bereits geboten haben",
+        "`offer_count > 1`",
+        "`offer_count == 1`",
+    ):
+        assert wrong not in prompt, f"Alte Lesart von `ofc` wieder im Prompt: {wrong!r}"
+    assert "Du siehst die Gebote der anderen nicht." in prompt
+    assert "es zählt die **eigenen**" in prompt
 
 
 def test_prompt_does_not_promise_data_the_payload_lacks() -> None:

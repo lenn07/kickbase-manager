@@ -63,6 +63,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-23T20:29:36+00:00",
+      "expires_in_min": 269,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -79,10 +80,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Mitchell Weiser",
-      "offer_count": 0,
       "player_id": "43",
       "position": "DEF",
       "seller_id": null,
@@ -94,6 +96,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-24T10:15:37+00:00",
+      "expires_in_min": 1095,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -110,10 +113,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Jonas Hofmann",
-      "offer_count": 0,
       "player_id": "78",
       "position": "MID",
       "seller_id": null,
@@ -125,6 +129,7 @@
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-23T19:05:39+00:00",
+      "expires_in_min": 185,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -143,10 +148,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 0,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Niklas Stark",
-      "offer_count": 0,
       "player_id": "157",
       "position": "DEF",
       "seller_id": null,
@@ -158,6 +164,7 @@
     {
       "avg_points_last5": -4.0,
       "expires_at_iso": "2026-09-25T09:10:59+00:00",
+      "expires_in_min": 2470,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -176,10 +183,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 2,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Luca Waldschmidt",
-      "offer_count": 0,
       "player_id": "737",
       "position": "MID",
       "seller_id": null,
@@ -191,6 +199,7 @@
     {
       "avg_points_last5": 20.0,
       "expires_at_iso": "2026-09-24T12:01:39+00:00",
+      "expires_in_min": 1201,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -209,10 +218,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Edin Džeko",
-      "offer_count": 0,
       "player_id": "1012",
       "position": "STK",
       "seller_id": null,
@@ -224,6 +234,7 @@
     {
       "avg_points_last5": 11.0,
       "expires_at_iso": "2026-09-24T03:27:58+00:00",
+      "expires_in_min": 687,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -242,10 +253,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Janik Haberer",
-      "offer_count": 0,
       "player_id": "1553",
       "position": "MID",
       "seller_id": null,
@@ -257,6 +269,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-23T21:50:59+00:00",
+      "expires_in_min": 350,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -273,10 +286,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Benjamin Henrichs",
-      "offer_count": 0,
       "player_id": "1689",
       "position": "DEF",
       "seller_id": null,
@@ -288,6 +302,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": null,
+      "expires_in_min": null,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -304,10 +319,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": null,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Marius Wolf",
-      "offer_count": 0,
       "player_id": "1809",
       "position": "MID",
       "seller_id": "9999999",
@@ -319,6 +335,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T08:21:29+00:00",
+      "expires_in_min": 2421,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -335,10 +352,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 2,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Chris Führich",
-      "offer_count": 0,
       "player_id": "2172",
       "position": "MID",
       "seller_id": null,
@@ -350,6 +368,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T05:37:01+00:00",
+      "expires_in_min": 2257,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -366,10 +385,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 2,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Josip Stanišić",
-      "offer_count": 0,
       "player_id": "2300",
       "position": "DEF",
       "seller_id": null,
@@ -381,6 +401,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-24T01:22:59+00:00",
+      "expires_in_min": 562,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -397,10 +418,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Jamal Musiala",
-      "offer_count": 0,
       "player_id": "2804",
       "position": "MID",
       "seller_id": null,
@@ -412,6 +434,7 @@
     {
       "avg_points_last5": 34.0,
       "expires_at_iso": "2026-09-24T08:45:49+00:00",
+      "expires_in_min": 1005,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -430,10 +453,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Fisnik Asllani",
-      "offer_count": 0,
       "player_id": "3158",
       "position": "STK",
       "seller_id": null,
@@ -445,6 +469,7 @@
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-25T00:48:59+00:00",
+      "expires_in_min": 1968,
       "form_matchdays_counted": 0,
       "injury_status": "out_of_squad",
       "is_new_on_market": true,
@@ -463,10 +488,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 2,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Keke Topp",
-      "offer_count": 0,
       "player_id": "3166",
       "position": "STK",
       "seller_id": null,
@@ -478,6 +504,7 @@
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-24T07:56:24+00:00",
+      "expires_in_min": 956,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -496,10 +523,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Tim Oermann",
-      "offer_count": 0,
       "player_id": "4318",
       "position": "DEF",
       "seller_id": null,
@@ -511,6 +539,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T11:28:07+00:00",
+      "expires_in_min": 2608,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -527,10 +556,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 2,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Victor Boniface",
-      "offer_count": 0,
       "player_id": "6745",
       "position": "STK",
       "seller_id": null,
@@ -542,6 +572,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-25T09:03:19+00:00",
+      "expires_in_min": 2463,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": true,
@@ -558,10 +589,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 2,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Jarell Quansah",
-      "offer_count": 0,
       "player_id": "7963",
       "position": "DEF",
       "seller_id": null,
@@ -573,6 +605,7 @@
     {
       "avg_points_last5": 24.0,
       "expires_at_iso": "2026-09-23T18:46:53+00:00",
+      "expires_in_min": 166,
       "form_matchdays_counted": 0,
       "injury_status": "questionable",
       "is_new_on_market": false,
@@ -591,10 +624,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 0,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Johan Bakayoko",
-      "offer_count": 0,
       "player_id": "8061",
       "position": "STK",
       "seller_id": null,
@@ -606,6 +640,7 @@
     {
       "avg_points_last5": null,
       "expires_at_iso": "2026-09-23T19:10:04+00:00",
+      "expires_in_min": 190,
       "form_matchdays_counted": 0,
       "injury_status": "out_of_squad",
       "is_new_on_market": false,
@@ -624,10 +659,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 0,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Nyamekye Awortwie-Grant",
-      "offer_count": 0,
       "player_id": "8984",
       "position": "DEF",
       "seller_id": null,
@@ -639,6 +675,7 @@
     {
       "avg_points_last5": 1.0,
       "expires_at_iso": "2026-09-23T16:06:27+00:00",
+      "expires_in_min": 6,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -657,10 +694,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 0,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Marin Ljubičić",
-      "offer_count": 0,
       "player_id": "10106",
       "position": "STK",
       "seller_id": null,
@@ -672,6 +710,7 @@
     {
       "avg_points_last5": -60.0,
       "expires_at_iso": "2026-09-24T04:31:08+00:00",
+      "expires_in_min": 751,
       "form_matchdays_counted": 0,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -690,10 +729,11 @@
         "missing_data:start_probability_next_heuristic"
       ],
       "mv_max_30d": null,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Samuele Inácio",
-      "offer_count": 0,
       "player_id": "11100",
       "position": "MID",
       "seller_id": null,
@@ -705,6 +745,7 @@
     {
       "avg_points_last5": 178.0,
       "expires_at_iso": "2026-09-24T12:41:22+00:00",
+      "expires_in_min": 1241,
       "form_matchdays_counted": 4,
       "injury_status": "fit",
       "is_new_on_market": false,
@@ -721,10 +762,11 @@
         "missing_data:avg_points_last5_partial_window"
       ],
       "mv_max_30d": 33879307,
+      "mv_updates_until_expiry": 1,
       "my_bid_placed_at_iso": null,
+      "my_open_bid_count": 0,
       "my_open_bid_price": null,
       "name": "Satoshi Tanaka",
-      "offer_count": 0,
       "player_id": "12297",
       "position": "MID",
       "seller_id": null,
@@ -757,13 +799,15 @@
       "ts_iso": "2026-09-23T14:00:00+00:00"
     }
   ],
-  "rules_last_verified": "2026-09-23",
+  "rules_last_verified": "2026-09-26",
   "squad": [
     {
       "average_points_season": 178.0,
       "avg_points_last5": 178.0,
+      "bought_at_iso": "2026-09-19T13:00:00+00:00",
       "bought_at_price": 33879307,
       "bought_intent": "PROFIT",
+      "days_held": 4,
       "form_matchdays_counted": 4,
       "in_starting_xi": true,
       "injury_status": "fit",
@@ -1001,5 +1045,14 @@
   ],
   "squad_size": 8,
   "starting_xi_count": 8,
-  "ticks_until_matchday_start": 193
+  "ticks_until_matchday_start": 193,
+  "trading": {
+    "mv_updates_until_matchday": 16,
+    "phase": "trading",
+    "profit_positions": 1,
+    "spendable_before_debt_limit": 48587940,
+    "squad_slots_free": 8,
+    "squad_slots_used": 8,
+    "unrealized_pnl_total": -3269298
+  }
 }

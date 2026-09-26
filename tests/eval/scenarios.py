@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from app.application.decision_engine import DecisionContext, OpenBid
+from app.application.decision_engine import BuyRecord, DecisionContext, OpenBid
 from app.application.player_enrichment import PlayerEnrichment
 from app.domain.lineup import DEFAULT_FORMATION, LINEUP_SIZE, Lineup
 from app.domain.models import (
@@ -29,7 +29,7 @@ from app.domain.models import (
     Squad,
     SquadPlayer,
 )
-from app.domain.trade import TradeAction
+from app.domain.trade import TradeAction, TradeIntent
 
 NOW = datetime(2026, 9, 25, 12, 0, 0, tzinfo=UTC)
 LEAGUE_ID = "1111111"
@@ -54,6 +54,11 @@ class Scenario:
     # Spielers. `None` = keine Prüfung. Manche Regeln betreffen weder die
     # Aktionsart noch die Auswahl, sondern allein die Höhe.
     min_bid_ratio: float | None = None
+    # Obergrenze, gleiche Einheit. Der Gegenpart: ein Overbid ist ein Werkzeug,
+    # kein Reflex. Ohne diese Prüfung ist jede Verschärfung der Overbid-Regeln
+    # einseitig — ein Modell, das grundsätzlich +30 % bietet, wäre in allen
+    # Szenarien grün und würde in der Praxis jede Trading-Marge verbrennen.
+    max_bid_ratio: float | None = None
     # Was die Regel im Prompt ist, gegen die hier geprüft wird.
     rule: str = ""
     # Normalerweise steht eine vollständige Elf, sonst prüfte jedes Szenario
@@ -92,14 +97,25 @@ def _enrichment(
     start_probability: float = 0.85,
     minutes_last5: float | None = 88.0,
     starts_last5: int | None = 5,
+    mv_max_30d_pct: float = 1.05,
 ) -> PlayerEnrichment:
+    """Ein unauffälliger Spieler: Startelf, durchspielend, Trend leicht positiv.
+
+    `mv_max_30d_pct` ist der Abstand zum rollierenden 30-Tage-Hoch, als Faktor
+    auf den Marktwert. Der Default lässt 5 % Luft — der Normalfall. Bis P2-13
+    stand hier `mv_max_30d == market_value`, also **jeder** Spieler in **jedem**
+    Szenario am 30-Tage-Hoch. Seit §3a „MW am `mv_max_30d` ist der Peak, nicht
+    der Einstieg" eine Kaufbremse ist, hätte diese Voreinstellung jedes
+    Kauf-Szenario nebenbei zu einem Peak-Szenario gemacht. Ein Szenario, das
+    tatsächlich über den Peak geht, setzt den Wert ausdrücklich auf `1.0`.
+    """
     return PlayerEnrichment(
         player_id=player.id,
         market_trend_1d_pct=trend_1d,
         market_trend_3d_pct=trend_7d,
         market_trend_7d_pct=trend_7d,
         market_trend_30d_pct=trend_7d,
-        mv_max_30d=int(player.market_value),
+        mv_max_30d=int(player.market_value * Decimal(str(mv_max_30d_pct))),
         avg_points_last5=player.average_points,
         start_probability_next=start_probability,
         # Die Szenarien sollen den Prompt gegen eine Regel prüfen, nicht gegen
@@ -129,6 +145,8 @@ def _context(
     buy_prices: dict[str, int] | None = None,
     squad_limit: int | None = 16,
     open_bids: dict[str, int] | None = None,
+    held_days: dict[str, int] | None = None,
+    hours_until_mv_update: int = 8,
 ) -> DecisionContext:
     """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
 
@@ -191,7 +209,24 @@ def _context(
         },
         now=NOW,
         next_matchday_start=NOW + timedelta(minutes=minutes_until_matchday),
+        # Das nächste 22-Uhr-Update. Ohne diesen Wert stehen
+        # `mv_updates_until_matchday` und `mv_updates_until_expiry` auf `null` —
+        # und damit fehlt der Eval genau die Uhr, an der §3 den Drift-Anteil des
+        # Overbids und §3a die Frage „bleibt überhaupt Zeit für einen Trade?"
+        # aufhängt.
+        mv_update_at=NOW + timedelta(hours=hours_until_mv_update),
         interval_min=120,
+        # Trade-Positionen mit Haltedauer. `days_held` im Payload entscheidet,
+        # ob eine Position frisch ist oder seit Tagen einen Kaderplatz belegt,
+        # ohne Rendite zu bringen (§3a, Verkaufssignal 5).
+        buy_history={
+            pid: BuyRecord(
+                intent=TradeIntent.PROFIT,
+                buy_price=Decimal(entry_prices.get(pid, 0)) or _market_value_of(squad_players, pid),
+                bought_at=NOW - timedelta(days=days),
+            )
+            for pid, days in (held_days or {}).items()
+        },
         enrichment=enrichment,
         max_negative_allowed=max_negative,
         current_balance_after_open_bids=Decimal(cash)
@@ -214,6 +249,13 @@ def _context(
             scoring_mode="season_points",
         ),
     )
+
+
+def _market_value_of(players: list[Player], player_id: str) -> Decimal:
+    for p in players:
+        if p.id == player_id:
+            return p.market_value
+    return Decimal(0)
 
 
 def _players_per_club(players: list[Player]) -> dict[str, int]:
@@ -273,8 +315,17 @@ def _debt_before_kickoff() -> Scenario:
 def _healthy_and_quiet() -> Scenario:
     """Konto im Plus, Kader vollständig, Anpfiff in vier Tagen, Markt unauffällig.
 
-    Hier ist Nichtstun eine legitime Antwort — ein Bot, der jeden Tick handeln
-    muss, verbrennt Marge. Verboten ist nur der Panikverkauf.
+    Geprüft wird, dass der Bot **nicht** in den Sofortverkauf geht, obwohl er
+    kein Kapital braucht: `SELL_INSTANT` verschenkt dann den Listing-Aufschlag,
+    ohne etwas zu lösen.
+
+    `HOLD` und `BUY` sind beide zulässig, und das ist seit P2-13 kein
+    Widerspruch mehr, sondern der Punkt: die Lage steht in der `trading`-Phase
+    mit vier freien Kaderplätzen, aber der einzige Marktspieler hat 60 Punkte
+    Schnitt und einen flachen Trend. Ein Kauf ist damit vertretbar, ein `HOLD`
+    mit Befund ebenfalls. Was §3a verlangt, ist kein Handeln um jeden Preis,
+    sondern eine Begründung — und die misst dieses Szenario nicht, sondern
+    `trading_window_fills_free_slots`, wo die Kandidaten eindeutig sind.
     """
     squad = _squad_of_twelve()
     market = [_player("902", "Durchschnitt", Position.DEFENDER, 9_000_000, average_points=60.0)]
@@ -448,7 +499,22 @@ def _profit_peak() -> Scenario:
     peaked = squad[9]  # ein Stürmer aus der Startelf
     market = [_player("907", "Neutral", Position.DEFENDER, 8_000_000, average_points=80.0)]
     overrides = {
-        peaked.id: _enrichment(peaked, trend_7d=18.0, trend_1d=-1.2, start_probability=0.9)
+        # Der Marktspieler ist ausdrücklich **kein** Trade-Kandidat: fallender
+        # Trend, Listing endet vor dem nächsten 22-Uhr-Update. Seit §3a dem
+        # Trading in dieser Phase Vorrang gibt, würde ein unauffällig-positiver
+        # Default hier eine zweite, konkurrierende Handlungsoption aufmachen —
+        # und das Szenario prüfte dann nicht mehr den Peak-Exit, sondern welche
+        # von zwei vertretbaren Aktionen das Modell vorzieht.
+        market[0].id: _enrichment(market[0], trend_7d=-1.0, trend_1d=-0.4),
+        peaked.id: _enrichment(
+            peaked,
+            trend_7d=18.0,
+            trend_1d=-1.2,
+            start_probability=0.9,
+            # Der Marktwert **ist** hier das 30-Tage-Hoch — das ist die halbe
+            # Aussage des Szenarios und stand seit P2-13 nicht mehr im Default.
+            mv_max_30d_pct=1.0,
+        ),
     }
     return Scenario(
         name="profit_peak",
@@ -627,8 +693,12 @@ def _bid_already_running() -> Scenario:
 
     Die Lage ist bewusst verlockend: Kaderlücken, Geld da, ein guter Spieler am
     Markt. Genau dann muss `my_open_bid_price` die Wiederholung verhindern.
-    `offer_count` steht auf 1 — das ist unser eigenes Gebot, es bietet also
-    niemand dagegen, und Erhöhen wäre Bieten gegen sich selbst.
+    `my_open_bid_count` steht auf 1 — und das ist seit P2-13 die korrekte
+    Lesart: der Zähler meint auf fremden Listings die **eigenen** Gebote, nicht
+    die der anderen. Vorher las der Prompt ihn als Konkurrenzmaß und leitete
+    aus `offer_count == 1` ab, man sei der einzige Bieter; richtig ist, dass
+    über fremde Gebote gar keine Aussage vorliegt. Die Regel bleibt dieselbe:
+    ein gleich hohes Nachgebot ändert nichts und verbrennt den Tick.
 
     `BUY` bleibt als Aktion erlaubt: es gibt einen **zweiten** Marktspieler
     ohne laufendes Gebot, und ihn zu kaufen ist völlig richtig. Verboten ist
@@ -639,7 +709,7 @@ def _bid_already_running() -> Scenario:
     free = _player("941", "Noch frei", Position.DEFENDER, 8_000_000, average_points=130.0)
     return Scenario(
         name="bid_already_running",
-        description="Eigenes Gebot über 11 Mio läuft, offer_count=1, Kader hat Platz",
+        description="Eigenes Gebot über 11 Mio läuft, my_open_bid_count=1, Kader hat Platz",
         context=_context(
             squad_players=squad,
             market_players=[running, free],
@@ -654,8 +724,8 @@ def _bid_already_running() -> Scenario:
         forbidden_player_ids=frozenset({running.id}),
         rule=(
             "Ein Gebot ist kein Kauf: es läuft bis zum Listing-Ablauf. Bei "
-            "`my_open_bid_price != null` und `offer_count == 1` bietet man nicht gegen "
-            "sich selbst (§3)"
+            "`my_open_bid_price != null` ist ein gleich hohes Nachgebot wirkungslos, und "
+            "`my_open_bid_count` zählt die eigenen Gebote, nicht die fremden (§3)"
         ),
     )
 
@@ -715,6 +785,233 @@ def _squad_too_small_to_field_eleven() -> Scenario:
     )
 
 
+def _overbid_covers_the_mv_drift() -> Scenario:
+    """Der Marktwert steigt bis zum Zuschlag — ein Gebot zum heutigen Wert platzt.
+
+    Die härteste Preisregel des Spiels, und die einzige, die sich ohne Annahmen
+    über fremde Bieter herleiten lässt: maßgeblich ist der Marktwert **zum
+    Transferzeitpunkt**. Der Spieler hier steigt 2,5 % pro Tag, das Listing läuft
+    über zwei 22-Uhr-Updates (`mv_updates_until_expiry: 2`) — beim Zuschlag steht
+    er rund 5 % höher. Wer den heutigen Marktwert bietet, bekommt ihn nicht und
+    hat den Tick verloren.
+
+    Das Szenario misst deshalb die **Höhe**, nicht die Aktion: `HOLD` bleibt
+    erlaubt (es gibt gute Gründe, einen steigenden Spieler nicht zu jagen), aber
+    ein Gebot muss den Drift-Anteil tragen. `min_bid_ratio` liegt bei 1,02 und
+    damit unter den gerechneten 5 % — geprüft wird, dass das Modell die Rechnung
+    überhaupt macht, nicht dass es sie auf die Kommastelle trifft.
+    """
+    squad = _squad_of_twelve()
+    riser = _player("960", "Steigt schnell", Position.MIDFIELDER, 9_000_000, average_points=135.0)
+    overrides = {
+        riser.id: _enrichment(riser, trend_7d=9.0, trend_1d=2.5, mv_max_30d_pct=1.12),
+    }
+    return Scenario(
+        name="overbid_covers_the_mv_drift",
+        description="Marktspieler +2,5 %/Tag, Listing läuft über zwei MW-Updates",
+        context=_context(
+            squad_players=squad,
+            market_players=[riser],
+            cash=30_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=6 * 24 * 60,
+            enrichment_overrides=overrides,
+            # 40 h Restlaufzeit, nächstes Update in 8 h → zwei Updates bis zum
+            # Zuschlag.
+            market_expiry_s=40 * 3600,
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        min_bid_ratio=1.02,
+        rule=(
+            "Massgeblich ist der Marktwert zum Transferzeitpunkt: `market_trend_1d_pct` x "
+            "`mv_updates_until_expiry` gehoert als Drift-Anteil ins Gebot, sonst wird es "
+            "beim Zuschlag abgelehnt (§3)"
+        ),
+    )
+
+
+def _no_trade_without_a_mv_update() -> Scenario:
+    """Ohne ein weiteres 22-Uhr-Update kann ein Trade keinen Gewinn machen.
+
+    Das Nicht-Kauf-Signal aus §3a, und der Gegenpol zu
+    `overbid_covers_the_mv_drift`: derselbe flache Kandidat, aber das Listing
+    läuft **vor** dem nächsten Marktwert-Update ab
+    (`mv_updates_until_expiry: 0`). Marktwerte bewegen sich ausschließlich zu
+    diesen Zeitpunkten — ein Trade-Kauf bindet hier Geld und einen Kaderplatz
+    für eine Wertentwicklung, die es in seiner Laufzeit nicht gibt. Die Lage ist
+    bewusst einladend (Trading-Phase, vier freie Plätze, 25 Mio Cash), damit
+    geprüft wird, ob die Zeitrechnung gegen den Handlungsdruck aus §1 besteht.
+
+    **Was dieses Szenario NICHT prüft:** die Overbid-Obergrenze. Sie stand hier
+    bis zum ersten bezahlten Lauf (2026-09-26) und war wirkungslos — das Modell
+    wählte dreimal `HOLD`, und eine Gebots-Schranke greift nur bei `BUY`. Sie
+    sitzt jetzt in `trading_window_fills_free_slots`, wo `BUY` die einzige
+    erlaubte Aktion ist. `max_bid_ratio` bleibt hier als Sicherung stehen, falls
+    doch gekauft wird, ist aber nicht der Zweck.
+    """
+    squad = _squad_of_twelve()
+    flat = _player("961", "Unauffaellig", Position.DEFENDER, 7_000_000, average_points=95.0)
+    overrides = {flat.id: _enrichment(flat, trend_7d=0.3, trend_1d=0.1)}
+    return Scenario(
+        name="no_trade_without_a_mv_update",
+        description="Flacher Trend, Listing endet vor dem MW-Update, Kickbase-Listing",
+        context=_context(
+            squad_players=squad,
+            market_players=[flat],
+            cash=25_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=5 * 24 * 60,
+            enrichment_overrides=overrides,
+            # Läuft vor dem nächsten 22-Uhr-Update ab: kein Drift-Anteil.
+            market_expiry_s=5 * 3600,
+        ),
+        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        min_bid_ratio=1.0,
+        max_bid_ratio=1.06,
+        rule=(
+            "`mv_updates_until_expiry == 0` heisst: bis zum Zuschlag bewegt sich kein "
+            "Marktwert. Ein Trade-Kauf rechnet sich dann nicht, und der Aufschlag hat "
+            "ohnehin keine Grundlage (§3a, §3)"
+        ),
+    )
+
+
+def _trading_window_fills_free_slots() -> Scenario:
+    """Sechs Tage bis zum Anpfiff, vier freie Kaderplätze, drei klare Steiger.
+
+    Das Szenario zur Zielhierarchie aus §1: in der `trading`-Phase steht das
+    Marktwert-Trading **vor** der Punkte-Optimierung, weil Punkte einmal pro
+    Spieltag anfallen und Marktwert-Gewinne jeden Tag um 22:00 Uhr. Vier leere
+    Plätze bei 16 Kaderslots sind vier Positionen, die nichts verdienen, und
+    `mv_updates_until_matchday` steht auf 6 — es ist reichlich Zeit, den Zuwachs
+    einzusammeln und vor dem Anpfiff wieder zu realisieren.
+
+    Die Elf steht vollständig, das Konto ist im Plus, alle drei Kandidaten sind
+    günstig, fit, gesetzt, steigen seit Tagen und haben Abstand zum 30-Tage-Hoch.
+    Es gibt damit keinen Befund, der `HOLD` trägt — und genau das ist die Regel,
+    die hier geprüft wird. Ohne dieses Szenario bleibt jede Trading-Regel im
+    Prompt unbelegt: `HOLD` ist in allen anderen Lagen erlaubt, die Eval würde
+    also weiter nur messen, dass der Bot nichts falsch macht.
+    """
+    squad = _squad_of_twelve()
+    risers = [
+        _player("970", "Steiger Abwehr", Position.DEFENDER, 4_500_000, average_points=105.0),
+        _player("971", "Steiger Mittelfeld", Position.MIDFIELDER, 5_500_000, average_points=115.0),
+        _player("972", "Steiger Sturm", Position.FORWARD, 3_800_000, average_points=98.0),
+    ]
+    overrides = {
+        p.id: _enrichment(p, trend_7d=6.5, trend_1d=1.4, mv_max_30d_pct=1.15) for p in risers
+    }
+    return Scenario(
+        name="trading_window_fills_free_slots",
+        description="Anpfiff in 6 Tagen, 12/16 Kaderplätze belegt, 3 günstige Steiger, 22 Mio Cash",
+        context=_context(
+            squad_players=squad,
+            market_players=risers,
+            cash=22_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=6 * 24 * 60,
+            enrichment_overrides=overrides,
+            market_expiry_s=30 * 3600,
+        ),
+        allowed=frozenset({TradeAction.BUY}),
+        forbidden=frozenset(
+            {
+                TradeAction.HOLD,
+                TradeAction.SELL,
+                TradeAction.ACCEPT_OFFER,
+                TradeAction.DECLINE_OFFER,
+            }
+        ),
+        min_bid_ratio=1.0,
+        # **Hier** sitzt die Overbid-Obergrenze, und zwar aus einem Grund: `BUY`
+        # ist die einzige erlaubte Aktion, es fällt also garantiert ein Gebot,
+        # das geprüft werden kann. Im ersten bezahlten Lauf (2026-09-26) stand
+        # sie in `no_trade_without_a_mv_update` — dort wählte das Modell dreimal
+        # `HOLD`, und eine Gebots-Schranke greift nur bei `BUY`. Die Assertion
+        # war also nie ausgeführt und das Szenario meldete grün für eine Regel,
+        # die es nicht gemessen hat.
+        #
+        # 8 % ist aus der Lage hergeleitet, nicht geraten: Drift bis zum Zuschlag
+        # ist ~1,4 % (ein Update), der erwartete Zuwachs bis zum Anpfiff ~8 %
+        # (sechs Updates). Nach der Deckelung aus §3 („Zuwachs minus Aufschlag >=
+        # Zielmarge") ist ein Aufschlag jenseits davon ein Trade, der bei null
+        # startet.
+        max_bid_ratio=1.08,
+        rule=(
+            "In der `trading`-Phase gehen Marktwert-Gewinne vor Punkten, und freie "
+            "Kaderplaetze sind Positionen ohne Rendite. `HOLD` braucht hier einen Befund "
+            "an den Zahlen (§1, §3a). Der Aufschlag bleibt durch die erwartete Rendite "
+            "gedeckt (§3, Deckelung bei `intent: PROFIT`)"
+        ),
+    )
+
+
+def _stale_trade_frees_the_slot() -> Scenario:
+    """Kader voll, eine Trade-Position liegt seit neun Tagen ohne Bewegung.
+
+    Die Slot-Ökonomie aus §3a: beim Trading ist der knappe Rohstoff nicht das
+    Geld, sondern der Kaderplatz. Die Position hier (`days_held: 9`,
+    `bought_intent: PROFIT`) sitzt auf der Bank, ihr Trend ist negativ, und sie
+    hat in neun Tagen nichts gebracht — während am Markt ein Spieler mit
+    1,6 %/Tag liegt und `mv_updates_until_matchday` auf 5 steht.
+
+    `BUY` ist bei `squad_slots_left: 0` regelseitig ausgeschlossen (Kickbase
+    lehnt das Gebot schon bei der Abgabe ab), die Reihenfolge ist also: dieser
+    Tick verkauft, der nächste kauft. `HOLD` ist verboten, weil es die einzige
+    Aktion ist, die den Platz nicht freimacht — und der Platz ist hier der
+    ganze Punkt. Der Verkauf trifft bewusst keinen Startelf-Spieler: das
+    Szenario soll über Kapitalumschlag gehen, nicht über Punkte.
+    """
+    squad = _squad_of_twelve()
+    # Auf 16 auffüllen — der Kader ist voll, `squad_slots_left` also 0.
+    squad += [
+        _player("504", "Reserve Abwehr", Position.DEFENDER, 4_000_000, average_points=45.0),
+        _player("505", "Reserve Mittelfeld", Position.MIDFIELDER, 4_200_000, average_points=50.0),
+        _player("506", "Reserve Sturm", Position.FORWARD, 4_400_000, average_points=48.0),
+        _player("507", "Totes Kapital", Position.MIDFIELDER, 6_000_000, average_points=55.0),
+    ]
+    stale = squad[-1]
+    fresh = _player("973", "Laeuft heiss", Position.MIDFIELDER, 5_000_000, average_points=120.0)
+    overrides = {
+        stale.id: _enrichment(stale, trend_7d=-0.2, trend_1d=-0.3, start_probability=0.15),
+        fresh.id: _enrichment(fresh, trend_7d=7.0, trend_1d=1.6, mv_max_30d_pct=1.18),
+    }
+    return Scenario(
+        name="stale_trade_frees_the_slot",
+        description="16/16 Kaderplätze, Trade seit 9 Tagen bei -0,2 %, starker Kandidat am Markt",
+        context=_context(
+            squad_players=squad,
+            market_players=[fresh],
+            cash=12_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=5 * 24 * 60,
+            enrichment_overrides=overrides,
+            # Eingekauft zum damaligen Marktwert, seither seitwärts.
+            buy_prices={stale.id: 6_050_000},
+            held_days={stale.id: 9},
+            squad_limit=16,
+            market_expiry_s=20 * 3600,
+        ),
+        allowed=frozenset({TradeAction.SELL, TradeAction.LIST_ON_MARKET}),
+        forbidden=frozenset(
+            {
+                TradeAction.BUY,
+                TradeAction.HOLD,
+                TradeAction.ACCEPT_OFFER,
+                TradeAction.DECLINE_OFFER,
+            }
+        ),
+        rule=(
+            "Eine Trade-Position ohne Bewegung kostet den Kaderplatz, nicht den Preis — "
+            "verkaufen ist richtig, auch ohne Gewinn. Bei `squad_slots_left: 0` kommt der "
+            "Verkauf zuerst, der Kauf im naechsten Tick (§3a)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -729,4 +1026,9 @@ SCENARIOS: tuple[Scenario, ...] = (
     _underpay_is_blocked(),
     _bid_already_running(),
     _squad_too_small_to_field_eleven(),
+    # P2-13: Overbid-Kalibrierung ohne Konkurrenz-Zaehler + Trading-Playbook.
+    _overbid_covers_the_mv_drift(),
+    _no_trade_without_a_mv_update(),
+    _trading_window_fills_free_slots(),
+    _stale_trade_frees_the_slot(),
 )

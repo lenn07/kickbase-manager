@@ -174,10 +174,19 @@ class MarketPlayer:
     price: Decimal
     expires_in_s: int | None
     seller_id: str | None  # None → Kickbase-eigener Angebotspool
-    # `ofc` = Anzahl abgegebener Gebote auf dieses Listing. Der billige
-    # Indikator: er sagt *dass* geboten wurde, lange bevor klar ist, *wie* das
-    # Gebots-Array im Payload heißt (Plan §8/F1). Auf eigenen Listings ist er
-    # das Signal „warten statt Sofortverkauf", auf fremden ein Konkurrenzmaß.
+    # `ofc` = Anzahl der Gebote, die **dieser Account** auf diesem Listing
+    # sehen darf. Die Zahl bedeutet deshalb je Listing etwas anderes:
+    #
+    # - **eigenes Listing** (`seller_id == manager_id`): alle eingegangenen
+    #   Gebote fremder Manager. Hier ist `ofc` das Signal „warten statt
+    #   Sofortverkauf" und speist `has_offers`.
+    # - **fremdes Listing**: nur die **eigenen** Gebote. Kickbase zeigt die
+    #   Gebote anderer Manager nirgends an (help.kickbase.com, „Warum habe ich
+    #   den Spieler nicht bekommen?"). Als Konkurrenzmaß ist der Wert damit
+    #   unbrauchbar — bis P2-13 stand er genau dafür im USER-JSON und das
+    #   Modell überbot sich selbst, während es fremde Bieter für nicht
+    #   vorhanden hielt. Verwendbar bleibt er als Gegenprobe zum eigenen
+    #   Gebot: ≥ 1 heißt, es läuft eins.
     offer_count: int = 0
     # `prob` = Startelf-Wahrscheinlichkeit in 5 Stufen, `1` = sicherste Startelf
     # (Plan §8/F2). **Nur in der Spieltagswoche vorhanden** — am 23.09. in 0 von

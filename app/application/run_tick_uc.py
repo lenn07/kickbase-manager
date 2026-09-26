@@ -689,5 +689,7 @@ def _load_buy_history(
             intent = None
         if intent is None:
             continue
-        out[player_id] = BuyRecord(intent=intent, buy_price=Decimal(row.price))
+        out[player_id] = BuyRecord(
+            intent=intent, buy_price=Decimal(row.price), bought_at=_as_utc(row.ts)
+        )
     return out
