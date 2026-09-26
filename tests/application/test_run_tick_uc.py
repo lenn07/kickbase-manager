@@ -8,7 +8,7 @@ from app.application.decision_engine import (
     DecisionEngine,
     HoldOnlyDecisionEngine,
 )
-from app.application.run_tick_uc import RunTickUseCase, _max_negative_allowed
+from app.application.run_tick_uc import RunTickUseCase, TickOutcome, _max_negative_allowed
 from app.application.setup_service import SetupService, SmtpFormInput
 from app.application.team_context import TeamContextProvider
 from app.domain.exceptions import TransportError
@@ -887,3 +887,273 @@ async def test_ranking_failure_does_not_cost_the_tick(
 
     assert outcome.decision is not None
     assert engine.contexts[0].league_ranking is None
+
+
+# -- P2-16: Aktionsketten im Deadline-Fenster ----------------------------
+
+
+def _chain_decision() -> TradeDecision:
+    """Verkaufen und nachkaufen — die Kette, für die P2-16 gebaut wurde."""
+    return TradeDecision(
+        action=TradeAction.SELL,
+        reason="Konto ins Plus",
+        player_id="s0",
+        player_name="Verkauft",
+        intent=TradeIntent.DEBT_RELIEF,
+        follow_ups=(
+            TradeDecision(
+                action=TradeAction.BUY,
+                reason="Platz nachbesetzen",
+                player_id="m0",
+                player_name="Gekauft",
+                price=Decimal(5_000_000),
+                intent=TradeIntent.POINTS,
+            ),
+        ),
+    )
+
+
+class _ChainKickbase(FakeKickbase):
+    """Führt Verkauf und Kauf aus — wahlweise mit Fehler beim Verkauf."""
+
+    def __init__(self, *, sell_fails: bool = False, **kwargs: object) -> None:
+        super().__init__(**kwargs)  # type: ignore[arg-type]
+        self._sell_fails = sell_fails
+        self.calls: list[str] = []
+
+    async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
+        self.calls.append(f"sell:{player_id}")
+        if self._sell_fails:
+            raise TransportError("verkauf abgelehnt")
+
+    async def place_bid(self, league_id: str, player_id: str, price: Decimal) -> str:
+        self.calls.append(f"buy:{player_id}")
+        return "offer-1"
+
+
+async def _run_chain(
+    db_session: Session, vault: FernetVault, kb: FakeKickbase, *, dry_run: bool = False
+) -> tuple[TickOutcome, list[TradeLogRow]]:
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+    user = UserRepository(db_session).get_singleton()
+    assert user is not None and user.id is not None
+    settings_repo = SettingsRepository(db_session)
+    row = settings_repo.get_or_default(user.id)
+    row.dry_run = dry_run
+    settings_repo.upsert(row)
+
+    outcome = await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=FixedDecisionEngine(_chain_decision()),
+        smtp=smtp,
+    ).run()
+    rows = TradeLogRepository(db_session).list_recent(user_id=user.id, limit=20)
+    return outcome, [r for r in reversed(rows) if r.action in {"SELL", "BUY"}]
+
+
+async def test_chain_executes_every_step_and_logs_each_one(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Eine Zeile pro Aktion — `buy_history` und die offenen Gebote werden
+    daraus rekonstruiert (P1-11).
+
+    Eine gebündelte Zeile würde den Nachkauf für den nächsten Tick unsichtbar
+    machen, und der Bot böte erneut: genau Defekt D3.
+    """
+    kb = _ChainKickbase()
+    outcome, rows = await _run_chain(db_session, vault, kb)
+
+    assert kb.calls == ["sell:s0", "buy:m0"]
+    assert [r.action for r in rows] == ["SELL", "BUY"]
+    assert all(r.executed for r in rows)
+    assert [r.context["chain_index"] for r in rows] == [0, 1]
+    # Ergebnis und Mail hängen an der Hauptaktion.
+    assert outcome.decision is not None
+    assert outcome.decision.action is TradeAction.SELL
+    assert outcome.executed is True
+
+
+async def test_chain_stops_at_the_first_failure(db_session: Session, vault: FernetVault) -> None:
+    """Der Nachkauf baut auf dem Verkauf auf.
+
+    Scheitert der Verkauf, würde Kickbase den Kauf ohnehin ablehnen — die
+    Kette weiterzufahren verbrennt nur einen Tick und erzeugt Log-Rauschen.
+    """
+    kb = _ChainKickbase(sell_fails=True)
+    _, rows = await _run_chain(db_session, vault, kb)
+
+    assert kb.calls == ["sell:s0"]
+    assert [r.action for r in rows] == ["SELL"]
+    assert rows[0].executed is False
+    assert rows[0].context["error"]
+
+
+async def test_a_single_action_still_logs_without_a_chain_marker(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Der gewöhnliche Tick darf sich nicht verändern.
+
+    `chain_index` steht nur an echten Ketten — sonst müsste jede Auswertung
+    des `trade_log` ein Feld mitlesen, das in 99 % der Zeilen bedeutungslos
+    ist.
+    """
+    kb = _ChainKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+    engine = FixedDecisionEngine(
+        TradeDecision(action=TradeAction.SELL, reason="nur eine", player_id="s0", player_name="X")
+    )
+    await RunTickUseCase(
+        session=db_session, vault=vault, kickbase=kb, engine=engine, smtp=smtp
+    ).run()
+
+    user = UserRepository(db_session).get_singleton()
+    assert user is not None and user.id is not None
+    row = TradeLogRepository(db_session).list_recent(user_id=user.id, limit=1)[0]
+    assert row.action == "SELL"
+    assert "chain_index" not in row.context
+
+
+async def test_dry_run_logs_the_whole_chain_without_executing(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Der Shadow-Lauf muss die geplante Kette zeigen, nicht nur ihren Anfang."""
+    kb = _ChainKickbase()
+    _, rows = await _run_chain(db_session, vault, kb, dry_run=True)
+
+    assert kb.calls == []
+    assert [r.action for r in rows] == ["SELL", "BUY"]
+    assert not any(r.executed for r in rows)
+
+
+def _go_live(session: Session) -> None:
+    """Schaltet `dry_run` aus.
+
+    Der Guard-Nachlauf setzt eine **ausgeführte** Aktion voraus: im Dry-Run
+    wird nichts verkauft, also reisst auch nichts ein Loch, und ein Nachlauf
+    wäre eine Reparatur an einem Schaden, den es nicht gibt.
+    """
+    user = UserRepository(session).get_singleton()
+    assert user is not None and user.id is not None
+    repo = SettingsRepository(session)
+    row = repo.get_or_default(user.id)
+    row.dry_run = False
+    repo.upsert(row)
+
+
+class _FullElevenKickbase(FakeKickbase):
+    """Zwölf Spieler, elf aufgestellt — und `lineup_order` ist gesetzt.
+
+    Der Guard-Nachlauf entscheidet daran, ob ein Verkauf ein Loch reisst;
+    ohne die Slot-Nummern im Kader sähe jeder Verkauf wie ein Bankverkauf aus.
+    """
+
+    def __init__(self, **kwargs: object) -> None:
+        players = [
+            _lineup_player("gk1", Position.GOALKEEPER),
+            *[_lineup_player(f"def{i}", Position.DEFENDER) for i in range(1, 4)],
+            *[_lineup_player(f"mid{i}", Position.MIDFIELDER) for i in range(1, 6)],
+            *[_lineup_player(f"fwd{i}", Position.FORWARD) for i in range(1, 3)],
+        ]
+        # Elf Slots besetzt, der zwölfte sitzt auf der Bank.
+        self._squad_players = [
+            SquadPlayer(player=sp.player, lineup_order=i if i < 11 else None)
+            for i, sp in enumerate(players)
+        ]
+        self._squad_players.append(
+            SquadPlayer(player=_lineup_player("bench1", Position.DEFENDER).player)
+        )
+        self.squad_player_ids = tuple(sp.player.id for sp in self._squad_players)
+        super().__init__(  # type: ignore[arg-type]
+            lineup=Lineup(formation="3-5-2", player_ids=self.squad_player_ids[:11]), **kwargs
+        )
+
+    async def get_squad(self, league_id: str, manager_id: str) -> Squad:
+        return Squad(league_id=league_id, manager_id=manager_id, players=tuple(self._squad_players))
+
+    async def sell_to_kickbase(self, league_id: str, player_id: str) -> None:
+        return None
+
+
+async def test_the_guard_reruns_after_a_sale_from_the_starting_eleven(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """P2-16: Was die Entscheidung aufreisst, sah der Guard nie.
+
+    Er läuft **vor** der Modell-Abfrage. Ein Verkauf aus der Startelf
+    hinterlässt danach einen leeren Slot — 100 Punkte pro Spieltag, und im
+    Deadline-Fenster gibt es keinen nächsten Tick, der das heilt.
+
+    Das ist die Absicherung zu `follow_up_actions`: das Modell müsste für ein
+    `SET_LINEUP` alle elf IDs aufzählen, und im bezahlten Lauf vom 2026-09-26
+    lieferte es den `lineup`-Block prompt gar nicht mit.
+    """
+    kb = _FullElevenKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+    _go_live(db_session)
+
+    # Verkauft einen Spieler, der in der Startelf steht (lineup_order 0).
+    sold = kb.squad_player_ids[1]
+    engine = FixedDecisionEngine(
+        TradeDecision(
+            action=TradeAction.SELL,
+            reason="Konto ins Plus",
+            player_id=sold,
+            player_name="Startelfspieler",
+        )
+    )
+    await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        lineup_writes_enabled=True,
+    ).run()
+
+    user = UserRepository(db_session).get_singleton()
+    assert user is not None and user.id is not None
+    rows = TradeLogRepository(db_session).list_recent(user_id=user.id, limit=10)
+    guard_rows = [r for r in rows if r.context.get("source") == "lineup_guard"]
+    assert guard_rows, "Der Guard hat das Loch nach dem Verkauf nicht geschlossen"
+    assert sold not in guard_rows[0].context["player_ids"], (
+        "Der verkaufte Spieler steht wieder in der Elf"
+    )
+
+
+async def test_the_guard_stays_quiet_when_the_sale_came_from_the_bench(
+    db_session: Session, vault: FernetVault
+) -> None:
+    """Ein Bankspieler reisst kein Loch — dann gibt es nichts zu reparieren.
+
+    Ein Guard, der nach jeder Aktion schreibt, erzeugt Rauschen im `trade_log`
+    und Last gegen das Rate-Limit, ohne einen Punkt zu bringen.
+    """
+    kb = _FullElevenKickbase()
+    smtp = FakeSmtp()
+    await _complete_setup(db_session, vault, kb, smtp)
+    _go_live(db_session)
+
+    bench = kb.squad_player_ids[-1]
+    engine = FixedDecisionEngine(
+        TradeDecision(
+            action=TradeAction.SELL, reason="Bank weg", player_id=bench, player_name="Bank"
+        )
+    )
+    await RunTickUseCase(
+        session=db_session,
+        vault=vault,
+        kickbase=kb,
+        engine=engine,
+        smtp=smtp,
+        lineup_writes_enabled=True,
+    ).run()
+
+    user = UserRepository(db_session).get_singleton()
+    assert user is not None and user.id is not None
+    rows = TradeLogRepository(db_session).list_recent(user_id=user.id, limit=10)
+    assert not [r for r in rows if r.context.get("source") == "lineup_guard"]

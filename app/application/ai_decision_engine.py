@@ -20,12 +20,12 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from app.application.decision_engine import DecisionContext, RecentAction
+from app.application.decision_engine import DecisionContext, OpenBid, RecentAction
 from app.application.master_prompt_loader import (
     RULES_LAST_VERIFIED,
     MasterPromptError,
@@ -126,6 +126,48 @@ _INPUT_SCHEMA: dict[str, Any] = {
     ],
 }
 
+# Hauptaktion + Folgeaktionen. Drei, weil der Fall, für den das Feld existiert,
+# aus dreien besteht: verkaufen, aufstellen, nachkaufen (Plan §6/P2-16).
+MAX_ACTIONS_PER_TICK = 3
+_MAX_FOLLOW_UPS = MAX_ACTIONS_PER_TICK - 1
+
+# **Pflichtfeld, nicht optional.** Im ersten bezahlten Lauf (2026-09-26) hat das
+# Modell die Folgeaktion dreimal in Prosa beschrieben („Dann SET_LINEUP …") und
+# das optionale Feld trotzdem leer gelassen. Ein verlangtes Feld wird
+# beantwortet, und sei es mit `[]` — dann ist die Entscheidung gegen eine Kette
+# wenigstens eine getroffene.
+_INPUT_SCHEMA["required"].append("follow_up_actions")
+_INPUT_SCHEMA["properties"]["follow_up_actions"] = {
+    "type": "array",
+    "maxItems": _MAX_FOLLOW_UPS,
+    "description": (
+        'NUR im Deadline-Fenster (`trading.phase == "deadline"`): weitere Aktionen dieses '
+        "Ticks, in Ausführungsreihenfolge. Höchstens zwei. Sie laufen nacheinander und brechen "
+        "beim ersten Fehler ab. Ausserhalb des Deadline-Fensters wird das Feld verworfen — "
+        "dort kommt ein nächster Tick, und eine Aktion pro Tick bleibt die Regel."
+    ),
+    "items": {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": list(_PROMPT_ACTIONS)},
+            "player_id": {"type": "string"},
+            "offer_id": {"type": "string"},
+            "price": {"type": "integer", "minimum": 0},
+            "intent": {"type": "string", "enum": list(_PROMPT_INTENTS)},
+            "reason_short": {"type": "string", "maxLength": 140},
+            "lineup": {
+                "type": "object",
+                "properties": {
+                    "formation": {"type": "string"},
+                    "player_ids": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["formation", "player_ids"],
+            },
+        },
+        "required": ["action", "reason_short"],
+    },
+}
+
 
 # Master-Prompt → Domain-Enum-Mapping.
 _ACTION_MAP: dict[str, TradeAction] = {
@@ -192,7 +234,7 @@ class AiDecisionEngine:
                 user_message=user_message,
                 tool_name=_TOOL_NAME,
                 tool_description=_TOOL_DESCRIPTION,
-                input_schema=_INPUT_SCHEMA,
+                input_schema=_input_schema_for(context),
                 max_tokens=self._config.max_tokens,
                 temperature=self._config.temperature,
             )
@@ -209,6 +251,34 @@ class AiDecisionEngine:
 
 class _InvalidDecisionError(ValueError):
     """LLM-Antwort verletzt die Konsistenz-Erwartungen des Domain-Modells."""
+
+
+def _input_schema_for(context: DecisionContext) -> dict[str, Any]:
+    """Das Tool-Schema für **diesen** Tick — mit Kettenfeld nur im Deadline-Fenster.
+
+    Ein Feld, das es nicht gibt, kann keine falsche Idee auslösen. Im
+    Schlusslauf vom 2026-09-26 kippte `squad_is_full` von `HOLD` auf dreimal
+    `BUY`: seit §2 „erst verkaufen, dann kaufen" erlaubt, versuchte das Modell
+    diese Reihenfolge **auch ausserhalb** des Fensters, wo die Folgeaktionen
+    verworfen werden — übrig blieb ein Kauf ohne Kaderplatz. Das Szenario war
+    zwei Läufe zuvor noch grün.
+
+    Die Alternative wäre ein weiterer Absatz im Prompt gewesen. Dieselbe
+    Stelle hat in dieser Phase schon dreimal eine bestehende Regel verdrängt;
+    ein Feld wegzulassen ist die verlässlichere Antwort.
+    """
+    if _is_deadline_window(context):
+        return _INPUT_SCHEMA
+    trimmed: dict[str, Any] = {
+        **_INPUT_SCHEMA,
+        "properties": {
+            key: value
+            for key, value in _INPUT_SCHEMA["properties"].items()
+            if key != "follow_up_actions"
+        },
+        "required": [key for key in _INPUT_SCHEMA["required"] if key != "follow_up_actions"],
+    }
+    return trimmed
 
 
 def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> TradeDecision:
@@ -230,7 +300,7 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
         return TradeDecision.hold(reason)
 
     player_name = _lookup_player_name(context, player_id)
-    return TradeDecision(
+    decision = TradeDecision(
         action=action,
         reason=reason,
         player_id=player_id,
@@ -240,6 +310,227 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
         intent=intent,
         lineup=_parse_lineup(tool_input) if action is TradeAction.SET_LINEUP else None,
     )
+    follow_ups = _parse_follow_ups(tool_input, context, first=decision)
+    if follow_ups:
+        decision = replace(decision, follow_ups=follow_ups)
+    return _redirect_insufficient_debt_sale(decision, context)
+
+
+def _redirect_insufficient_debt_sale(
+    decision: TradeDecision, context: DecisionContext
+) -> TradeDecision:
+    """Lenkt einen Notverkauf auf einen Spieler um, dessen Erlös das Minus deckt.
+
+    **Korrektur, nicht Ablehnung — und das ist der Unterschied zu den anderen
+    Sperren.** Bei `BUY` ohne Kaderplatz ist `HOLD` die richtige Antwort:
+    Kickbase würde das Gebot ohnehin ablehnen, es geht nichts verloren. Hier
+    nicht. Ein zu kleiner Verkauf ist **ausführbar**, er löst das Problem nur
+    nicht ganz; ihn zu verwerfen hiesse, aus „1 Mio weniger Minus" ein „gar
+    nichts" zu machen. Die Sperre würde die Lage verschlechtern, also greift
+    sie nicht ins Ob ein, sondern ins Wen.
+
+    Der Befund dahinter, aus acht bezahlten Läufen stabil: bei 10 Mio Minus
+    und 45 Minuten bis Anpfiff wählt das Modell den 1-Mio-Bankspieler, um kein
+    Loch in der Startelf zu reissen — es vermeidet 100 Punkte Strafe und kauft
+    sich den Totalausfall des Spieltags ein (alle Punkte, 600 bis 1.200).
+    Vier Prompt-Fassungen haben daran nichts geändert, darunter die Zahl
+    `cash_needed_before_kickoff` im Payload und die ausdrückliche Abwägung
+    beider Strafen in §1.1.
+
+    Gewählt wird der **billigste** Spieler, dessen Marktwert reicht, bei
+    gleichem Wert einer ausserhalb der Startelf. Das Loch, das ein
+    Startelf-Verkauf hinterlässt, schliesst danach der Guard
+    (`RunTickUseCase._repair_lineup_after`).
+
+    Greift nur im Deadline-Fenster: davor kommt ein nächster Tick, und dann
+    ist die Wahl des Modells seine Sache.
+    """
+    if decision.action is not TradeAction.SELL or not _is_deadline_window(context):
+        return decision
+    needed = max(0, -_int(context.budget))
+    if needed <= 0:
+        return decision
+
+    by_id = {sp.player.id: sp for sp in context.squad.players}
+    # Was die **ganze** Kette einbringt — eine Kette aus zwei Verkäufen, die
+    # zusammen reichen, ist genau die gewollte Lösung und darf nicht
+    # zerschlagen werden.
+    proceeds = sum(
+        _int(by_id[step.player_id].player.market_value)
+        for step in decision.chain
+        if step.action is TradeAction.SELL and step.player_id in by_id
+    )
+    if proceeds >= needed:
+        return decision
+
+    sufficient = [sp for sp in context.squad.players if _int(sp.player.market_value) >= needed]
+    if not sufficient:
+        # Kein einzelner Spieler deckt das Minus — dann ist jede Wahl eine
+        # Teillösung, und die des Modells ist so gut wie jede andere.
+        return decision
+    best = min(sufficient, key=lambda sp: (_int(sp.player.market_value), _is_starting_xi(sp)))
+    if best.player.id == decision.player_id:
+        return decision
+
+    _log.warning(
+        "Notverkauf umgelenkt: %s (%s €) deckt die benötigten %s € nicht — stattdessen %s (%s €).",
+        decision.player_name or decision.player_id,
+        proceeds,
+        needed,
+        _full_name(best),
+        _int(best.player.market_value),
+    )
+    return replace(
+        decision,
+        player_id=best.player.id,
+        player_name=_full_name(best),
+        reason=(
+            f"[Code-Korrektur] {decision.reason} — umgelenkt auf {_full_name(best)}: "
+            f"der gewählte Verkauf brachte {proceeds} € und damit weniger als die "
+            f"benötigten {needed} €. Ein Konto unter null zum Anpfiff kostet alle "
+            "Punkte des Spieltags."
+        ),
+    )
+
+
+def _parse_follow_ups(
+    tool_input: dict[str, Any], context: DecisionContext, *, first: TradeDecision
+) -> tuple[TradeDecision, ...]:
+    """Folgeaktionen — nur im Deadline-Fenster, höchstens zwei (P2-16).
+
+    Am Freitagabend um 20:00 ist „verkaufen, aufstellen, nachkaufen" eine
+    einzige Handlung, kein Plan für drei Ticks: um 20:30 friert die Aufstellung
+    ein und das Konto muss im Plus sein. Eine Aktion pro Tick machte das
+    strukturell unmöglich.
+
+    **Ausserhalb des Fensters werden Folgeaktionen verworfen**, nicht als
+    Fehler behandelt: die Hauptaktion ist dann meist richtig, und sie
+    mitzureissen wäre teurer als das Ignorieren des Extras. Es kommt ja ein
+    nächster Tick.
+
+    Jede Folgeaktion wird gegen einen **fortgeschriebenen** Kontext geprüft:
+    nach einem Verkauf ist ein Kaderplatz frei, nach einem Kauf einer belegt.
+    Ohne diese Fortschreibung würde die Slot-Sperre genau die Kette blocken,
+    für die das Feld gebaut ist.
+    """
+    raw = tool_input.get("follow_up_actions")
+    if not raw:
+        return ()
+    if not isinstance(raw, list):
+        _log.info("follow_up_actions ist kein Array (%r) — verworfen.", type(raw).__name__)
+        return ()
+    if first.is_hold:
+        # HOLD heisst „dieser Tick tut nichts". Etwas danach zu tun ist ein
+        # Widerspruch, kein Plan.
+        _log.info("Folgeaktionen nach HOLD verworfen (%d Stück).", len(raw))
+        return ()
+    if not _is_deadline_window(context):
+        _log.info(
+            "Folgeaktionen ausserhalb des Deadline-Fensters verworfen (%d Stück) — "
+            "eine Aktion pro Tick.",
+            len(raw),
+        )
+        return ()
+
+    running = _advance_context(context, first)
+    out: list[TradeDecision] = []
+    for item in raw[:_MAX_FOLLOW_UPS]:
+        if not isinstance(item, dict):
+            _log.info("Folgeaktion ist kein Objekt (%r) — übersprungen.", item)
+            continue
+        try:
+            decision = _parse_follow_up(item, running)
+        except _InvalidDecisionError as exc:
+            # **Nur die Folgeaktion fällt weg, nicht die Hauptaktion.**
+            #
+            # Im bezahlten Lauf vom 2026-09-26 lieferte das Modell
+            # `SET_LINEUP` als Folgeaktion ohne `lineup`-Block — und die ganze
+            # Antwort wurde zu HOLD, obwohl der Verkauf davor richtig war. Das
+            # ist die falsche Verhältnismäßigkeit: ein Formfehler im Anhang
+            # kostete die einzige Aktion, die das Konto gerettet hätte.
+            #
+            # Was der weggefallene Schritt hinterlässt, fängt der Code ab: eine
+            # Lücke in der Elf schliesst der Startelf-Guard, der nach einer
+            # Kette erneut läuft (`RunTickUseCase._run_lineup_guard`).
+            _log.warning("Folgeaktion verworfen (%s) — Hauptaktion bleibt.", exc)
+            continue
+        if decision is None:
+            continue
+        out.append(decision)
+        running = _advance_context(running, decision)
+    if len(raw) > _MAX_FOLLOW_UPS:
+        _log.info(
+            "%d Folgeaktionen geliefert, %d ausgeführt — der Rest fällt weg.",
+            len(raw),
+            _MAX_FOLLOW_UPS,
+        )
+    return tuple(out)
+
+
+def _parse_follow_up(item: dict[str, Any], context: DecisionContext) -> TradeDecision | None:
+    """Eine einzelne Folgeaktion. `None`, wenn sie nichts tut (HOLD).
+
+    Dieselbe Validierung wie die Hauptaktion — eine Folgeaktion ist keine
+    Absichtserklärung, sie geht genauso an Kickbase.
+    """
+    raw_action = item.get("action")
+    if not isinstance(raw_action, str) or raw_action not in _ACTION_MAP:
+        raise _InvalidDecisionError(f"Folgeaktion mit unbekannter Aktion: {raw_action!r}")
+    action = _ACTION_MAP[raw_action]
+    if action is TradeAction.HOLD:
+        return None
+
+    player_id = _clean_optional_str(item.get("player_id"))
+    offer_id = _clean_optional_str(item.get("offer_id"))
+    price = _coerce_price(item.get("price"))
+    _validate_action_shape(action, player_id, offer_id, price)
+    _validate_against_context(action, player_id, offer_id, price, context)
+
+    reason = str(item.get("reason_short") or "").strip() or f"Folgeaktion {action.value}"
+    return TradeDecision(
+        action=action,
+        reason=reason,
+        player_id=player_id,
+        player_name=_lookup_player_name(context, player_id),
+        price=price if action in {TradeAction.BUY, TradeAction.LIST_ON_MARKET} else None,
+        offer_id=offer_id,
+        intent=_parse_intent(item.get("intent")),
+        lineup=_parse_lineup(item) if action is TradeAction.SET_LINEUP else None,
+    )
+
+
+def _is_deadline_window(context: DecisionContext) -> bool:
+    now = context.now or datetime.now(UTC)
+    _, minutes_until = _time_until(now, context.next_matchday_start, context.interval_min)
+    return _trading_phase(minutes_until) == "deadline"
+
+
+def _advance_context(context: DecisionContext, decision: TradeDecision) -> DecisionContext:
+    """Der Kontext, wie er **nach** dieser Aktion aussieht.
+
+    Nur die Kaderbelegung wird fortgeschrieben, nicht Kontostand oder Markt:
+    sie ist das Einzige, woran die Validierung der nächsten Aktion hängt.
+    Ein Verkauf macht einen Platz frei, ein Gebot belegt einen — dieselbe
+    Rechnung, die Kickbase beim Zuschlag anstellt.
+
+    Weiter zu simulieren wäre eine Scheingenauigkeit: was ein Gebot wirklich
+    kostet, steht erst beim Zuschlag fest, und die 33 %-Grenze prüft Kickbase
+    selbst bei der Abgabe.
+    """
+    if decision.action in {TradeAction.SELL, TradeAction.ACCEPT_OFFER}:
+        players = tuple(
+            sp for sp in context.squad.players if sp.player.id != (decision.player_id or "")
+        )
+        return replace(context, squad=replace(context.squad, players=players))
+    if decision.action is TradeAction.BUY and decision.player_id:
+        bids = dict(context.open_bids)
+        bids[decision.player_id] = OpenBid(
+            player_id=decision.player_id,
+            price=decision.price or Decimal(0),
+            placed_at=context.now or datetime.now(UTC),
+        )
+        return replace(context, open_bids=bids)
+    return context
 
 
 def _parse_lineup(tool_input: dict[str, Any]) -> Lineup:
@@ -690,6 +981,13 @@ def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
     _, minutes_until_matchday = _time_until(now, context.next_matchday_start, context.interval_min)
     return {
         "phase": _trading_phase(minutes_until_matchday),
+        # Wie viele Aktionen dieser Tick ausführen kann (P2-16). Steht als
+        # **Zahl** im Payload und nicht nur als Regel im Prompt: dieselbe Lehre
+        # wie bei `phase` und `season_phase` — ein Wert in den Daten wird
+        # gelesen, eine Bedingung im Fliesstext überlesen. Im ersten bezahlten
+        # Lauf beschrieb das Modell die Folgeaktion dreimal in Prosa und
+        # lieferte trotzdem eine einzelne.
+        "max_actions_this_tick": MAX_ACTIONS_PER_TICK if _is_deadline_window(context) else 1,
         # Die zweite, langsame Uhr: `phase` misst den Abstand zum nächsten
         # Anpfiff, `season_phase` den zum Saisonende. Beide zusammen sagen, ob
         # ein Trade noch Zeit hat, sich in Punkte zu verwandeln.
@@ -798,6 +1096,17 @@ def _budget_block(context: DecisionContext) -> dict[str, Any]:
         "open_bids_count": len(context.open_bids),
         "max_negative_allowed": _int(context.max_negative_allowed),
         "current_balance_after_open_bids": _int(context.current_balance_after_open_bids),
+        # Wie viel bis zum Anpfiff hereinkommen **muss**, damit das Konto nicht
+        # negativ ist. 0 heisst: nichts zu tun.
+        #
+        # Steht als Zahl da, weil die Rechnung sonst schiefgeht: im bezahlten
+        # Lauf vom 2026-09-26 verkaufte das Modell bei 10 Mio Minus einen
+        # Spieler für 1 Mio und schrieb selbst dazu „weitere Verkäufe nötig" —
+        # 45 Minuten vor Anpfiff, wo es kein „weiter" mehr gibt. Ein negatives
+        # Konto zum Anpfiff kostet **alle** Punkte des Spieltags; eine Aktion,
+        # die das Minus nicht deckt, ist deshalb keine halbe Lösung, sondern
+        # gar keine.
+        "cash_needed_before_kickoff": max(0, -_int(context.budget)),
     }
 
 

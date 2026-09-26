@@ -75,12 +75,42 @@ Kapital bereitsteht, verschenkt genau diesen Ertrag.
      Prüfe deshalb bei **jedem** Tick zwei Zahlen gegeneinander:
      `budget.cash` und `minutes_until_matchday_start`. Ist `cash < 0` und
      die Zeit reicht nicht mehr für einen Verkauf über den Markt, ist
-     `SELL_INSTANT` die Aktion — nicht `HOLD`. Eine vollständige Startelf
+     `SELL_INSTANT` die Aktion — nicht `HOLD`.
+
+     ⚠️ **Die beiden Strafen sind nicht gleich gross.** Ein leerer Startelf-Slot
+     kostet **100 Punkte**. Ein negatives Konto zum Anpfiff kostet **alle
+     Punkte des Spieltags** — bei einem normalen Kader sind das 600 bis 1.200.
+     Musst du zwischen beidem wählen, ist das Konto das Wichtigere, und zwar
+     um eine Grössenordnung. „Ich verkaufe niemanden aus der Startelf, weil
+     das ein Loch reisst" ist deshalb die teuerste Begründung, die du
+     abgeben kannst.
+
+     Und im Deadline-Fenster musst du gar nicht wählen: verkaufe den Spieler,
+     der das Minus deckt, und ziehe in derselben Kette (§2) mit `SET_LINEUP`
+     einen Ersatz nach. Bleibt keiner übrig, kostet der leere Slot 100 — immer
+     noch der günstigere der beiden Wege.
+
+     ⚠️ **Der Verkauf muss das Minus decken.** `budget.cash_needed_before_kickoff`
+     sagt, wie viel hereinkommen muss. Ein Spieler, dessen Marktwert darunter
+     liegt, löst **nichts**: das Konto bleibt negativ, und negativ heisst 0
+     Punkte für den ganzen Spieltag — nicht anteilig weniger. Nimm den
+     Spieler, dessen Marktwert reicht, auch wenn er dir lieber wäre; oder zwei
+     in einer Kette (§2). Eine Begründung wie „bringt das Konto auf -9 Mio,
+     weitere Verkäufe nötig" beschreibt einen Tick, der nichts erreicht hat. Eine vollständige Startelf
      ändert daran nichts: sie schützt vor den −100 pro Slot, nicht vor dem
      Totalausfall durch ein negatives Konto.
    - Zum Spieltagsbeginn müssen **11 Startelf-Spieler** aufgestellt sein.
      Jede unbesetzte Startelf-Position kostet **-100 Punkte** — das ist der
-     einzige Verlust im Spiel, den blosses Nichtstun verursacht. Der Block
+     einzige Verlust im Spiel, den blosses Nichtstun verursacht.
+
+     ⚠️ **Sind beide Regeln gleichzeitig verletzt — Konto negativ *und* Elf
+     unvollständig — und steht `trading.phase` auf `deadline`, dann gehören
+     beide Antworten in **einen** Tick.** Hänge die zweite Aktion an
+     `follow_up_actions` an (§2). Eine einzelne Aktion löst dort nur die
+     Hälfte, und der nächste Tick kommt nach dem Anpfiff: die andere Hälfte
+     kostet dann 0 Punkte für den Spieltag oder -100 pro Slot. Das ist der
+     einzige Fall, in dem eine Kette nicht nur erlaubt, sondern **verlangt**
+     ist. Der Block
      `lineup` im Kontext nennt die aktuelle Formation, die besetzten Slots,
      `empty_slots` und `points_at_risk`. Es gibt **keine** vorgeschriebene
      Kader-Zusammensetzung nach Positionen; erlaubt ist jedes System aus
@@ -271,7 +301,8 @@ Risiko-Anpassung nach Erwartungswert und vermerke das Flag in `risk_flags`.
 
 ### 2. Entscheidungsraum
 
-Pro Tick genau eine Aktion aus:
+Pro Tick **eine** Aktion aus der folgenden Liste — im Deadline-Fenster bis zu
+drei, siehe „Mehrere Aktionen" am Ende dieses Abschnitts:
 
 | Aktion | Bedeutung |
 |---|---|
@@ -294,14 +325,18 @@ Begründung, sondern ein verschenkter Ertrag (§3a).
 `constraints.squad_slots_left` auf `0`, lehnt Kickbase das Gebot schon bei der
 Abgabe ab: der Tick ist verbraucht, der Platz weiterhin belegt, nichts ist
 gewonnen. Das gilt auch dann, wenn du im selben Atemzug einen Verkauf für
-richtig hältst — **pro Tick wird genau eine Aktion ausgeführt**, der Verkauf
-findet also nicht statt. Die Reihenfolge ist: `SELL_INSTANT`/`SELL_LIST` jetzt,
-`BUY` im nächsten Tick. Eine Begründung der Form „Kaderplatz wird nach dem
-Verkauf frei" beschreibt einen Zustand, den es zum Zeitpunkt deines Gebots
-nicht gibt. Offene Gebote sind in `squad_slots_left` bereits abgezogen — sie
-belegen den Platz, den sie gewinnen sollen. Der Code weist ein solches `BUY`
-zurück und macht daraus ein `HOLD`; das ist fast nie die beste Aktion, der
-Verkauf wäre es.
+richtig hältst — **ausserhalb des Deadline-Fensters wird pro Tick genau eine
+Aktion ausgeführt**, der Verkauf findet also nicht statt. Die Reihenfolge ist
+dort: `SELL_INSTANT`/`SELL_LIST` jetzt, `BUY` im nächsten Tick. Eine Begründung
+der Form „Kaderplatz wird nach dem Verkauf frei" beschreibt dann einen Zustand,
+den es zum Zeitpunkt deines Gebots nicht gibt. Offene Gebote sind in
+`squad_slots_left` bereits abgezogen — sie belegen den Platz, den sie gewinnen
+sollen. Der Code weist ein solches `BUY` zurück und macht daraus ein `HOLD`;
+das ist fast nie die beste Aktion, der Verkauf wäre es.
+
+**Im Deadline-Fenster** gilt das anders: dort kannst du beides in eine Kette
+setzen (siehe unten) — erst der Verkauf, dann der Kauf. Der Kaderplatz aus
+Schritt 1 steht Schritt 2 zur Verfügung.
 
 **`SELL_INSTANT` bringt den vollen Marktwert**, keinen Abschlag. Der Nachteil
 gegenüber `SELL_LIST` ist nicht der Preis, sondern der entgangene Aufschlag:
@@ -312,10 +347,54 @@ wenn das Konto bis zum Anpfiff ins Plus muss.
 **`SET_LINEUP`** ist zum *Optimieren* einer Aufstellung da — welcher Spieler
 auf die Bank gehört, wer in welchem System spielt. Dass überhaupt elf Slots
 besetzt sind, stellt der Code bereits vor deinem Aufruf sicher; du musst kein
-blosses Auffüllen nachholen. Regeln: höchstens 11 IDs, alle aus dem eigenen
+blosses Auffüllen nachholen.
+
+⚠️ **Das gilt für den Zustand *vor* deiner Aktion.** Der Guard läuft, bevor du
+gefragt wirst — was **du** aufreisst, schliesst er nicht mehr. Verkaufst du
+einen Spieler aus der Startelf, ist der Slot danach leer und kostet -100
+Punkte. Im Deadline-Fenster gehört `SET_LINEUP` deshalb in dieselbe Kette
+(`follow_up_actions`); ausserhalb erledigt es der Guard im nächsten Tick. Regeln: höchstens 11 IDs, alle aus dem eigenen
 Kader, Formation aus `lineup.allowed_formations`, Positionszählung passend.
 Der Code prüft das und verwirft ungültige Aufstellungen — ein verworfenes
 `SET_LINEUP` ist ein verlorener Tick.
+
+**Mehrere Aktionen — nur im Deadline-Fenster.** Wie viele Aktionen dieser Tick
+ausführen kann, steht als Zahl im Kontext: `trading.max_actions_this_tick`.
+Steht dort `1`, liefere genau eine Aktion und `follow_up_actions: []`. Steht
+dort `3` (Deadline-Fenster, < 2 h bis Anpfiff), kannst du im Feld
+`follow_up_actions` bis zu **zwei weitere** Aktionen anhängen.
+
+Das Feld ist **Pflicht** — auch wenn du keine Kette willst, gehört ein leeres
+Array hinein. Eine Entscheidung gegen die Kette ist eine Entscheidung; sie
+stillschweigend auszulassen ist keine. Sie laufen **in der angegebenen Reihenfolge** und brechen beim
+ersten Fehler ab.
+
+Der Grund ist die Uhr: um 20:30 friert die Aufstellung ein **und** das Konto
+muss im Plus sein. Beides kann denselben Spieler betreffen — wer verkaufen
+muss, reisst ein Loch in die Elf. Mit einer Aktion pro Tick ist „verkaufen,
+aufstellen, nachkaufen" in den letzten zwei Stunden strukturell unmöglich; der
+nächste Tick kommt zu spät.
+
+Regeln für die Kette:
+
+- **Reihenfolge ist Wirkung.** Was Kaderplatz oder Geld schafft, gehört nach
+  vorn: erst `SELL_INSTANT`, dann `BUY`; erst der Verkauf, dann `SET_LINEUP`
+  ohne den verkauften Spieler.
+- **Jede Aktion muss für sich gültig sein**, gerechnet auf dem Zustand *nach*
+  den vorherigen Schritten. Der Code prüft genau so und weist eine Kette
+  zurück, die das verletzt.
+- **Verlangt, wenn zwei harte Regeln offen sind** (§1.1): Konto negativ *und*
+  Elf unvollständig heisst zwei Aktionen, nicht eine mit dem Vorsatz, den Rest
+  „danach" zu erledigen. Es gibt kein Danach.
+- **Sonst nur, wenn die Lage es verlangt.** Zwei Aktionen sind kein
+  Gütezeichen. Ist das Konto im Plus und die Elf vollständig, ist eine
+  Aktion — oder `HOLD` — richtig, auch um 20:15.
+- **Ausserhalb des Deadline-Fensters wird das Feld verworfen** (mit Eintrag
+  im Log). Dort kommt ein nächster Tick, und eine Aktion pro Tick bleibt die
+  Regel: sie hält jede Entscheidung einzeln überprüfbar.
+
+Jede Aktion der Kette braucht `action` und `reason_short`; `player_id`,
+`price`, `offer_id` und `lineup` nach denselben Regeln wie die Hauptaktion.
 
 ### 3. Preisfindung & Overbid (deine Verantwortung)
 
@@ -525,7 +604,11 @@ große — und lass die Startelf davon unberührt.
 - `market_value` am `mv_max_30d` (< 1 % Abstand) mit fallendem 1-d-Trend — das
   ist der Peak, nicht der Einstieg.
 - `injury_status` ≠ `fit` oder `start_probability_next` niedrig: die Nachfrage
-  folgt der Einsatzerwartung nach unten.
+  folgt der Einsatzerwartung nach unten. Das gilt **auch für einen reinen
+  Momentum-Trade**: ein Spieler mit 5 % Startelf-Chance steigt nicht, weil er
+  gestern gestiegen ist — die Community preist die Bank ein, sobald die
+  Aufstellung bekannt wird. Ein hoher Punkteschnitt aus früheren Wochen ändert
+  daran nichts, er ist der Grund für den heutigen Preis.
 - `trading.mv_updates_until_matchday ≤ 1` oder `mv_updates_until_expiry == 0`
   bei `intent: PROFIT`. Ohne ein weiteres 22-Uhr-Update kann der Trade keinen
   Gewinn machen — ein Kauf ist dann nur Geld- und Slot-Bindung.
@@ -878,6 +961,7 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
 
   "trading": {
     "phase": "trading",
+    "max_actions_this_tick": 1,
     "season_phase": "regular",
     "matchdays_left": 30,
     "mv_updates_until_matchday": 16,
@@ -956,6 +1040,9 @@ Antwort: **nur** das JSON aus Abschnitt 6.
   Heimrecht und Gegnerstärke stehen im Payload. Die FDR-Skala ist in
   `app/domain/fixtures.py` definiert (**1 = leicht, 5 = schwer**); wer sie dort
   ändert, muss die Tabelle in §1.2 mitziehen.
+  Am 2026-09-26 ergänzt (P2-16): `follow_up_actions` erlaubt im Deadline-Fenster
+  bis zu drei Aktionen pro Tick. Die Grenze (`MAX_ACTIONS_PER_TICK`) steht in
+  `ai_decision_engine.py`; ausserhalb des Fensters verwirft der Code das Feld.
   Am 2026-09-26 ergänzt (P2-14): `trading.season_phase` kippt die
   Zielhierarchie zum Saisonende. Die Schwelle (8 Restspieltage = ab ST 26)
   steht als `_SEASON_ENDGAME_MATCHDAYS_LEFT` in `ai_decision_engine.py` — wer

@@ -87,7 +87,21 @@ class AnthropicClient:
         decision_model: str = DEFAULT_DECISION_MODEL,
         timeout_s: float = 15.0,
         curator_timeout_s: float = 60.0,
-        decision_timeout_s: float = 90.0,
+        # 150 s, nicht 90 (angehoben 2026-09-26, P2-16).
+        #
+        # Über fünf bezahlte Eval-Läufe liefen rund 1 % der Calls in den
+        # 90-s-Timeout — zunächst ohne erkennbares Muster. Mit den
+        # Aktionsketten aus P2-16 hat es eines: die Timeouts häufen sich beim
+        # längsten Szenario, dem Deadline-Fall mit mehreren Aktionen. Längere
+        # Antwort, längere Generierung.
+        #
+        # Das trifft ausgerechnet den Tick, der am wichtigsten ist: im
+        # Deadline-Fenster entscheidet er über Konto und Aufstellung, und es
+        # folgt kein zweiter. Ein Timeout kostet dort nicht einen Tick, sondern
+        # den Spieltag. Die Obergrenze bleibt trotzdem endlich — der Scheduler
+        # hält währenddessen sein Tick-Lock (P1-10), und ein Call, der nach
+        # 150 s nichts geliefert hat, liefert auch nach 300 s nichts.
+        decision_timeout_s: float = 150.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._endpoint = endpoint

@@ -68,6 +68,11 @@ class Scenario:
     # nebenbei die -100-Regel statt der gemeinten. Ein Szenario, das **über**
     # die Aufstellung geht, setzt das bewusst auf False.
     expects_full_lineup: bool = True
+    # Mindestzahl der Aktionen in der Kette (P2-16). `1` = keine Prüfung. Ein
+    # Deadline-Szenario, in dem zwei Dinge gleichzeitig schieflaufen, ist mit
+    # einer Aktion nicht lösbar — und genau das muss messbar sein, sonst
+    # belegt kein Test, dass `follow_up_actions` je benutzt wird.
+    min_chain_length: int = 1
 
 
 def _player(
@@ -1436,6 +1441,66 @@ def _endgame_stops_pure_trading() -> Scenario:
     )
 
 
+def _deadline_needs_two_actions() -> Scenario:
+    """Anpfiff in 45 Minuten, Konto -6 Mio — und nur ein Startelf-Spieler bringt genug.
+
+    Der Fall, für den P2-16 gebaut wurde, in seiner **echten** Form. Die erste
+    Fassung dieses Szenarios hatte einen leeren Startelf-Slot und verlangte
+    „verkaufen + aufstellen". Das Modell lieferte dreimal einstimmig nur den
+    Verkauf — und lag damit richtig: §2 sagt ausdrücklich, dass der Code die elf
+    Slots **vor** dem Aufruf sicherstellt (der Startelf-Guard aus P0-4). Ein
+    leerer Slot ist nichts, was das Modell auffüllen müsste. Ein Szenario, das
+    eine Aktion verlangt, die der Prompt für unnötig erklärt, misst nicht den
+    Prompt, sondern seinen eigenen Fehler.
+
+    Die Elf steht hier deshalb **vollständig** — der Guard hatte nichts zu tun.
+    Das Loch entsteht erst durch die Aktion: der Bankspieler bringt mit 1 Mio
+    offensichtlich nicht genug, um die 10 Mio Minus zu decken, also muss ein
+    **Startelf**-Spieler weg. Und was danach fehlt, schliesst kein Guard mehr:
+    er läuft vor der Modell-Abfrage, nicht danach. Zwei Aktionen, ein Tick,
+    keine zweite Chance.
+
+    **Der Abstand ist Absicht.** In der ersten Fassung stand der Bankspieler bei
+    5 Mio und das Minus bei 6 — nah genug, dass das Modell ihn verkaufte und
+    das Konto bei -1 Mio stehen liess. Damit prüfte das Szenario zwei Dinge
+    gleichzeitig (den richtigen Spieler **und** die Kette) und verstiess gegen
+    das Prinzip aus dem Modul-Docstring: genau ein Faktor darf variieren.
+
+    **Was hier gemessen wird, ist die Auswahl — nicht mehr die Kettenlänge.**
+    Sieben bezahlte Läufe haben gezeigt, dass das Modell den Bankspieler
+    nimmt, um kein Loch in der Elf zu reissen: es vermeidet 100 Punkte Strafe
+    und kauft sich dafür den Totalausfall des Spieltags ein. Das ist der
+    eigentliche Fehler. Das Loch selbst ist kein Grund zur Zurückhaltung mehr
+    — seit P2-16 lässt der `RunTickUseCase` den Startelf-Guard nach einem
+    Verkauf aus der Elf erneut laufen (`_repair_lineup_after`). Eine Kette mit
+    `SET_LINEUP` bleibt möglich, ist aber nicht mehr nötig, und ein Test, der
+    sie erzwingt, würde eine Lösung vorschreiben statt eine Regel zu prüfen.
+    """
+    squad = [p for p in _squad_of_twelve() if p.id != "501"]
+    squad.append(_player("501", "Bankspieler", Position.DEFENDER, 1_000_000, average_points=40.0))
+    return Scenario(
+        name="deadline_needs_two_actions",
+        description=(
+            "Anpfiff in 45 min, Konto -10 Mio, volle Elf — nur ein Startelf-Spieler deckt das Minus"
+        ),
+        context=_context(
+            squad_players=squad,
+            market_players=[_player("998", "Nicht relevant", Position.MIDFIELDER, 5_000_000)],
+            cash=-10_000_000,
+            team_value=150_000_000,
+            minutes_until_matchday=45,
+        ),
+        allowed=frozenset({TradeAction.SELL, TradeAction.LIST_ON_MARKET, TradeAction.SET_LINEUP}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.BUY}),
+        forbidden_player_ids=frozenset({"501"}),
+        rule=(
+            "Ein negatives Konto kostet **alle** Punkte des Spieltags, ein leerer Startelf-Slot "
+            "nur 100. Wer den 1-Mio-Bankspieler verkauft, weil er kein Loch reissen will, "
+            "loest nichts — der Verkauf muss `budget.cash_needed_before_kickoff` decken (§1.1)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -1463,4 +1528,6 @@ SCENARIOS: tuple[Scenario, ...] = (
     # P2-14: Saisonphasen-Gewichtung — dieselbe Lage, frueh und spaet in der Saison.
     _early_season_trades_for_capital(),
     _endgame_stops_pure_trading(),
+    # P2-16: mehrere Aktionen pro Tick im Deadline-Fenster.
+    _deadline_needs_two_actions(),
 )

@@ -73,6 +73,8 @@ class TickOutcome:
 
 
 _MAX_RECENT_ACTIONS = 20
+# Kickbase-`lo` 0..10 = die elf Startelf-Slots (wie in `ai_decision_engine`).
+_STARTING_XI_MAX_SLOT = 10
 _KICKBASE_DEBT_ALLOWANCE_PCT = Decimal("0.33")
 
 
@@ -254,26 +256,26 @@ class RunTickUseCase:
         )
 
         decision = await self._engine.decide(context)
-        executor = self._executor(squad=squad, dry_run=settings.dry_run)
-        result = await executor.execute(league_row.kb_league_id, decision)
-
-        row = self._trades.add(
-            TradeLogRow(
-                user_id=user.id,
-                action=decision.action.value,
-                player_id=decision.player_id,
-                player_name=decision.player_name,
-                price=int(decision.price) if decision.price is not None else None,
-                reason_text=decision.reason,
-                executed=result.executed,
-                context={
-                    "dry_run": settings.dry_run,
-                    "executor_note": result.reason,
-                    "response_ref": result.response_ref,
-                    "error": result.error,
-                    "intent": decision.intent.value if decision.intent is not None else None,
-                },
-            )
+        result, row = await self._execute_chain(
+            decision,
+            league_id=league_row.kb_league_id,
+            user_id=user.id,
+            squad=squad,
+            dry_run=settings.dry_run,
+        )
+        # Der Guard oben lief **vor** der Entscheidung. Hat sie einen
+        # Startelf-Spieler aus dem Kader genommen, ist der Slot jetzt leer und
+        # kostet 100 Punkte — bis zum nächsten Tick, der im Deadline-Fenster
+        # nach dem Anpfiff läge.
+        await self._repair_lineup_after(
+            decision,
+            result,
+            user_id=user.id,
+            league_id=league_row.kb_league_id,
+            squad=squad,
+            lineup=lineup,
+            enrichment=enrichment,
+            dry_run=settings.dry_run,
         )
 
         await self._notify_outcome(user.id, decision, result)
@@ -300,6 +302,152 @@ class RunTickUseCase:
             log_id=row.id,
             next_matchday_start=next_matchday_start,
         )
+
+    async def _repair_lineup_after(
+        self,
+        decision: TradeDecision,
+        result: ExecutionResult,
+        *,
+        user_id: int,
+        league_id: str,
+        squad: Squad,
+        lineup: Lineup,
+        enrichment: dict[str, PlayerEnrichment],
+        dry_run: bool,
+    ) -> None:
+        """Lässt den Startelf-Guard erneut laufen, wenn die Aktion ein Loch gerissen hat.
+
+        Der Guard aus P0-4 läuft **vor** der Modell-Abfrage — er sorgt dafür,
+        dass die Elf steht, bevor entschieden wird. Was die Entscheidung selbst
+        aufreisst, sah er nie: ein Verkauf aus der Startelf hinterlässt einen
+        leeren Slot, und der kostet 100 Punkte pro Spieltag.
+
+        Ausserhalb des Deadline-Fensters hätte der nächste Tick das geheilt.
+        Im Fenster gibt es keinen nächsten Tick, und genau dort trifft der Fall
+        am häufigsten zu — wer 45 Minuten vor Anpfiff Geld braucht, verkauft
+        keinen Reservisten, sondern den, dessen Marktwert reicht.
+
+        Das löst denselben Fall, den P2-16 über `follow_up_actions` anbietet,
+        aber ohne das Modell: es müsste dafür alle elf Spieler-IDs aufzählen,
+        und im bezahlten Lauf vom 2026-09-26 lieferte es `SET_LINEUP` prompt
+        ohne den `lineup`-Block. Die Kette bleibt die Option, dies ist die
+        Absicherung.
+        """
+        if not result.executed:
+            return
+        removed = {
+            step.player_id
+            for step in decision.chain
+            if step.action in {TradeAction.SELL, TradeAction.ACCEPT_OFFER} and step.player_id
+        }
+        if not removed:
+            return
+        was_in_lineup = any(
+            sp.player.id in removed
+            for sp in squad.players
+            if sp.lineup_order is not None and 0 <= sp.lineup_order <= _STARTING_XI_MAX_SLOT
+        )
+        if not was_in_lineup:
+            return
+
+        remaining = Squad(
+            league_id=squad.league_id,
+            manager_id=squad.manager_id,
+            players=tuple(sp for sp in squad.players if sp.player.id not in removed),
+        )
+        shrunk = Lineup(
+            formation=lineup.formation,
+            player_ids=tuple(pid for pid in lineup.player_ids if pid not in removed),
+        )
+        _log.info(
+            "Verkauf aus der Startelf (%s) — Guard läuft erneut über %d Kaderspieler.",
+            ", ".join(sorted(removed)),
+            len(remaining.players),
+        )
+        await self._run_lineup_guard(
+            user_id=user_id,
+            league_id=league_id,
+            squad=remaining,
+            lineup=shrunk,
+            enrichment=enrichment,
+            dry_run=dry_run,
+        )
+
+    async def _execute_chain(
+        self,
+        decision: TradeDecision,
+        *,
+        league_id: str,
+        user_id: int,
+        squad: Squad,
+        dry_run: bool,
+    ) -> tuple[ExecutionResult, TradeLogRow]:
+        """Führt die Aktionskette aus und protokolliert **jede** Aktion einzeln.
+
+        Ausserhalb des Deadline-Fensters ist die Kette einelementig und das hier
+        verhält sich wie vorher. Im Fenster (< 2 h bis Anpfiff) können bis zu
+        drei Aktionen zusammengehören — „verkaufen, aufstellen, nachkaufen" ist
+        dort eine Handlung, kein Plan für drei Ticks (P2-16).
+
+        **Abbruch beim ersten Fehler.** Eine Folgeaktion baut auf der
+        vorherigen auf: der Nachkauf braucht den Kaderplatz aus dem Verkauf.
+        Scheitert der Verkauf, würde Kickbase den Kauf ohnehin ablehnen — die
+        Kette weiterzufahren verbrennt nur Ticks und erzeugt Log-Rauschen.
+
+        **Eine Zeile pro Aktion.** `buy_history`, `own_listings` und die offenen
+        Gebote werden aus dem `trade_log` rekonstruiert (P1-11); eine
+        gebündelte Zeile würde den Nachkauf für den nächsten Tick unsichtbar
+        machen, und der Bot böte erneut — genau Defekt D3.
+
+        Zurück kommen Ergebnis und Zeile der **Hauptaktion**: an ihnen hängen
+        Mail, Metriken und der `TickOutcome`.
+        """
+        executor = self._executor(squad=squad, dry_run=dry_run)
+        first_result: ExecutionResult | None = None
+        first_row: TradeLogRow | None = None
+
+        for index, step in enumerate(decision.chain):
+            result = await executor.execute(league_id, step)
+            row = self._trades.add(
+                TradeLogRow(
+                    user_id=user_id,
+                    action=step.action.value,
+                    player_id=step.player_id,
+                    player_name=step.player_name,
+                    price=int(step.price) if step.price is not None else None,
+                    reason_text=step.reason,
+                    executed=result.executed,
+                    context={
+                        "dry_run": dry_run,
+                        "executor_note": result.reason,
+                        "response_ref": result.response_ref,
+                        "error": result.error,
+                        "intent": step.intent.value if step.intent is not None else None,
+                        # Nur bei einer echten Kette gesetzt, damit die Zeilen
+                        # eines gewöhnlichen Ticks unverändert aussehen.
+                        **({"chain_index": index} if len(decision.chain) > 1 else {}),
+                    },
+                )
+            )
+            if first_result is None:
+                first_result, first_row = result, row
+            if result.error is not None:
+                if index < len(decision.chain) - 1:
+                    _log.warning(
+                        "Aktionskette nach Schritt %d abgebrochen (%s) — %d Aktion(en) entfallen.",
+                        index + 1,
+                        result.error,
+                        len(decision.chain) - index - 1,
+                    )
+                break
+
+        assert first_result is not None and first_row is not None  # chain ist nie leer
+        if len(decision.chain) > 1:
+            _log.info(
+                "Deadline-Kette: %s",
+                " → ".join(step.action.value for step in decision.chain),
+            )
+        return first_result, first_row
 
     def _executor(self, *, squad: Squad, dry_run: bool) -> TradeExecutor:
         return TradeExecutor(

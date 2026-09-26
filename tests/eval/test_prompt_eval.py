@@ -240,6 +240,28 @@ async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Sc
     )
 
     _assert_bid_is_in_range(scenario, decisions)
+    _assert_chain_is_long_enough(scenario, decisions)
+
+
+def _assert_chain_is_long_enough(scenario: Scenario, decisions: list[TradeDecision]) -> None:
+    """Prüft, dass eine Lage mit zwei Problemen auch zwei Aktionen bekommt (P2-16).
+
+    Ohne diese Prüfung bliebe `follow_up_actions` unbelegt: ein Szenario, in
+    dem nur eine von zwei Regelverletzungen behoben wird, sähe grün aus,
+    solange die gewählte Aktion erlaubt ist.
+    """
+    if scenario.min_chain_length <= 1:
+        return
+    for decision in decisions:
+        assert len(decision.chain) >= scenario.min_chain_length, (
+            f"[{scenario.name}] {scenario.description}\n"
+            f"Regel: {scenario.rule}\n"
+            f"Nur {len(decision.chain)} Aktion(en): "
+            f"{[step.action.value for step in decision.chain]} — erwartet sind mindestens "
+            f"{scenario.min_chain_length}. Im Deadline-Fenster bleibt sonst die Hälfte der "
+            "Lage ungelöst, und ein zweiter Tick kommt nicht mehr.\n"
+            f"Alle Läufe: {_describe(decisions)}"
+        )
 
 
 def _assert_bid_is_in_range(scenario: Scenario, decisions: list[TradeDecision]) -> None:

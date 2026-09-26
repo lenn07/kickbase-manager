@@ -276,8 +276,8 @@ def test_prompt_puts_the_squad_limit_where_the_buy_impulse_is() -> None:
     """
     prompt = load_system_prompt()
     assert "**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.**" in prompt
-    assert "pro Tick wird genau eine Aktion ausgeführt" in prompt
-    assert "Kaderplatz wird nach dem\nVerkauf frei" in prompt
+    assert "wird pro Tick genau eine\nAktion ausgeführt" in prompt
+    assert "Kaderplatz wird nach dem Verkauf frei" in prompt
 
 
 def test_season_phase_and_risk_appetite_do_not_overwrite_each_other() -> None:
@@ -294,3 +294,33 @@ def test_season_phase_and_risk_appetite_do_not_overwrite_each_other() -> None:
     prompt = load_system_prompt()
     assert "sagt, *was* du tust — nicht, *wie riskant*" in prompt
     assert "unabhängig von `trading.season_phase`" in prompt
+
+
+def test_the_chain_rule_stands_where_the_hard_rules_are() -> None:
+    """Die Lehre aus P2-14, angewandt auf P2-16.
+
+    Im ersten bezahlten Lauf stand die Kettenregel nur in §2 — das Modell
+    beschrieb die Kette in seiner Begründung („Dann SET_LINEUP …") und
+    lieferte trotzdem eine einzelne Aktion. Eine Regel wirkt dort, wo die
+    Entscheidung fällt: bei den beiden harten Regeln in §1.1, die sie
+    zusammenführt.
+    """
+    prompt = load_system_prompt()
+    assert "gehören\n     beide Antworten in **einen** Tick" in prompt
+    assert "`follow_up_actions`" in prompt
+    # Und in §2 muss aus der Erlaubnis eine Pflicht werden, wenn beides offen ist.
+    assert "Verlangt, wenn zwei harte Regeln offen sind" in prompt
+
+
+def test_the_prompt_ranks_the_two_deadline_penalties() -> None:
+    """100 Punkte gegen alle Punkte — der Unterschied muss dastehen.
+
+    Im Lauf vom 2026-09-26 begründete das Modell einen unzureichenden Verkauf
+    mit „kein anderer Spieler verfügbar ohne Startelf-Loch": es vermied die
+    -100 und nahm dafür ein negatives Konto in Kauf, das **alle** Punkte des
+    Spieltags kostet. Beide Regeln standen im Prompt, ihr Verhältnis nicht.
+    """
+    prompt = load_system_prompt()
+    assert "Die beiden Strafen sind nicht gleich gross." in prompt
+    assert "um eine Grössenordnung" in prompt
+    assert "`budget.cash_needed_before_kickoff`" in prompt
