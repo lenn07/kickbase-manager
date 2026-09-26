@@ -12,6 +12,7 @@ Fehler. Diese vier Grenzen prüfen die Tests hier.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -22,6 +23,7 @@ from app.application.ai_decision_engine import (
     MAX_ACTIONS_PER_TICK,
     AiDecisionEngine,
     _build_user_payload,
+    _input_schema_for,
 )
 from app.application.decision_engine import DecisionContext
 from app.domain.lineup import DEFAULT_FORMATION
@@ -362,3 +364,154 @@ async def test_an_empty_follow_up_list_is_a_normal_single_action(
     assert decision.action is TradeAction.SELL
     assert decision.follow_ups == ()
     assert len(decision.chain) == 1
+
+
+# -- Die beiden Code-Sperren aus dem Schlusslauf (P2-16) -----------------
+
+
+def test_the_chain_field_only_exists_in_the_deadline_window() -> None:
+    """Ein Feld, das es nicht gibt, kann keine falsche Idee auslösen.
+
+    Im Schlusslauf vom 2026-09-26 kippte `squad_is_full` von `HOLD` auf
+    dreimal `BUY`: seit §2 „erst verkaufen, dann kaufen" erlaubt, versuchte
+    das Modell diese Reihenfolge auch **ausserhalb** des Fensters, wo die
+    Folgeaktionen verworfen werden — übrig blieb ein Kauf ohne Kaderplatz.
+    """
+    inside = _input_schema_for(_context(minutes_until_kickoff=45))
+    assert "follow_up_actions" in inside["properties"]
+    assert "follow_up_actions" in inside["required"]
+
+    outside = _input_schema_for(_context(minutes_until_kickoff=600))
+    assert "follow_up_actions" not in outside["properties"]
+    assert "follow_up_actions" not in outside["required"]
+    # Das gemeinsame Schema darf dabei nicht beschädigt werden.
+    assert "follow_up_actions" in _INPUT_SCHEMA["properties"]
+
+
+def _squad_with_prices(*prices: int) -> tuple[SquadPlayer, ...]:
+    """Kader mit gegebenen Marktwerten; die ersten elf stehen in der Elf."""
+    return tuple(
+        SquadPlayer(
+            player=Player(
+                id=f"s{i}",
+                first_name="",
+                last_name=f"Spieler {i}",
+                team_id="2",
+                position=Position.MIDFIELDER,
+                status=PlayerStatus.FIT,
+                market_value=Decimal(price),
+                average_points=100.0,
+            ),
+            lineup_order=i if i < 11 else None,
+        )
+        for i, price in enumerate(prices)
+    )
+
+
+def _debt_context(*, prices: tuple[int, ...], cash: int, minutes: int = 45) -> DecisionContext:
+    return replace(
+        _context(minutes_until_kickoff=minutes),
+        squad=Squad(
+            league_id=LEAGUE_ID, manager_id=MANAGER_ID, players=_squad_with_prices(*prices)
+        ),
+        budget=Decimal(cash),
+        league_me=LeagueMe(league_id=LEAGUE_ID, budget=Decimal(cash)),
+    )
+
+
+async def test_an_insufficient_emergency_sale_is_redirected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Der Befund aus acht Läufen: das Modell verkauft zu klein, um kein Loch zu reissen.
+
+    Es vermeidet 100 Punkte Strafe und kauft sich den Totalausfall des
+    Spieltags ein. Umgelenkt wird auf den **billigsten** Spieler, dessen
+    Marktwert das Minus deckt.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _main_action("SELL_INSTANT", player_id="s11"),  # der 1-Mio-Bankspieler
+        _debt_context(prices=(*(12_000_000,) * 11, 1_000_000), cash=-10_000_000),
+    )
+    assert decision.action is TradeAction.SELL
+    assert decision.player_id != "s11"
+    assert "[Code-Korrektur]" in decision.reason
+
+
+async def test_a_sufficient_sale_is_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deckt die Wahl des Modells das Minus, bleibt sie unangetastet."""
+    decision = await _decide(
+        monkeypatch,
+        _main_action("SELL_INSTANT", player_id="s0"),
+        _debt_context(prices=(*(12_000_000,) * 11, 1_000_000), cash=-10_000_000),
+    )
+    assert decision.player_id == "s0"
+    assert "[Code-Korrektur]" not in decision.reason
+
+
+async def test_a_chain_that_covers_the_deficit_survives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Zwei Verkäufe, die zusammen reichen, sind die gewollte Lösung.
+
+    Die Umlenkung darf sie nicht zerschlagen — sie rechnet über die ganze
+    Kette, nicht über die erste Aktion.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _main_action(
+            "SELL_INSTANT",
+            player_id="s11",
+            follow_up_actions=[
+                {"action": "SELL_INSTANT", "player_id": "s0", "reason_short": "zweiter"}
+            ],
+        ),
+        _debt_context(prices=(*(12_000_000,) * 11, 1_000_000), cash=-10_000_000),
+    )
+    assert decision.player_id == "s11", "die Kette deckt das Minus, also kein Eingriff"
+    assert [step.player_id for step in decision.chain] == ["s11", "s0"]
+
+
+async def test_no_redirect_when_no_single_player_is_enough(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reicht keiner allein, ist jede Wahl eine Teillösung — dann entscheidet das Modell."""
+    decision = await _decide(
+        monkeypatch,
+        _main_action("SELL_INSTANT", player_id="s11"),
+        _debt_context(prices=(*(2_000_000,) * 11, 1_000_000), cash=-30_000_000),
+    )
+    assert decision.player_id == "s11"
+    assert "[Code-Korrektur]" not in decision.reason
+
+
+async def test_no_redirect_outside_the_deadline_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Davor kommt ein nächster Tick — dann ist die Wahl Sache des Modells."""
+    decision = await _decide(
+        monkeypatch,
+        _main_action("SELL_INSTANT", player_id="s11"),
+        _debt_context(prices=(*(12_000_000,) * 11, 1_000_000), cash=-10_000_000, minutes=600),
+    )
+    assert decision.player_id == "s11"
+
+
+async def test_the_redirect_prefers_the_bench_at_equal_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bei gleichem Marktwert der Bankspieler — kein Loch, wo keines nötig ist.
+
+    Der Kader trägt hier einen 1-Mio-Spieler, den das Modell wählt, und zwei
+    gleich teure Kandidaten mit 12 Mio: einer in der Elf, einer auf der Bank.
+    Beide würden das Minus decken; genommen wird der, dessen Verkauf keinen
+    Slot aufreisst.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _main_action("SELL_INSTANT", player_id="s12"),
+        # s0..s10 in der Elf (12 Mio), s11 Bank (12 Mio), s12 Bank (1 Mio).
+        _debt_context(prices=(*(12_000_000,) * 11, 12_000_000, 1_000_000), cash=-10_000_000),
+    )
+    assert decision.player_id == "s11"
+    assert "[Code-Korrektur]" in decision.reason

@@ -234,7 +234,7 @@ class AiDecisionEngine:
                 user_message=user_message,
                 tool_name=_TOOL_NAME,
                 tool_description=_TOOL_DESCRIPTION,
-                input_schema=_INPUT_SCHEMA,
+                input_schema=_input_schema_for(context),
                 max_tokens=self._config.max_tokens,
                 temperature=self._config.temperature,
             )
@@ -251,6 +251,34 @@ class AiDecisionEngine:
 
 class _InvalidDecisionError(ValueError):
     """LLM-Antwort verletzt die Konsistenz-Erwartungen des Domain-Modells."""
+
+
+def _input_schema_for(context: DecisionContext) -> dict[str, Any]:
+    """Das Tool-Schema für **diesen** Tick — mit Kettenfeld nur im Deadline-Fenster.
+
+    Ein Feld, das es nicht gibt, kann keine falsche Idee auslösen. Im
+    Schlusslauf vom 2026-09-26 kippte `squad_is_full` von `HOLD` auf dreimal
+    `BUY`: seit §2 „erst verkaufen, dann kaufen" erlaubt, versuchte das Modell
+    diese Reihenfolge **auch ausserhalb** des Fensters, wo die Folgeaktionen
+    verworfen werden — übrig blieb ein Kauf ohne Kaderplatz. Das Szenario war
+    zwei Läufe zuvor noch grün.
+
+    Die Alternative wäre ein weiterer Absatz im Prompt gewesen. Dieselbe
+    Stelle hat in dieser Phase schon dreimal eine bestehende Regel verdrängt;
+    ein Feld wegzulassen ist die verlässlichere Antwort.
+    """
+    if _is_deadline_window(context):
+        return _INPUT_SCHEMA
+    trimmed: dict[str, Any] = {
+        **_INPUT_SCHEMA,
+        "properties": {
+            key: value
+            for key, value in _INPUT_SCHEMA["properties"].items()
+            if key != "follow_up_actions"
+        },
+        "required": [key for key in _INPUT_SCHEMA["required"] if key != "follow_up_actions"],
+    }
+    return trimmed
 
 
 def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> TradeDecision:
@@ -283,7 +311,86 @@ def _parse_decision(tool_input: dict[str, Any], context: DecisionContext) -> Tra
         lineup=_parse_lineup(tool_input) if action is TradeAction.SET_LINEUP else None,
     )
     follow_ups = _parse_follow_ups(tool_input, context, first=decision)
-    return replace(decision, follow_ups=follow_ups) if follow_ups else decision
+    if follow_ups:
+        decision = replace(decision, follow_ups=follow_ups)
+    return _redirect_insufficient_debt_sale(decision, context)
+
+
+def _redirect_insufficient_debt_sale(
+    decision: TradeDecision, context: DecisionContext
+) -> TradeDecision:
+    """Lenkt einen Notverkauf auf einen Spieler um, dessen Erlös das Minus deckt.
+
+    **Korrektur, nicht Ablehnung — und das ist der Unterschied zu den anderen
+    Sperren.** Bei `BUY` ohne Kaderplatz ist `HOLD` die richtige Antwort:
+    Kickbase würde das Gebot ohnehin ablehnen, es geht nichts verloren. Hier
+    nicht. Ein zu kleiner Verkauf ist **ausführbar**, er löst das Problem nur
+    nicht ganz; ihn zu verwerfen hiesse, aus „1 Mio weniger Minus" ein „gar
+    nichts" zu machen. Die Sperre würde die Lage verschlechtern, also greift
+    sie nicht ins Ob ein, sondern ins Wen.
+
+    Der Befund dahinter, aus acht bezahlten Läufen stabil: bei 10 Mio Minus
+    und 45 Minuten bis Anpfiff wählt das Modell den 1-Mio-Bankspieler, um kein
+    Loch in der Startelf zu reissen — es vermeidet 100 Punkte Strafe und kauft
+    sich den Totalausfall des Spieltags ein (alle Punkte, 600 bis 1.200).
+    Vier Prompt-Fassungen haben daran nichts geändert, darunter die Zahl
+    `cash_needed_before_kickoff` im Payload und die ausdrückliche Abwägung
+    beider Strafen in §1.1.
+
+    Gewählt wird der **billigste** Spieler, dessen Marktwert reicht, bei
+    gleichem Wert einer ausserhalb der Startelf. Das Loch, das ein
+    Startelf-Verkauf hinterlässt, schliesst danach der Guard
+    (`RunTickUseCase._repair_lineup_after`).
+
+    Greift nur im Deadline-Fenster: davor kommt ein nächster Tick, und dann
+    ist die Wahl des Modells seine Sache.
+    """
+    if decision.action is not TradeAction.SELL or not _is_deadline_window(context):
+        return decision
+    needed = max(0, -_int(context.budget))
+    if needed <= 0:
+        return decision
+
+    by_id = {sp.player.id: sp for sp in context.squad.players}
+    # Was die **ganze** Kette einbringt — eine Kette aus zwei Verkäufen, die
+    # zusammen reichen, ist genau die gewollte Lösung und darf nicht
+    # zerschlagen werden.
+    proceeds = sum(
+        _int(by_id[step.player_id].player.market_value)
+        for step in decision.chain
+        if step.action is TradeAction.SELL and step.player_id in by_id
+    )
+    if proceeds >= needed:
+        return decision
+
+    sufficient = [sp for sp in context.squad.players if _int(sp.player.market_value) >= needed]
+    if not sufficient:
+        # Kein einzelner Spieler deckt das Minus — dann ist jede Wahl eine
+        # Teillösung, und die des Modells ist so gut wie jede andere.
+        return decision
+    best = min(sufficient, key=lambda sp: (_int(sp.player.market_value), _is_starting_xi(sp)))
+    if best.player.id == decision.player_id:
+        return decision
+
+    _log.warning(
+        "Notverkauf umgelenkt: %s (%s €) deckt die benötigten %s € nicht — stattdessen %s (%s €).",
+        decision.player_name or decision.player_id,
+        proceeds,
+        needed,
+        _full_name(best),
+        _int(best.player.market_value),
+    )
+    return replace(
+        decision,
+        player_id=best.player.id,
+        player_name=_full_name(best),
+        reason=(
+            f"[Code-Korrektur] {decision.reason} — umgelenkt auf {_full_name(best)}: "
+            f"der gewählte Verkauf brachte {proceeds} € und damit weniger als die "
+            f"benötigten {needed} €. Ein Konto unter null zum Anpfiff kostet alle "
+            "Punkte des Spieltags."
+        ),
+    )
 
 
 def _parse_follow_ups(
