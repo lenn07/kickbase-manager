@@ -1465,6 +1465,16 @@ def _deadline_needs_two_actions() -> Scenario:
     das Konto bei -1 Mio stehen liess. Damit prüfte das Szenario zwei Dinge
     gleichzeitig (den richtigen Spieler **und** die Kette) und verstiess gegen
     das Prinzip aus dem Modul-Docstring: genau ein Faktor darf variieren.
+
+    **Was hier gemessen wird, ist die Auswahl — nicht mehr die Kettenlänge.**
+    Sieben bezahlte Läufe haben gezeigt, dass das Modell den Bankspieler
+    nimmt, um kein Loch in der Elf zu reissen: es vermeidet 100 Punkte Strafe
+    und kauft sich dafür den Totalausfall des Spieltags ein. Das ist der
+    eigentliche Fehler. Das Loch selbst ist kein Grund zur Zurückhaltung mehr
+    — seit P2-16 lässt der `RunTickUseCase` den Startelf-Guard nach einem
+    Verkauf aus der Elf erneut laufen (`_repair_lineup_after`). Eine Kette mit
+    `SET_LINEUP` bleibt möglich, ist aber nicht mehr nötig, und ein Test, der
+    sie erzwingt, würde eine Lösung vorschreiben statt eine Regel zu prüfen.
     """
     squad = [p for p in _squad_of_twelve() if p.id != "501"]
     squad.append(_player("501", "Bankspieler", Position.DEFENDER, 1_000_000, average_points=40.0))
@@ -1482,11 +1492,11 @@ def _deadline_needs_two_actions() -> Scenario:
         ),
         allowed=frozenset({TradeAction.SELL, TradeAction.LIST_ON_MARKET, TradeAction.SET_LINEUP}),
         forbidden=frozenset({TradeAction.HOLD, TradeAction.BUY}),
-        min_chain_length=2,
+        forbidden_player_ids=frozenset({"501"}),
         rule=(
-            "Der Verkauf eines Startelf-Spielers reisst ein Loch, das der Startelf-Guard nicht "
-            "mehr schliesst — er laeuft **vor** der Modell-Abfrage. Im Deadline-Fenster gehoert "
-            "`SET_LINEUP` deshalb in dieselbe Kette (§1.1, §2)"
+            "Ein negatives Konto kostet **alle** Punkte des Spieltags, ein leerer Startelf-Slot "
+            "nur 100. Wer den 1-Mio-Bankspieler verkauft, weil er kein Loch reissen will, "
+            "loest nichts — der Verkauf muss `budget.cash_needed_before_kickoff` decken (§1.1)"
         ),
     )
 

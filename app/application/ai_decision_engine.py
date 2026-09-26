@@ -329,8 +329,24 @@ def _parse_follow_ups(
     out: list[TradeDecision] = []
     for item in raw[:_MAX_FOLLOW_UPS]:
         if not isinstance(item, dict):
-            raise _InvalidDecisionError(f"Folgeaktion ist kein Objekt: {item!r}")
-        decision = _parse_follow_up(item, running)
+            _log.info("Folgeaktion ist kein Objekt (%r) — übersprungen.", item)
+            continue
+        try:
+            decision = _parse_follow_up(item, running)
+        except _InvalidDecisionError as exc:
+            # **Nur die Folgeaktion fällt weg, nicht die Hauptaktion.**
+            #
+            # Im bezahlten Lauf vom 2026-09-26 lieferte das Modell
+            # `SET_LINEUP` als Folgeaktion ohne `lineup`-Block — und die ganze
+            # Antwort wurde zu HOLD, obwohl der Verkauf davor richtig war. Das
+            # ist die falsche Verhältnismäßigkeit: ein Formfehler im Anhang
+            # kostete die einzige Aktion, die das Konto gerettet hätte.
+            #
+            # Was der weggefallene Schritt hinterlässt, fängt der Code ab: eine
+            # Lücke in der Elf schliesst der Startelf-Guard, der nach einer
+            # Kette erneut läuft (`RunTickUseCase._run_lineup_guard`).
+            _log.warning("Folgeaktion verworfen (%s) — Hauptaktion bleibt.", exc)
+            continue
         if decision is None:
             continue
         out.append(decision)

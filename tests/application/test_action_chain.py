@@ -195,7 +195,9 @@ async def test_a_second_buy_without_a_slot_is_refused(
     """Ein Verkauf schafft **einen** Platz, nicht zwei.
 
     Die Fortschreibung darf die Prüfung nicht aushebeln — sonst wäre die
-    Kette ein Weg, die Slot-Sperre zu umgehen.
+    Kette ein Weg, die Slot-Sperre zu umgehen. Der ungedeckte zweite Kauf
+    fällt weg, der Rest der Kette läuft: eine unbrauchbare Folgeaktion kostet
+    seit dem Lauf vom 2026-09-26 nicht mehr die ganze Antwort.
     """
     decision = await _decide(
         monkeypatch,
@@ -209,10 +211,10 @@ async def test_a_second_buy_without_a_slot_is_refused(
         ),
         _context(),
     )
-    # Die ganze Antwort wird verworfen: eine Kette, deren zweiter Kauf nicht
-    # gedeckt ist, würde zur Hälfte laufen und die Hälfte als Fehler enden.
-    assert decision.action is TradeAction.HOLD
-    assert "Kader ist voll" in decision.reason
+    assert decision.action is TradeAction.SELL
+    assert [step.action for step in decision.chain] == [TradeAction.SELL, TradeAction.BUY]
+    assert decision.follow_ups[0].player_id == "m0", "der gedeckte Kauf bleibt"
+    assert all(step.player_id != "m1" for step in decision.chain), "der ungedeckte fällt weg"
 
 
 async def test_follow_ups_are_dropped_outside_the_deadline_window(
@@ -302,7 +304,8 @@ async def test_selling_the_same_player_twice_is_refused(
     """Nach dem ersten Verkauf steht er nicht mehr im Kader.
 
     Fällt ohne Sonderregel auf: die Fortschreibung entfernt ihn, und die
-    bestehende Kaderprüfung schlägt an.
+    bestehende Kaderprüfung schlägt an. Der erste Verkauf bleibt gültig —
+    er war ja richtig.
     """
     decision = await _decide(
         monkeypatch,
@@ -315,8 +318,9 @@ async def test_selling_the_same_player_twice_is_refused(
         ),
         _context(),
     )
-    assert decision.action is TradeAction.HOLD
-    assert "nicht im Kader" in decision.reason
+    assert decision.action is TradeAction.SELL
+    assert decision.follow_ups == ()
+    assert len(decision.chain) == 1
 
 
 def test_the_payload_states_how_many_actions_are_possible() -> None:

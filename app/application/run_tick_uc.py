@@ -73,6 +73,8 @@ class TickOutcome:
 
 
 _MAX_RECENT_ACTIONS = 20
+# Kickbase-`lo` 0..10 = die elf Startelf-Slots (wie in `ai_decision_engine`).
+_STARTING_XI_MAX_SLOT = 10
 _KICKBASE_DEBT_ALLOWANCE_PCT = Decimal("0.33")
 
 
@@ -261,6 +263,20 @@ class RunTickUseCase:
             squad=squad,
             dry_run=settings.dry_run,
         )
+        # Der Guard oben lief **vor** der Entscheidung. Hat sie einen
+        # Startelf-Spieler aus dem Kader genommen, ist der Slot jetzt leer und
+        # kostet 100 Punkte — bis zum nächsten Tick, der im Deadline-Fenster
+        # nach dem Anpfiff läge.
+        await self._repair_lineup_after(
+            decision,
+            result,
+            user_id=user.id,
+            league_id=league_row.kb_league_id,
+            squad=squad,
+            lineup=lineup,
+            enrichment=enrichment,
+            dry_run=settings.dry_run,
+        )
 
         await self._notify_outcome(user.id, decision, result)
 
@@ -285,6 +301,76 @@ class RunTickUseCase:
             decision=decision,
             log_id=row.id,
             next_matchday_start=next_matchday_start,
+        )
+
+    async def _repair_lineup_after(
+        self,
+        decision: TradeDecision,
+        result: ExecutionResult,
+        *,
+        user_id: int,
+        league_id: str,
+        squad: Squad,
+        lineup: Lineup,
+        enrichment: dict[str, PlayerEnrichment],
+        dry_run: bool,
+    ) -> None:
+        """Lässt den Startelf-Guard erneut laufen, wenn die Aktion ein Loch gerissen hat.
+
+        Der Guard aus P0-4 läuft **vor** der Modell-Abfrage — er sorgt dafür,
+        dass die Elf steht, bevor entschieden wird. Was die Entscheidung selbst
+        aufreisst, sah er nie: ein Verkauf aus der Startelf hinterlässt einen
+        leeren Slot, und der kostet 100 Punkte pro Spieltag.
+
+        Ausserhalb des Deadline-Fensters hätte der nächste Tick das geheilt.
+        Im Fenster gibt es keinen nächsten Tick, und genau dort trifft der Fall
+        am häufigsten zu — wer 45 Minuten vor Anpfiff Geld braucht, verkauft
+        keinen Reservisten, sondern den, dessen Marktwert reicht.
+
+        Das löst denselben Fall, den P2-16 über `follow_up_actions` anbietet,
+        aber ohne das Modell: es müsste dafür alle elf Spieler-IDs aufzählen,
+        und im bezahlten Lauf vom 2026-09-26 lieferte es `SET_LINEUP` prompt
+        ohne den `lineup`-Block. Die Kette bleibt die Option, dies ist die
+        Absicherung.
+        """
+        if not result.executed:
+            return
+        removed = {
+            step.player_id
+            for step in decision.chain
+            if step.action in {TradeAction.SELL, TradeAction.ACCEPT_OFFER} and step.player_id
+        }
+        if not removed:
+            return
+        was_in_lineup = any(
+            sp.player.id in removed
+            for sp in squad.players
+            if sp.lineup_order is not None and 0 <= sp.lineup_order <= _STARTING_XI_MAX_SLOT
+        )
+        if not was_in_lineup:
+            return
+
+        remaining = Squad(
+            league_id=squad.league_id,
+            manager_id=squad.manager_id,
+            players=tuple(sp for sp in squad.players if sp.player.id not in removed),
+        )
+        shrunk = Lineup(
+            formation=lineup.formation,
+            player_ids=tuple(pid for pid in lineup.player_ids if pid not in removed),
+        )
+        _log.info(
+            "Verkauf aus der Startelf (%s) — Guard läuft erneut über %d Kaderspieler.",
+            ", ".join(sorted(removed)),
+            len(remaining.players),
+        )
+        await self._run_lineup_guard(
+            user_id=user_id,
+            league_id=league_id,
+            squad=remaining,
+            lineup=shrunk,
+            enrichment=enrichment,
+            dry_run=dry_run,
         )
 
     async def _execute_chain(
