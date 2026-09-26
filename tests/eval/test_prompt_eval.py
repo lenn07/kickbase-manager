@@ -119,12 +119,48 @@ def _report(scenario: Scenario, decisions: list[TradeDecision]) -> None:
     Ein Lauf kostet echte Calls; nur „passed" zu melden verschenkt genau die
     Information, für die man bezahlt hat — vor allem bei einem Prompt-Merge,
     wo man den Effekt der Änderung sehen will, nicht nur ihre Zulässigkeit.
+
+    Seit P2-13 steht die **Gebotshöhe** mit dabei. Der ganze §3 dreht sich um
+    den Aufschlag über Marktwert; ein Lauf, der nur „BUY x3" meldet, lässt genau
+    die Zahl weg, um die es geht — und er verbirgt, ob eine
+    `min_bid_ratio`/`max_bid_ratio`-Schranke überhaupt geprüft wurde. Wählt das
+    Modell `HOLD`, wird keine der beiden ausgeübt: die Zeile unten macht das
+    sichtbar, statt es als grünes Häkchen zu tarnen.
     """
     counts = Counter(d.action.value for d in decisions)
     verteilung = ", ".join(f"{action} x{n}" for action, n in counts.most_common())
     print(f"\n  [{scenario.name}] {verteilung}")
     print(f"    Regel : {scenario.rule}")
+    print(f"    Gebot : {_describe_bids(scenario, decisions)}")
     print(f"    Grund : {decisions[0].reason[:220]}")
+
+
+def _describe_bids(scenario: Scenario, decisions: list[TradeDecision]) -> str:
+    """Gebote als Aufschlag über Marktwert — plus der Hinweis, wenn keins fiel."""
+    market_values = {mp.player.id: mp.player.market_value for mp in scenario.context.market}
+    parts: list[str] = []
+    for decision in decisions:
+        if decision.action is not TradeAction.BUY or decision.price is None:
+            continue
+        market_value = market_values.get(decision.player_id or "")
+        if market_value is None or market_value <= 0:
+            parts.append(f"{int(decision.price):,}")
+            continue
+        ratio = float(decision.price) / float(market_value)
+        parts.append(f"{int(decision.price):,} ({ratio - 1:+.1%} auf MW)")
+    if parts:
+        return " · ".join(parts)
+    schranken = [
+        name
+        for name, value in (
+            ("min_bid_ratio", scenario.min_bid_ratio),
+            ("max_bid_ratio", scenario.max_bid_ratio),
+        )
+        if value is not None
+    ]
+    if schranken:
+        return f"kein BUY — {'/'.join(schranken)} in diesem Lauf NICHT geprüft"
+    return "kein BUY"
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)
@@ -167,17 +203,20 @@ async def test_scenario_respects_the_rule(engine: AiDecisionEngine, scenario: Sc
         f"Alle Läufe: {_describe(decisions)}"
     )
 
-    _assert_bid_is_high_enough(scenario, decisions)
+    _assert_bid_is_in_range(scenario, decisions)
 
 
-def _assert_bid_is_high_enough(scenario: Scenario, decisions: list[TradeDecision]) -> None:
-    """Prüft die Gebotshöhe, wo eine Regel sie vorschreibt.
+def _assert_bid_is_in_range(scenario: Scenario, decisions: list[TradeDecision]) -> None:
+    """Prüft die Gebotshöhe, wo eine Regel sie vorschreibt — nach unten und oben.
 
     Beim Underpay-Block ist weder die Aktion noch die Auswahl falsch, sondern
-    allein der Preis — ein BUY zu 92 % des Marktwerts wird von Kickbase gar
-    nicht erst angenommen und verbrennt den Tick.
+    allein der Preis: ein BUY zu 92 % des Marktwerts wird von Kickbase gar nicht
+    erst angenommen und verbrennt den Tick. Dasselbe gilt seit P2-13 in der
+    anderen Richtung — ein Overbid ohne Begründung verbrennt kein Tick, sondern
+    Geld, und zwar jedes Mal. Nur eine Grenze zu prüfen würde ein Modell
+    belohnen, das im Zweifel immer zu viel bietet.
     """
-    if scenario.min_bid_ratio is None:
+    if scenario.min_bid_ratio is None and scenario.max_bid_ratio is None:
         return
     market_values = {mp.player.id: mp.player.market_value for mp in scenario.context.market}
     for decision in decisions:
@@ -187,14 +226,25 @@ def _assert_bid_is_high_enough(scenario: Scenario, decisions: list[TradeDecision
         if market_value is None or market_value <= 0:
             continue
         ratio = float(decision.price) / float(market_value)
-        assert ratio >= scenario.min_bid_ratio, (
-            f"[{scenario.name}] {scenario.description}\n"
-            f"Regel: {scenario.rule}\n"
-            f"Gebot {int(decision.price):,} liegt bei {ratio:.1%} des Marktwerts "
-            f"{int(market_value):,} — verlangt sind mindestens "
-            f"{scenario.min_bid_ratio:.0%}.\n"
-            f"Alle Läufe: {_describe(decisions)}"
-        )
+        if scenario.min_bid_ratio is not None:
+            assert ratio >= scenario.min_bid_ratio, (
+                f"[{scenario.name}] {scenario.description}\n"
+                f"Regel: {scenario.rule}\n"
+                f"Gebot {int(decision.price):,} liegt bei {ratio:.1%} des Marktwerts "
+                f"{int(market_value):,} — verlangt sind mindestens "
+                f"{scenario.min_bid_ratio:.0%}.\n"
+                f"Alle Läufe: {_describe(decisions)}"
+            )
+        if scenario.max_bid_ratio is not None:
+            assert ratio <= scenario.max_bid_ratio, (
+                f"[{scenario.name}] {scenario.description}\n"
+                f"Regel: {scenario.rule}\n"
+                f"Gebot {int(decision.price):,} liegt bei {ratio:.1%} des Marktwerts "
+                f"{int(market_value):,} — erlaubt sind höchstens "
+                f"{scenario.max_bid_ratio:.0%}. Ein Aufschlag ohne Drift- oder "
+                "Konkurrenz-Begründung ist verschenktes Geld.\n"
+                f"Alle Läufe: {_describe(decisions)}"
+            )
 
 
 @pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.name)

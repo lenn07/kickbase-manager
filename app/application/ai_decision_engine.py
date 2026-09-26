@@ -345,9 +345,11 @@ def _reject_pointless_rebid(
     und der Bot hat am 2026-09-24 genau das siebenmal hintereinander getan,
     weil er sein eigenes Gebot nicht sah (Defekt D3).
 
-    Ein **höheres** Gebot ist dagegen legitim und geht durch: bei Konkurrenz
-    (`offer_count > 1`) ist Nachlegen der einzige Weg, den Zuschlag doch noch
-    zu bekommen.
+    Ein **höheres** Gebot ist dagegen legitim und geht durch: fremde Gebote
+    sind unsichtbar (Kickbase zeigt sie nicht), also ist Nachlegen der einzige
+    Weg, einen vermuteten Konkurrenten doch noch zu überbieten. Bis P2-13 stand
+    hier `offer_count > 1` als Bedingung — dieser Zähler meint auf fremden
+    Listings aber die **eigenen** Gebote, nicht die der anderen.
     """
     existing = context.open_bids.get(player_id or "")
     if existing is None:
@@ -447,11 +449,95 @@ def _build_user_payload(context: DecisionContext) -> dict[str, Any]:
         "starting_xi_count": starting_xi_count,
         "market": [_market_entry(mp, context, now) for mp in context.market],
         "lineup": _lineup_block(context, now),
+        "trading": _trading_block(context, now),
         "incoming_offers": _incoming_offers(context),
         "recent_actions": [_recent_action(a) for a in context.recent_actions],
         "constraints": _constraints_block(context),
     }
     return payload
+
+
+_TRADING_PHASE_DEADLINE_MIN = 120
+_TRADING_PHASE_PREP_MIN = 24 * 60
+_MV_UPDATE_PERIOD_MIN = 24 * 60
+
+
+def _trading_phase(minutes_until_matchday: int | None) -> str:
+    """Welches Ziel in diesem Tick vorgeht — als Label, nicht als Rechenaufgabe.
+
+    Die Zielhierarchie des Prompts kippt zweimal: 24 h vor dem Anpfiff vom
+    Trading zur Kaderpflege, 2 h davor zur reinen Regel-Compliance. Beide
+    Grenzen standen bisher nur als Prosa in §4, und das Modell musste sie aus
+    `minutes_until_matchday_start` selbst herleiten — bei einer Zahl wie 23190
+    ist das eine Rechnung, die schiefgehen kann, und sie entscheidet darüber,
+    ob ein Trade noch legitim ist.
+    """
+    if minutes_until_matchday is None:
+        return "unknown"
+    if minutes_until_matchday <= _TRADING_PHASE_DEADLINE_MIN:
+        return "deadline"
+    if minutes_until_matchday <= _TRADING_PHASE_PREP_MIN:
+        return "matchday_prep"
+    return "trading"
+
+
+def _mv_updates_between(mv_update_at: datetime | None, until: datetime | None) -> int | None:
+    """Wie viele 22-Uhr-Updates noch vor `until` liegen.
+
+    Die entscheidende Trading-Kennzahl: Marktwerte bewegen sich ausschließlich
+    zu diesen Zeitpunkten. Ein Kauf, auf den kein Update mehr folgt, kann keinen
+    Marktwert-Gewinn machen — egal wie steil der Trend aussieht. Das Modell
+    konnte das bisher nur über eine Datumsdifferenz in ISO-Strings schätzen.
+    """
+    if mv_update_at is None or until is None:
+        return None
+    delta_min = (until - mv_update_at).total_seconds() / 60
+    if delta_min < 0:
+        return 0
+    return int(delta_min // _MV_UPDATE_PERIOD_MIN) + 1
+
+
+def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
+    """Der Depot-Blick: was arbeitet, was liegt brach, wie viel Zeit bleibt.
+
+    Trading ist bei Kickbase kein Nebenprodukt, sondern die Geldquelle zwischen
+    den Spieltagen — und es wird über **Kaderplätze** gespielt: 16 Plätze, von
+    denen jeder leere eine Position ist, die keine Rendite bringt. Ohne diesen
+    Block musste das Modell Slot-Auslastung, Buchgewinne und die Zahl der
+    laufenden Trade-Positionen aus dem `squad`-Array zusammenrechnen; in der
+    Praxis tat es das nicht und handelte deshalb fast nur auf Punkte-Motive.
+    """
+    squad_size = len(context.squad.players)
+    slots_free = context.constraints.squad_room_left(squad_size)
+    pnl_total = sum(
+        (sp.unrealized_pnl for sp in context.squad.players if sp.unrealized_pnl is not None),
+        Decimal(0),
+    )
+    profit_positions = sum(
+        1 for rec in context.buy_history.values() if rec.intent is TradeIntent.PROFIT
+    )
+    _, minutes_until_matchday = _time_until(now, context.next_matchday_start, context.interval_min)
+    return {
+        "phase": _trading_phase(minutes_until_matchday),
+        # Wie viele Marktwert-Bewegungen bis zum Anpfiff überhaupt noch kommen.
+        "mv_updates_until_matchday": _mv_updates_between(
+            context.mv_update_at, context.next_matchday_start
+        ),
+        "squad_slots_used": squad_size,
+        "squad_slots_free": slots_free,
+        # Summe aller Buchgewinne/-verluste im Kader. Sagt, ob das Depot
+        # insgesamt im Plus steht — die Einzelwerte stehen pro Spieler.
+        "unrealized_pnl_total": _int(pnl_total),
+        # Wie viele Kaderspieler als Trade gekauft wurden (Intent PROFIT) und
+        # deshalb auf einen Exit warten, statt auf Punkte zu spielen.
+        "profit_positions": profit_positions,
+        # Wie viel in diesem Tick maximal ausgegeben werden könnte, bis die
+        # 33 %-Grenze reißt — offene Gebote schon abgezogen. Nur in der
+        # `trading`-Phase nutzbar: bis zum Anpfiff muss das Konto zurück ins Plus.
+        "spendable_before_debt_limit": _int(
+            context.current_balance_after_open_bids - context.max_negative_allowed
+        ),
+    }
 
 
 def _constraints_block(context: DecisionContext) -> dict[str, Any]:
@@ -590,6 +676,13 @@ def _squad_entry(sp: SquadPlayer, context: DecisionContext) -> dict[str, Any]:
         # Fallback auf den geloggten Preis, falls Kickbase `mvgl` mal weglässt.
         if entry["bought_at_price"] is None:
             entry["bought_at_price"] = _int(buy.buy_price)
+        # Wie lange die Position schon liegt. Beim Trading ist der knappe
+        # Rohstoff nicht das Geld, sondern der Kaderplatz: ein Trade, der seit
+        # acht Tagen bei +0,4 % steht, blockiert einen von 16 Plätzen, auf dem
+        # ein anderer Spieler in derselben Zeit 6 % gemacht hätte. Ohne diese
+        # Zahl sieht eine alte Position aus wie eine frische.
+        entry["bought_at_iso"] = _to_iso(buy.bought_at) if buy.bought_at else None
+        entry["days_held"] = _days_since(buy.bought_at, context.now)
     flags = list(enrichment.missing_data_flags) if enrichment else []
     if entry["bought_at_price"] is None:
         flags.append("missing_data:bought_at_price")
@@ -631,9 +724,22 @@ def _market_entry(mp: MarketPlayer, context: DecisionContext, now: datetime) -> 
         "expires_at_iso": _to_iso(expires_at) if expires_at else None,
         "listed_by": _listed_by(mp, context),
         "seller_id": mp.seller_id,
-        # Konkurrenz auf diesem Listing: je höher, desto eher braucht ein
-        # eigenes Gebot einen Aufschlag (Grundlage für P2-13).
-        "offer_count": mp.offer_count,
+        # Minuten bis zum Zuschlag. Das Modell rechnete das bisher selbst aus
+        # `expires_at_iso` minus `now_iso` — und daran hängt zweierlei: ob der
+        # Spieler vor dem Anpfiff überhaupt ankommt, und wie viele
+        # Marktwert-Updates das Gebot noch überleben muss (§3 Overbid).
+        "expires_in_min": _minutes_until(now, expires_at),
+        "mv_updates_until_expiry": _mv_updates_between(context.mv_update_at, expires_at),
+        # **Anzahl der eigenen Gebote** auf dieses Listing (`ofc`), nicht der
+        # fremden: Kickbase zeigt die Gebote anderer Manager nirgends an
+        # (help.kickbase.com, „Warum habe ich den Spieler nicht bekommen?").
+        # Bis P2-13 stand das Feld als `offer_count` im Payload und das Modell
+        # las es als Konkurrenz — es überbot damit systematisch sich selbst und
+        # hielt umgekehrt jeden fremden Bieter für nicht vorhanden. Der Wert ist
+        # nur als **Gegenprobe zum eigenen Gebot** brauchbar: ≥ 1 heißt, es
+        # läuft eins, auch wenn `my_open_bid_price` null ist (Gebot über die
+        # Kickbase-App, das im trade_log fehlt).
+        "my_open_bid_count": mp.offer_count,
         # Habe **ich** auf diesen Spieler schon geboten, und wie viel? `null`
         # heißt nein. Ohne dieses Feld bietet das Modell jeden Tick erneut auf
         # denselben Spieler, weil ein laufendes Gebot nirgends sichtbar ist —
@@ -709,6 +815,14 @@ def _recent_action(action: RecentAction) -> dict[str, Any]:
         "intent": action.intent.value if action.intent is not None else None,
         "executed": action.executed,
     }
+
+
+def _days_since(start: datetime | None, now: datetime | None) -> int | None:
+    """Ganze Tage seit `start`. `None`, sobald eine der beiden Zeiten fehlt."""
+    if start is None or now is None:
+        return None
+    delta = now - start
+    return max(0, int(delta.total_seconds() // 86400))
 
 
 def _minutes_until(now: datetime, target: datetime | None) -> int | None:

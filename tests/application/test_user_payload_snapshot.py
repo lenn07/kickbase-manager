@@ -191,9 +191,20 @@ def _enrich(
 
 
 def _buy_history(squad: Squad) -> dict[str, BuyRecord]:
-    """Ein historischer Kauf, damit `bought_at_price`/`bought_intent` im Snapshot stehen."""
+    """Ein historischer Kauf, damit `bought_at_price`/`bought_intent` im Snapshot stehen.
+
+    Mit Kaufdatum, sonst bliebe `days_held` im Snapshot `null` und die
+    Slot-Ökonomie aus §3a wäre nicht geprüft: eine Trade-Position, deren Alter
+    man nicht kennt, sieht ewig frisch aus.
+    """
     first = squad.players[0].player
-    return {first.id: BuyRecord(intent=TradeIntent.PROFIT, buy_price=Decimal(12_000_000))}
+    return {
+        first.id: BuyRecord(
+            intent=TradeIntent.PROFIT,
+            buy_price=Decimal(12_000_000),
+            bought_at=NOW - timedelta(days=4, hours=3),
+        )
+    }
 
 
 def _own_listings(market: tuple[MarketPlayer, ...]) -> dict[str, ListingRecord]:
@@ -315,14 +326,84 @@ def test_own_listing_is_visible(payload: dict[str, Any]) -> None:
     assert "offer_count" in listed[0]["listing"]
 
 
-def test_market_entries_show_the_bidding_competition(payload: dict[str, Any]) -> None:
-    """`offer_count` ist die Grundlage der Overbid-Kalibrierung (P2-13).
+def test_market_entries_never_claim_to_show_foreign_bids(payload: dict[str, Any]) -> None:
+    """`ofc` heißt auf fremden Listings **eigene** Gebote — nicht Konkurrenz (P2-13).
 
-    Ohne sie bietet der Bot gegen unbekannte Konkurrenz — der Aufschlag bliebe
-    die willkürliche „+15 %"-Konstante aus dem Prompt.
+    Bis P2-13 stand der Zähler als `offer_count` im Payload, und der Prompt las
+    ihn als Zahl der Mitbieter. Kickbase zeigt fremde Gebote aber nirgends an
+    (help.kickbase.com, „Warum habe ich den Spieler nicht bekommen?"): der Wert
+    ist die Zahl der *eigenen* Gebote. Das Modell überbot damit systematisch
+    sich selbst und hielt jeden echten Mitbieter für nicht vorhanden.
+
+    Der Name im Payload ist deshalb Teil der Korrektur — ein Feld `offer_count`
+    neben `my_open_bid_price` lädt zur alten Fehldeutung ein, egal was im Prompt
+    steht.
     """
-    assert all("offer_count" in p for p in payload["market"])
-    assert all(isinstance(p["offer_count"], int) for p in payload["market"])
+    assert all("offer_count" not in p for p in payload["market"]), (
+        "`offer_count` ist auf der Kaufseite ein irreführender Name — "
+        "er zählt die eigenen Gebote, nicht die fremden."
+    )
+    assert all(isinstance(p["my_open_bid_count"], int) for p in payload["market"])
+    assert all(p["my_open_bid_count"] >= 0 for p in payload["market"])
+
+
+def test_own_listings_keep_the_incoming_offer_count(payload: dict[str, Any]) -> None:
+    """Auf **eigenen** Listings ist `ofc` echt — dort zählt Kickbase Fremd-Gebote.
+
+    Die Gegenrichtung zum Test oben: die Umbenennung auf der Kaufseite darf das
+    Signal auf der Verkaufsseite nicht mitnehmen. `listing.offer_count` steuert,
+    ob ein Listing gehalten oder in den Sofortverkauf gegeben wird.
+    """
+    listings = [p["listing"] for p in payload["squad"] if p.get("listing")]
+    assert listings, "Cassette ohne eigenes Listing — der Test prüfte nichts."
+    assert all(isinstance(entry["offer_count"], int) for entry in listings)
+    assert all("has_offers" in entry for entry in listings)
+
+
+def test_market_entries_carry_the_drift_horizon(payload: dict[str, Any]) -> None:
+    """Der Drift-Anteil des Overbids braucht die Zahl der Updates bis zum Zuschlag.
+
+    Maßgeblich ist der Marktwert **zum Transferzeitpunkt**; ein Gebot zum
+    heutigen Wert platzt, wenn das 22-Uhr-Update darüber hinweggeht. Ohne
+    `mv_updates_until_expiry` müsste das Modell das aus zwei ISO-Strings
+    herleiten — und genau diese Rechnung ging in der Praxis schief.
+    """
+    for entry in payload["market"]:
+        assert "expires_in_min" in entry
+        assert "mv_updates_until_expiry" in entry
+        updates = entry["mv_updates_until_expiry"]
+        assert updates is None or updates >= 0
+
+
+def test_trading_block_makes_the_slot_economy_visible(payload: dict[str, Any]) -> None:
+    """Trading wird über Kaderplätze gespielt, nicht über Geld (§3a).
+
+    Ohne diesen Block musste das Modell Slot-Auslastung, Buchgewinne und die
+    Zahl laufender Trade-Positionen aus dem `squad`-Array zusammenrechnen. In
+    der Praxis tat es das nicht und handelte fast nur auf Punkte-Motive — der
+    Ertrag zwischen zwei Spieltagen blieb liegen.
+    """
+    trading = payload["trading"]
+    assert trading["phase"] in {"trading", "matchday_prep", "deadline", "unknown"}
+    assert trading["squad_slots_used"] == len(payload["squad"])
+    assert isinstance(trading["unrealized_pnl_total"], int)
+    assert isinstance(trading["profit_positions"], int)
+    # Wie viel dieser Tick ausgeben könnte, bevor die 33 %-Grenze reißt.
+    budget = payload["budget"]
+    expected = budget["current_balance_after_open_bids"] - budget["max_negative_allowed"]
+    assert trading["spendable_before_debt_limit"] == expected
+    # Die Zahl der Marktwert-Updates bis zum Anpfiff ist die Trading-Uhr.
+    updates = trading["mv_updates_until_matchday"]
+    assert updates is None or updates >= 0
+
+
+def test_squad_entries_expose_the_holding_period(payload: dict[str, Any]) -> None:
+    """`days_held` trennt eine frische Position von einer, die nur Platz belegt."""
+    held = [p for p in payload["squad"] if p.get("bought_intent")]
+    assert held, "Kein Kaderspieler mit Kaufhistorie — der Test prüfte nichts."
+    for entry in held:
+        assert entry["days_held"] is None or entry["days_held"] >= 0
+        assert "bought_at_iso" in entry
 
 
 # -- Gap-Assertions: das Definition-of-Done von Phase 1 -------------------

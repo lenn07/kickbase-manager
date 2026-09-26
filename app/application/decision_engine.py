@@ -26,6 +26,12 @@ class BuyRecord:
 
     intent: TradeIntent
     buy_price: Decimal
+    # Wann der Kauf im trade_log steht. Daraus wird `days_held` im USER-JSON:
+    # ein Trade, der seit acht Tagen ohne Zuwachs liegt, bindet einen der 16
+    # Kaderplätze, ohne Rendite zu bringen — und das ist beim Kickbase-Trading
+    # der eigentliche Kostenfaktor, nicht das Geld. `None` bei Käufen ohne
+    # Log-Eintrag (zugelost oder über die App gekauft).
+    bought_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,9 +49,12 @@ class ListingRecord:
     listed_at: datetime | None
     expires_at: datetime | None
     has_offers: bool
-    # Wie viele Gebote (`ofc`). `has_offers` sagt nur ob, das hier sagt wie
-    # stark — der Unterschied zwischen „einer beißt an" und „vier bieten sich
-    # hoch" entscheidet, ob man das Listing hält oder den Preis nachzieht.
+    # Wie viele **eingehende** Gebote (`ofc`). Auf einem eigenen Listing zeigt
+    # Kickbase alle Gebote, die andere Manager abgegeben haben — anders als auf
+    # fremden Listings, wo `ofc` nur die eigenen zählt (siehe `MarketPlayer`).
+    # `has_offers` sagt nur ob, das hier sagt wie stark: der Unterschied
+    # zwischen „einer beißt an" und „vier bieten sich hoch" entscheidet, ob man
+    # das Listing hält oder den Preis nachzieht.
     offer_count: int = 0
 
 

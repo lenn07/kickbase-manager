@@ -117,6 +117,15 @@ Beide denkbaren GET-Endpunkte sind gesperrt (405, siehe §1). Das Array kann dah
 **Rest-Verfahren:** eigenen Spieler listen → warten bis `ofc > 0` → `scripts.inspect_endpoints`
 erneut (schreibt dann `tmp/inspect/offers_found.json`).
 
+> **[2026-09-26, P2-13] `ofc` hat zwei Bedeutungen — je nachdem, wessen Listing es ist.**
+> Auf **eigenen** Listings sind es die eingegangenen Gebote fremder Manager (so wie oben für
+> `/squad` beschrieben). Auf **fremden** Listings im `/market`-Payload zählt es dagegen nur die
+> **eigenen** abgegebenen Gebote: Kickbase zeigt die Gebote anderer Manager nirgends an — der
+> Hilfe-Artikel [„Warum habe ich den Spieler nicht bekommen?"](https://help.kickbase.com/help/ich-habe-auf-einen-spieler-geboten-warum-habe-ich-ihn-nicht-zum-transferzeitpunkt-bekommen)
+> nennt als Kriterien nur höchstes bzw. frühestes Gebot, Kaderlimits und Marktwert zum
+> Transferzeitpunkt, und kein Feld beziffert die Mitbieter. Der Plan führte `ofc` bis dahin als
+> Konkurrenzmaß für die Overbid-Kalibrierung (P2-13) — das war falsch und ist korrigiert.
+
 ### F2 — `prob`-Richtung: **1 = sicherste Startelf** (starke Evidenz, App-Gegenprobe offen)
 > Belegdatei: `docs/samples/market_prob_sample_2026-08-31.json`. Die Cassette vom 31.08. wurde
 > in P0-0.3 durch eine aktuelle ersetzt, und Kickbase liefert `prob` außerhalb der
