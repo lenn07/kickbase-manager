@@ -247,3 +247,50 @@ def test_prompt_does_not_promise_the_rivals_names() -> None:
     """
     prompt = load_system_prompt()
     assert "Namen stehen dort bewusst nicht" in prompt
+
+
+def test_prompt_puts_the_season_clock_next_to_the_matchday_clock() -> None:
+    """P2-14: zwei Uhren, und der Prompt muss sagen, welche wofür gilt.
+
+    `phase` misst bis zum Anpfiff, `season_phase` bis zum Saisonende. Fehlt die
+    zweite, tradet der Bot im Mai weiter, als wäre im August — der Gewinn käme
+    dann zu spät, um noch in Punkte umgesetzt zu werden.
+    """
+    prompt = load_system_prompt()
+    assert "`trading.season_phase`" in prompt
+    for label in ("`regular`", "`endgame`", "`over`"):
+        assert label in prompt, f"Saisonphase {label} fehlt in §1"
+    assert "Trading fällt aus der Zielhierarchie" in prompt
+    # Der Ausfall muss geregelt sein, sonst rät das Modell.
+    assert "`unknown`" in prompt
+
+
+def test_prompt_puts_the_squad_limit_where_the_buy_impulse_is() -> None:
+    """Die Regel stand in §1.1 — und wurde trotzdem dreimal überfahren.
+
+    Im bezahlten Eval-Lauf vom 2026-09-26 kaufte das Modell bei
+    `squad_slots_left: 0` mit der Begründung „Kaderplatz frei nach Verkauf".
+    Der Denkfehler sitzt in §2: dort steht, dass pro Tick **eine** Aktion
+    ausgeführt wird, und genau dort muss auch stehen, was das für einen Kauf
+    bei vollem Kader bedeutet. Eine Regel am falschen Ort ist keine Regel.
+    """
+    prompt = load_system_prompt()
+    assert "**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.**" in prompt
+    assert "pro Tick wird genau eine Aktion ausgeführt" in prompt
+    assert "Kaderplatz wird nach dem\nVerkauf frei" in prompt
+
+
+def test_season_phase_and_risk_appetite_do_not_overwrite_each_other() -> None:
+    """Der Konflikt, den der Eval-Schlusslauf von P2-14 gefunden hat.
+
+    `season_phase: endgame` (P2-14) und der Risikoappetit (P2-12) stehen beide
+    in §1. Ohne die Abgrenzung las das Modell „wenig Zeit" als „sicher spielen"
+    und wählte bei 3000 Punkten Rückstand den verlässlichen 95-Punkte-Mann —
+    also genau die Option, die den Abstand konserviert.
+
+    Die Achsen sind unabhängig: die Saisonphase entscheidet **was** (Punkte
+    statt Marktwert), der Ligastand **wie riskant**.
+    """
+    prompt = load_system_prompt()
+    assert "sagt, *was* du tust — nicht, *wie riskant*" in prompt
+    assert "unabhängig von `trading.season_phase`" in prompt

@@ -6,10 +6,13 @@ auf — nach dem Modell-Call, nicht davor. Deshalb läuft er im Default-Run mit.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.application.ai_decision_engine import _build_user_payload
 from app.domain.trade import TradeAction
 
 from tests.eval.scenarios import SCENARIOS
+from tests.eval.test_prompt_eval import _REJECTED_MARKER, _TRANSPORT_MARKER
 
 
 def test_every_scenario_builds_a_valid_payload() -> None:
@@ -196,3 +199,65 @@ def test_the_mirrored_league_scenarios_differ_only_in_the_table() -> None:
     assert trailing["league"]["my_rank"] == 4
     assert leading["league"]["my_rank"] == 1
     assert trailing["league"]["matchdays_left"] == leading["league"]["matchdays_left"] == 2
+
+
+def test_the_mirrored_season_scenarios_differ_only_in_the_clock() -> None:
+    """Das Paar aus P2-14 belegt seine Regel nur, wenn sonst alles gleich ist.
+
+    Zwei Szenarien, ein Unterschied: Spieltag 4 gegen Spieltag 31. Weicht noch
+    etwas anderes ab, kann ein abweichendes Modellverhalten auch daher kommen —
+    dann misst das Paar nicht die Saisonphase, sondern irgendetwas.
+
+    Der `trading`-Block darf sich unterscheiden, aber **nur** in den beiden
+    Feldern, die die Saison-Uhr ausmachen.
+    """
+    by_name = {s.name: s for s in SCENARIOS}
+    early = _build_user_payload(by_name["early_season_trades_for_capital"].context)
+    late = _build_user_payload(by_name["endgame_stops_pure_trading"].context)
+
+    for block in ("squad", "market", "lineup", "budget", "constraints"):
+        assert early[block] == late[block], f"Block `{block}` unterscheidet sich"
+
+    season_fields = {"season_phase", "matchdays_left"}
+    for key in early["trading"]:
+        if key in season_fields:
+            continue
+        assert early["trading"][key] == late["trading"][key], (
+            f"`trading.{key}` unterscheidet sich, gehört aber nicht zur Saison-Uhr"
+        )
+
+    assert early["trading"]["season_phase"] == "regular"
+    assert late["trading"]["season_phase"] == "endgame"
+    assert early["trading"]["matchdays_left"] == 30
+    assert late["trading"]["matchdays_left"] == 3
+
+
+def test_every_scenario_carries_a_season_phase() -> None:
+    """Ohne Saison-Uhr fiele jedes Szenario auf `unknown` zurück — und der Prompt
+    entschiede dann ausdrücklich ohne sie."""
+    for scenario in SCENARIOS:
+        trading = _build_user_payload(scenario.context)["trading"]
+        assert trading["season_phase"] in {"regular", "endgame", "over"}, scenario.name
+        assert trading["matchdays_left"] is not None, scenario.name
+
+
+def test_the_eval_knows_both_fallback_markers_of_the_engine() -> None:
+    """Die Eval unterscheidet Transportfehler von zurückgewiesenen Antworten.
+
+    Beide erscheinen als HOLD mit `AI-Only-Fallback`-Präfix und bedeuten das
+    Gegenteil voneinander — Timeout heißt „nie beim Modell gewesen",
+    zurückgewiesen heißt „Modell hat geantwortet und eine Regel verletzt".
+    Driften die Textbausteine in `ai_decision_engine.py` von denen im Eval-Test
+    ab, meldet die Eval einen echten Prompt-Befund als Infrastrukturfehler.
+    Dieser Test läuft im Default-Run und fängt das ab, bevor jemand Geld für
+    einen Lauf ausgibt.
+    """
+    engine_source = (
+        Path(__file__).resolve().parents[2] / "app" / "application" / "ai_decision_engine.py"
+    ).read_text(encoding="utf-8")
+    for marker in (_TRANSPORT_MARKER, _REJECTED_MARKER):
+        prefix = marker.removeprefix("AI-Only-Fallback ")
+        assert f"AI-Only-Fallback {prefix}" in engine_source, (
+            f"Marker {marker!r} steht nicht mehr in der Engine — `_reject_fallbacks` "
+            "würde diesen Fall nicht mehr erkennen."
+        )

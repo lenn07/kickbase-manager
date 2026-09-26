@@ -1341,6 +1341,101 @@ def _leading_late_protects_the_lead() -> Scenario:
     )
 
 
+def _pure_trading_candidate() -> Player:
+    """Ein reiner Marktwert-Kandidat: steigt, punktet aber kaum.
+
+    Die Trennung ist der ganze Punkt von P2-14. Ein Spieler, der *beides* kann,
+    wäre auch am 33. Spieltag ein richtiger Kauf — dann prüfte das Szenario
+    nicht die Saisonphase, sondern nur, ob das Modell gute Spieler erkennt.
+    40 Punkte Schnitt bei 50 % Startelf schließen den Punkte-Grund aus; bleibt
+    der Marktwert, und genau der verliert zum Saisonende seinen Zweck.
+    """
+    return _player(
+        "995", "Steigt, punktet nicht", Position.DEFENDER, 5_000_000, average_points=40.0
+    )
+
+
+def _season_phase_context(*, matchday: int) -> DecisionContext:
+    """Dieselbe Lage, zweimal — einziger Unterschied ist der Spieltag.
+
+    Vier freie Kaderplätze, Elf vollständig, Konto im Plus, sechs Tage bis zum
+    Anpfiff und ein klar steigender Kandidat. In der `trading`-Phase ist das
+    die Lage, in der §3a einen Kauf verlangt (`trading_window_fills_free_slots`
+    misst genau das). Ob er noch legitim ist, hängt allein an
+    `league.matchdays_left`.
+    """
+    riser = _pure_trading_candidate()
+    return _context(
+        squad_players=_squad_of_twelve(),
+        market_players=[riser],
+        cash=22_000_000,
+        team_value=150_000_000,
+        minutes_until_matchday=6 * 24 * 60,
+        enrichment_overrides={
+            riser.id: _enrichment(
+                riser,
+                trend_7d=6.5,
+                trend_1d=1.4,
+                start_probability=0.50,
+                minutes_last5=45.0,
+                starts_last5=1,
+                mv_max_30d_pct=1.15,
+            )
+        },
+        market_expiry_s=30 * 3600,
+        league_ranking=_ranking(matchday=matchday),
+    )
+
+
+def _early_season_trades_for_capital() -> Scenario:
+    """Spieltag 4 von 34: 30 Spieltage, um Kapital in Punkte zu verwandeln.
+
+    Die Gegenprobe zu `endgame_stops_pure_trading`. Ohne sie hiesse ein grünes
+    Endgame-Szenario nur „der Bot kauft nichts" — erst der Kontrast belegt,
+    dass er nach der **Saisonphase** unterscheidet und nicht nach dem Spieler.
+    """
+    return Scenario(
+        name="early_season_trades_for_capital",
+        description="Spieltag 4/34, 4 freie Kaderplaetze, klarer Steiger, 22 Mio Cash",
+        context=_season_phase_context(matchday=4),
+        allowed=frozenset({TradeAction.BUY}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.SELL, TradeAction.ACCEPT_OFFER}),
+        min_bid_ratio=1.0,
+        max_bid_ratio=1.08,
+        rule=(
+            "In der `trading`-Phase bei `season_phase: regular` gehen Marktwert-Gewinne vor "
+            "Punkten; ein freier Kaderplatz ist eine Position ohne Rendite (§1, §3a)"
+        ),
+    )
+
+
+def _endgame_stops_pure_trading() -> Scenario:
+    """Spieltag 31 von 34: derselbe Steiger, drei Spieltage übrig.
+
+    Marktwert ist kein Siegkriterium, sondern Kapital — und Kapital zählt erst,
+    wenn es in Spieler umgesetzt ist, die noch auflaufen. Die Kette aus Kaufen,
+    Halten, Verkaufen und Nachkaufen reicht in drei Spieltagen nicht mehr
+    durch; am letzten Spieltag ist ein volles Konto exakt null Punkte wert.
+
+    Der Kandidat trägt hier die Beweislast: 40 Punkte Schnitt bei 50 %
+    Startelf-Wahrscheinlichkeit taugt nicht als Punkte-Kauf, also bleibt nur
+    der Marktwert-Grund — und der ist weg. `BUY` ist damit die einzige Aktion,
+    die diese Lage verbietet.
+    """
+    return Scenario(
+        name="endgame_stops_pure_trading",
+        description="Spieltag 31/34, 3 Spieltage uebrig, sonst identisch zum Trading-Szenario",
+        context=_season_phase_context(matchday=31),
+        allowed=frozenset({TradeAction.HOLD, TradeAction.LIST_ON_MARKET, TradeAction.SELL}),
+        forbidden=frozenset({TradeAction.BUY, TradeAction.ACCEPT_OFFER}),
+        rule=(
+            "`season_phase: endgame` nimmt das Trading aus der Zielhierarchie: ein Kauf allein "
+            "wegen steigendem Marktwert kann bis zum Saisonende nicht mehr in Punkte "
+            "umgesetzt werden (§1)"
+        ),
+    )
+
+
 SCENARIOS: tuple[Scenario, ...] = (
     _debt_before_kickoff(),
     _healthy_and_quiet(),
@@ -1365,4 +1460,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     # P2-12: Ligakontext — dieselbe Lage, gespiegelter Tabellenstand.
     _trailing_late_needs_variance(),
     _leading_late_protects_the_lead(),
+    # P2-14: Saisonphasen-Gewichtung — dieselbe Lage, frueh und spaet in der Saison.
+    _early_season_trades_for_capital(),
+    _endgame_stops_pure_trading(),
 )

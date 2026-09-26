@@ -325,7 +325,13 @@ def _validate_against_context(
     if action is TradeAction.BUY:
         if player_id not in {mp.player.id for mp in context.market}:
             raise _InvalidDecisionError(f"BUY auf Spieler {player_id!r}, der nicht am Markt ist")
-        _reject_pointless_rebid(player_id, price, context)
+        if player_id in context.open_bids:
+            # Eine Erhöhung des eigenen Gebots braucht **keinen** weiteren
+            # Kaderplatz — das laufende Gebot belegt ihn schon. Deshalb hier
+            # nur die Rebid-Prüfung, nicht die Slot-Sperre.
+            _reject_pointless_rebid(player_id, price, context)
+            return
+        _reject_buy_without_a_squad_slot(context)
         return
 
     in_squad = player_id in {sp.player.id for sp in context.squad.players}
@@ -333,6 +339,38 @@ def _validate_against_context(
         raise _InvalidDecisionError(
             f"{action.value} für Spieler {player_id!r}, der nicht im Kader steht"
         )
+
+
+def _reject_buy_without_a_squad_slot(context: DecisionContext) -> None:
+    """Blockt einen Kauf, für den kein Kaderplatz frei ist.
+
+    Kickbase lehnt ein solches Gebot **bei der Abgabe** ab: der Tick ist
+    verbraucht, im Log steht ein Executor-Fehler, und der Kaderplatz ist
+    weiterhin belegt. §1.1 des Prompts sagt das seit P1-9 ausdrücklich — im
+    bezahlten Eval-Lauf vom 2026-09-26 wählte das Modell trotzdem dreimal
+    einstimmig `BUY` bei `squad_slots_left: 0`, mit Begründungen wie
+    „Kaderplatz frei nach Verkauf". Das ist der Denkfehler: pro Tick wird genau
+    **eine** Aktion ausgeführt, der geplante Verkauf findet also nicht statt.
+
+    Dieselbe Antwort wie bei D3 (`_reject_pointless_rebid`): eine Regel, die im
+    Betrieb Geld und Ticks kostet, gehört in den Code und nicht in einen
+    Appell. Der Prompt behält sie zusätzlich — ein blockiertes `BUY` wird zu
+    `HOLD`, und ein `HOLD` ist hier fast nie die beste Aktion (der Verkauf
+    wäre es).
+
+    **Kein Limit bekannt heißt nicht „keiner frei":** ist `squad_limit` `None`,
+    greift die Sperre nicht. Sonst hielte eine Datenlücke den Bot dauerhaft vom
+    Kaufen ab (Plan §9).
+    """
+    limits = context.constraints
+    slots_left = limits.squad_room_left(len(context.squad.players), len(context.open_bids))
+    if slots_left is None or slots_left > 0:
+        return
+    raise _InvalidDecisionError(
+        f"BUY, aber der Kader ist voll: {len(context.squad.players)} Spieler bei Limit "
+        f"{limits.squad_limit} und {len(context.open_bids)} offenen Geboten. Kickbase lehnt "
+        "das Gebot schon bei der Abgabe ab. Erst verkaufen, dann im nächsten Tick kaufen."
+    )
 
 
 def _reject_pointless_rebid(
@@ -555,6 +593,40 @@ _TRADING_PHASE_DEADLINE_MIN = 120
 _TRADING_PHASE_PREP_MIN = 24 * 60
 _MV_UPDATE_PERIOD_MIN = 24 * 60
 
+# Ab wie vielen **verbleibenden** Spieltagen das Trading sein Ziel verliert.
+# Acht, also ab Spieltag 26 von 34 (Plan §6/P2-14).
+#
+# Die Zahl folgt aus dem Zweck des Tradings, nicht aus einer Kurve: Marktwert
+# ist kein Siegkriterium, sondern Kapital, und Kapital zählt erst, wenn es in
+# Spieler umgesetzt ist, die noch punkten. Ein Trade-Zyklus braucht einige Tage
+# bis zum Verkauf, der Nachkauf einen weiteren Tick, und der neue Spieler
+# braucht Spieltage, an denen er aufläuft. Bleiben weniger als acht, reicht die
+# Kette nicht mehr durch — am letzten Spieltag ist ein Konto voller Geld exakt
+# null Punkte wert.
+_SEASON_ENDGAME_MATCHDAYS_LEFT = 8
+
+
+def _season_phase(context: DecisionContext) -> str:
+    """Wo in der **Saison** dieser Tick steht — als Label, nicht als Rechnung.
+
+    Dasselbe Muster wie `_trading_phase` und aus demselben Grund: die Grenze
+    stand bisher nur als Prosa im Prompt, und das Modell musste sie aus
+    `league.matchdays_left` selbst herleiten. Eine Herleitung, die schiefgehen
+    kann, entscheidet dann darüber, ob ein Trade überhaupt noch legitim ist.
+
+    `unknown` heißt, dass die Ligatabelle fehlt — dann gilt weiter die
+    Spieltags-Logik aus `phase`, und der Prompt sagt es ausdrücklich.
+    """
+    ranking = context.league_ranking
+    left = ranking.matchdays_left if ranking is not None else None
+    if left is None:
+        return "unknown"
+    if left <= 0:
+        return "over"
+    if left <= _SEASON_ENDGAME_MATCHDAYS_LEFT:
+        return "endgame"
+    return "regular"
+
 
 def _trading_phase(minutes_until_matchday: int | None) -> str:
     """Welches Ziel in diesem Tick vorgeht — als Label, nicht als Rechenaufgabe.
@@ -602,7 +674,12 @@ def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
     Praxis tat es das nicht und handelte deshalb fast nur auf Punkte-Motive.
     """
     squad_size = len(context.squad.players)
-    slots_free = context.constraints.squad_room_left(squad_size)
+    # Offene Gebote zählen mit: Kickbase rechnet sie gegen das Kaderlimit, und
+    # der Prompt sagt das in §1.1 auch. Bis P2-14 tat die **Zahl** es nicht —
+    # bei 15/16 Spielern und einem laufenden Gebot wies der Payload einen
+    # freien Platz aus, den es nicht gab, und lud damit zu genau dem Kauf ein,
+    # den Kickbase ablehnt.
+    slots_free = context.constraints.squad_room_left(squad_size, len(context.open_bids))
     pnl_total = sum(
         (sp.unrealized_pnl for sp in context.squad.players if sp.unrealized_pnl is not None),
         Decimal(0),
@@ -613,6 +690,13 @@ def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
     _, minutes_until_matchday = _time_until(now, context.next_matchday_start, context.interval_min)
     return {
         "phase": _trading_phase(minutes_until_matchday),
+        # Die zweite, langsame Uhr: `phase` misst den Abstand zum nächsten
+        # Anpfiff, `season_phase` den zum Saisonende. Beide zusammen sagen, ob
+        # ein Trade noch Zeit hat, sich in Punkte zu verwandeln.
+        "season_phase": _season_phase(context),
+        "matchdays_left": (
+            context.league_ranking.matchdays_left if context.league_ranking else None
+        ),
         # Wie viele Marktwert-Bewegungen bis zum Anpfiff überhaupt noch kommen.
         "mv_updates_until_matchday": _mv_updates_between(
             context.mv_update_at, context.next_matchday_start
@@ -671,7 +755,8 @@ def _constraints_block(context: DecisionContext) -> dict[str, Any]:
         "interval_min": context.interval_min,
         # Liga-Regeln von Kickbase.
         "squad_limit": limits.squad_limit,
-        "squad_slots_left": limits.squad_room_left(squad_size),
+        # Wie in `_trading_block`: offene Gebote belegen Kaderplätze.
+        "squad_slots_left": limits.squad_room_left(squad_size, len(context.open_bids)),
         "club_limit": limits.club_limit,
         "club_limit_is_unlimited": limits.club_limit_is_unlimited,
         "players_per_club": dict(limits.players_per_club),

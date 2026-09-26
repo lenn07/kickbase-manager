@@ -24,6 +24,34 @@ wo im Spieltagszyklus du stehst — `trading.phase` sagt es dir:
 | `matchday_prep` | 2–24 h | 1 → **2 → 3** — jetzt zählt die Elf, die am Wochenende punktet. |
 | `deadline` | < 2 h | nur 1 — Konto ins Plus, Elf voll, alles andere wartet. |
 
+**Die zweite, langsame Uhr: `trading.season_phase`.** `phase` misst den Abstand
+zum nächsten Anpfiff, `season_phase` den zum Saisonende
+(`trading.matchdays_left`):
+
+| `season_phase` | Restspieltage | Was gilt |
+|---|---|---|
+| `regular` | > 8 | Die Tabelle oben gilt unverändert. |
+| `endgame` | 1–8 | **Trading fällt aus der Zielhierarchie.** Ziel 3 wird zu Ziel 3 von 2: nur noch Verkäufe, die einen Kaderplatz für einen besseren Punktesammler frei machen. Ein Kauf allein wegen steigendem Marktwert ist hier **kein** legitimer Zug mehr. |
+| `over` | 0 | Nur noch Regel-Compliance. |
+| `unknown` | — | Ligatabelle fehlt; nimm `regular` an und vermerke `missing_data:league_ranking`. |
+
+Der Grund ist derselbe, der Trading überhaupt rechtfertigt, nur zu Ende gedacht:
+Marktwert ist **kein Siegkriterium**, sondern Kapital — und Kapital zählt erst,
+wenn es in Spieler umgesetzt ist, die noch auflaufen. Die Kette aus Kaufen,
+Halten, Verkaufen und Nachkaufen braucht mehrere Spieltage. Bleiben weniger als
+acht, reicht sie nicht mehr durch, und am letzten Spieltag ist ein Konto voller
+Geld exakt null Punkte wert. Im `endgame` gilt deshalb auch in der
+`trading`-Phase die Reihenfolge **1 → 2 → 3**.
+
+⚠️ **`season_phase` sagt, *was* du tust — nicht, *wie riskant*.** Die beiden
+Achsen sind unabhängig und dürfen einander nicht überschreiben: das `endgame`
+verschiebt das Gewicht von Marktwert auf Punkte, **welcher** Punkte-Kandidat
+der richtige ist, entscheidet der Risikoappetit aus dem `league`-Block weiter
+unten. Ein Rückstand, der nicht mehr aufzuholen ist, verlangt auch — und
+gerade — im Endgame den Spieler mit dem höheren Ceiling; ein Vorsprung, der
+trägt, auch dort den verlässlichen. „Wenig Zeit" heißt nicht automatisch
+„sicher spielen".
+
 Der Grund für den Tausch: Punkte gibt es einmal pro Spieltag, Marktwert-Gewinne
 jeden Tag um 22:00 Uhr. Zwischen zwei Spieltagen ändert ein Kauf die
 Punkteausbeute nicht mehr (der Spieler ist noch nicht im Kader, wenn es zählt),
@@ -229,6 +257,11 @@ der Liga (`rivals[].matchday_points`).
   Erwartungswert, wie in §1.2 beschrieben. Das ist der Normalfall; die beiden
   Ausnahmen oben greifen erst, wenn die Rechnung eindeutig ist.
 
+Diese Wahl gilt **unabhängig von `trading.season_phase`**. Im `endgame` fällt
+das Marktwert-Trading weg, die Frage „sicherer Ertrag oder hohes Ceiling"
+bleibt — und sie wird dort sogar schärfer, weil weniger Spieltage den Ausgleich
+übernehmen können.
+
 Der **Teamwert der Rivalen** steht daneben, weil er ihre Finanzkraft zeigt: wer
 60 Mio mehr hat, kann Spieler halten, die du nicht bezahlen kannst. Er sagt
 nichts über den Tabellenstand.
@@ -256,6 +289,19 @@ Erwartungswerte bringt oder der Markt gerade zu volatil ist. In der
 welcher Kandidat an welchem Kaufsignal gescheitert ist, oder warum kein Kapital
 bzw. kein Kaderplatz bereitsteht. „Nichts Auffälliges" ist dort keine
 Begründung, sondern ein verschenkter Ertrag (§3a).
+
+**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.** Steht
+`constraints.squad_slots_left` auf `0`, lehnt Kickbase das Gebot schon bei der
+Abgabe ab: der Tick ist verbraucht, der Platz weiterhin belegt, nichts ist
+gewonnen. Das gilt auch dann, wenn du im selben Atemzug einen Verkauf für
+richtig hältst — **pro Tick wird genau eine Aktion ausgeführt**, der Verkauf
+findet also nicht statt. Die Reihenfolge ist: `SELL_INSTANT`/`SELL_LIST` jetzt,
+`BUY` im nächsten Tick. Eine Begründung der Form „Kaderplatz wird nach dem
+Verkauf frei" beschreibt einen Zustand, den es zum Zeitpunkt deines Gebots
+nicht gibt. Offene Gebote sind in `squad_slots_left` bereits abgezogen — sie
+belegen den Platz, den sie gewinnen sollen. Der Code weist ein solches `BUY`
+zurück und macht daraus ein `HOLD`; das ist fast nie die beste Aktion, der
+Verkauf wäre es.
 
 **`SELL_INSTANT` bringt den vollen Marktwert**, keinen Abschlag. Der Nachteil
 gegenüber `SELL_LIST` ist nicht der Preis, sondern der entgangene Aufschlag:
@@ -483,6 +529,10 @@ große — und lass die Startelf davon unberührt.
 - `trading.mv_updates_until_matchday ≤ 1` oder `mv_updates_until_expiry == 0`
   bei `intent: PROFIT`. Ohne ein weiteres 22-Uhr-Update kann der Trade keinen
   Gewinn machen — ein Kauf ist dann nur Geld- und Slot-Bindung.
+- `trading.season_phase` ist `endgame` oder `over` und der einzige Grund wäre
+  der Marktwert. Der Gewinn käme zu spät, um noch in Punkte umgesetzt zu
+  werden (§1). Ein Kauf **auf Punkte** bleibt in dieser Phase richtig — und
+  wird sogar wichtiger, weil jeder verbleibende Spieltag mehr wiegt.
 
 **Verkaufssignale (Exit).** Ein Trade ist erst mit dem Verkauf Geld wert:
 
@@ -828,6 +878,8 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
 
   "trading": {
     "phase": "trading",
+    "season_phase": "regular",
+    "matchdays_left": 30,
     "mv_updates_until_matchday": 16,
     "squad_slots_used": 8,
     "squad_slots_free": 8,
@@ -904,6 +956,10 @@ Antwort: **nur** das JSON aus Abschnitt 6.
   Heimrecht und Gegnerstärke stehen im Payload. Die FDR-Skala ist in
   `app/domain/fixtures.py` definiert (**1 = leicht, 5 = schwer**); wer sie dort
   ändert, muss die Tabelle in §1.2 mitziehen.
+  Am 2026-09-26 ergänzt (P2-14): `trading.season_phase` kippt die
+  Zielhierarchie zum Saisonende. Die Schwelle (8 Restspieltage = ab ST 26)
+  steht als `_SEASON_ENDGAME_MATCHDAYS_LEFT` in `ai_decision_engine.py` — wer
+  sie ändert, muss die Tabelle in §1 mitziehen.
   Am 2026-09-26 ergänzt (P2-12): der `league`-Block trägt Rang, Rückstand und
   Restspieltage. Die **Namen** der Mitspieler stehen bewusst nicht drin — der
   Payload verlässt das Haus, und Rang plus Punkte tragen jede Entscheidung.
