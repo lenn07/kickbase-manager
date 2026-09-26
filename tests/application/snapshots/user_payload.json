@@ -1,6 +1,7 @@
 {
   "budget": {
     "cash": -380069,
+    "cash_needed_before_kickoff": 380069,
     "current_balance_after_open_bids": -380069,
     "max_negative_allowed": -48968009,
     "open_bids_count": 0,

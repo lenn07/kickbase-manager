@@ -814,3 +814,18 @@ def test_season_phase_is_the_second_slow_clock(payload: dict[str, Any]) -> None:
     # Die beiden Uhren dürfen nicht durcheinandergeraten.
     assert trading["phase"] == "trading"
     assert trading["matchdays_left"] == payload["league"]["matchdays_left"]
+
+
+def test_the_deficit_is_a_number_not_a_calculation(payload: dict[str, Any]) -> None:
+    """Wie viel bis zum Anpfiff hereinkommen muss, steht als Zahl im Payload.
+
+    Im bezahlten Lauf vom 2026-09-26 verkaufte das Modell bei 10 Mio Minus
+    einen Spieler für 1 Mio und schrieb selbst dazu „weitere Verkäufe nötig" —
+    45 Minuten vor Anpfiff. Ein negatives Konto kostet **alle** Punkte des
+    Spieltags, nicht anteilig weniger; eine Aktion, die das Minus nicht deckt,
+    ist keine halbe Lösung, sondern gar keine.
+    """
+    budget = payload["budget"]
+    assert budget["cash_needed_before_kickoff"] == max(0, -budget["cash"])
+    # Der Snapshot steht bei -380.069 — also ist etwas zu decken.
+    assert budget["cash_needed_before_kickoff"] > 0

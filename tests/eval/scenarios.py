@@ -1442,42 +1442,51 @@ def _endgame_stops_pure_trading() -> Scenario:
 
 
 def _deadline_needs_two_actions() -> Scenario:
-    """Anpfiff in 45 Minuten: Konto im Minus **und** ein leerer Startelf-Slot.
+    """Anpfiff in 45 Minuten, Konto -6 Mio — und nur ein Startelf-Spieler bringt genug.
 
-    Der Fall, für den P2-16 gebaut wurde. Zwei harte Regeln verletzt, beide
-    mit derselben Deadline: um 20:30 friert die Aufstellung ein und das Konto
-    muss im Plus sein. Jede einzelne Aktion löst nur die Hälfte —
-    `SELL_INSTANT` bringt Geld und reisst dabei die Elf noch weiter auf,
-    `SET_LINEUP` schliesst die Lücke und lässt das Minus stehen. Mit einer
-    Aktion pro Tick ist die Lage vor dem Anpfiff nicht mehr zu retten; der
-    nächste Tick käme nach Spielbeginn.
+    Der Fall, für den P2-16 gebaut wurde, in seiner **echten** Form. Die erste
+    Fassung dieses Szenarios hatte einen leeren Startelf-Slot und verlangte
+    „verkaufen + aufstellen". Das Modell lieferte dreimal einstimmig nur den
+    Verkauf — und lag damit richtig: §2 sagt ausdrücklich, dass der Code die elf
+    Slots **vor** dem Aufruf sicherstellt (der Startelf-Guard aus P0-4). Ein
+    leerer Slot ist nichts, was das Modell auffüllen müsste. Ein Szenario, das
+    eine Aktion verlangt, die der Prompt für unnötig erklärt, misst nicht den
+    Prompt, sondern seinen eigenen Fehler.
 
-    Geprüft wird deshalb die **Kettenlänge**: mindestens zwei Aktionen. Welche
-    zuerst kommt, bleibt dem Modell überlassen — beide Reihenfolgen sind
-    vertretbar, solange am Ende beides erledigt ist.
+    Die Elf steht hier deshalb **vollständig** — der Guard hatte nichts zu tun.
+    Das Loch entsteht erst durch die Aktion: der Bankspieler bringt mit 1 Mio
+    offensichtlich nicht genug, um die 10 Mio Minus zu decken, also muss ein
+    **Startelf**-Spieler weg. Und was danach fehlt, schliesst kein Guard mehr:
+    er läuft vor der Modell-Abfrage, nicht danach. Zwei Aktionen, ein Tick,
+    keine zweite Chance.
+
+    **Der Abstand ist Absicht.** In der ersten Fassung stand der Bankspieler bei
+    5 Mio und das Minus bei 6 — nah genug, dass das Modell ihn verkaufte und
+    das Konto bei -1 Mio stehen liess. Damit prüfte das Szenario zwei Dinge
+    gleichzeitig (den richtigen Spieler **und** die Kette) und verstiess gegen
+    das Prinzip aus dem Modul-Docstring: genau ein Faktor darf variieren.
     """
-    # 12 Spieler, aber nur 10 in der Elf: ein Slot ist leer, und es gibt genug
-    # Ersatz, um ihn per SET_LINEUP zu schliessen.
-    squad = _squad_of_twelve()
+    squad = [p for p in _squad_of_twelve() if p.id != "501"]
+    squad.append(_player("501", "Bankspieler", Position.DEFENDER, 1_000_000, average_points=40.0))
     return Scenario(
         name="deadline_needs_two_actions",
-        description="Anpfiff in 45 min, Konto -6 Mio, 1 leerer Startelf-Slot, Bank besetzt",
+        description=(
+            "Anpfiff in 45 min, Konto -10 Mio, volle Elf — nur ein Startelf-Spieler deckt das Minus"
+        ),
         context=_context(
             squad_players=squad,
-            market_players=[_player("998", "Notverkauf-Ersatz", Position.MIDFIELDER, 5_000_000)],
-            cash=-6_000_000,
+            market_players=[_player("998", "Nicht relevant", Position.MIDFIELDER, 5_000_000)],
+            cash=-10_000_000,
             team_value=150_000_000,
             minutes_until_matchday=45,
-            placed_in_lineup=10,
         ),
         allowed=frozenset({TradeAction.SELL, TradeAction.LIST_ON_MARKET, TradeAction.SET_LINEUP}),
         forbidden=frozenset({TradeAction.HOLD, TradeAction.BUY}),
-        expects_full_lineup=False,
         min_chain_length=2,
         rule=(
-            "Im Deadline-Fenster duerfen bis zu drei Aktionen in einer Kette laufen. Konto >= 0 "
-            "und eine volle Elf sind beide hart und beide bis 20:30 faellig — eine Aktion loest "
-            "nur eine der beiden (§2, Mehrere Aktionen)"
+            "Der Verkauf eines Startelf-Spielers reisst ein Loch, das der Startelf-Guard nicht "
+            "mehr schliesst — er laeuft **vor** der Modell-Abfrage. Im Deadline-Fenster gehoert "
+            "`SET_LINEUP` deshalb in dieselbe Kette (§1.1, §2)"
         ),
     )
 

@@ -973,6 +973,17 @@ def _budget_block(context: DecisionContext) -> dict[str, Any]:
         "open_bids_count": len(context.open_bids),
         "max_negative_allowed": _int(context.max_negative_allowed),
         "current_balance_after_open_bids": _int(context.current_balance_after_open_bids),
+        # Wie viel bis zum Anpfiff hereinkommen **muss**, damit das Konto nicht
+        # negativ ist. 0 heisst: nichts zu tun.
+        #
+        # Steht als Zahl da, weil die Rechnung sonst schiefgeht: im bezahlten
+        # Lauf vom 2026-09-26 verkaufte das Modell bei 10 Mio Minus einen
+        # Spieler für 1 Mio und schrieb selbst dazu „weitere Verkäufe nötig" —
+        # 45 Minuten vor Anpfiff, wo es kein „weiter" mehr gibt. Ein negatives
+        # Konto zum Anpfiff kostet **alle** Punkte des Spieltags; eine Aktion,
+        # die das Minus nicht deckt, ist deshalb keine halbe Lösung, sondern
+        # gar keine.
+        "cash_needed_before_kickoff": max(0, -_int(context.budget)),
     }
 
 

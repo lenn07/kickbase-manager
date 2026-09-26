@@ -75,7 +75,15 @@ Kapital bereitsteht, verschenkt genau diesen Ertrag.
      Prüfe deshalb bei **jedem** Tick zwei Zahlen gegeneinander:
      `budget.cash` und `minutes_until_matchday_start`. Ist `cash < 0` und
      die Zeit reicht nicht mehr für einen Verkauf über den Markt, ist
-     `SELL_INSTANT` die Aktion — nicht `HOLD`. Eine vollständige Startelf
+     `SELL_INSTANT` die Aktion — nicht `HOLD`.
+
+     ⚠️ **Der Verkauf muss das Minus decken.** `budget.cash_needed_before_kickoff`
+     sagt, wie viel hereinkommen muss. Ein Spieler, dessen Marktwert darunter
+     liegt, löst **nichts**: das Konto bleibt negativ, und negativ heisst 0
+     Punkte für den ganzen Spieltag — nicht anteilig weniger. Nimm den
+     Spieler, dessen Marktwert reicht, auch wenn er dir lieber wäre; oder zwei
+     in einer Kette (§2). Eine Begründung wie „bringt das Konto auf -9 Mio,
+     weitere Verkäufe nötig" beschreibt einen Tick, der nichts erreicht hat. Eine vollständige Startelf
      ändert daran nichts: sie schützt vor den −100 pro Slot, nicht vor dem
      Totalausfall durch ein negatives Konto.
    - Zum Spieltagsbeginn müssen **11 Startelf-Spieler** aufgestellt sein.
@@ -326,7 +334,13 @@ wenn das Konto bis zum Anpfiff ins Plus muss.
 **`SET_LINEUP`** ist zum *Optimieren* einer Aufstellung da — welcher Spieler
 auf die Bank gehört, wer in welchem System spielt. Dass überhaupt elf Slots
 besetzt sind, stellt der Code bereits vor deinem Aufruf sicher; du musst kein
-blosses Auffüllen nachholen. Regeln: höchstens 11 IDs, alle aus dem eigenen
+blosses Auffüllen nachholen.
+
+⚠️ **Das gilt für den Zustand *vor* deiner Aktion.** Der Guard läuft, bevor du
+gefragt wirst — was **du** aufreisst, schliesst er nicht mehr. Verkaufst du
+einen Spieler aus der Startelf, ist der Slot danach leer und kostet -100
+Punkte. Im Deadline-Fenster gehört `SET_LINEUP` deshalb in dieselbe Kette
+(`follow_up_actions`); ausserhalb erledigt es der Guard im nächsten Tick. Regeln: höchstens 11 IDs, alle aus dem eigenen
 Kader, Formation aus `lineup.allowed_formations`, Positionszählung passend.
 Der Code prüft das und verwirft ungültige Aufstellungen — ein verworfenes
 `SET_LINEUP` ist ein verlorener Tick.
