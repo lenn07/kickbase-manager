@@ -18,6 +18,7 @@ from app.application.decision_engine import (
 )
 from app.application.player_enrichment import PlayerEnrichment
 from app.domain.models import (
+    LeagueConstraints,
     LeagueMe,
     MarketOffer,
     MarketPlayer,
@@ -99,6 +100,7 @@ def _context(
     open_bids_total: Decimal = Decimal(0),
     open_bids: dict[str, OpenBid] | None = None,
     max_negative: Decimal = Decimal(-42_000_000),
+    constraints: LeagueConstraints | None = None,
 ) -> DecisionContext:
     return DecisionContext(
         league_id=LEAGUE_ID,
@@ -121,6 +123,7 @@ def _context(
         recent_actions=recent_actions,
         max_negative_allowed=max_negative,
         current_balance_after_open_bids=Decimal(3_500_000) - open_bids_total,
+        constraints=constraints or LeagueConstraints(),
     )
 
 
@@ -797,3 +800,129 @@ async def test_open_bids_are_visible_in_the_payload() -> None:
     assert by_id["m1"]["my_bid_placed_at_iso"]
     assert by_id["m2"]["my_open_bid_price"] is None
     assert payload["budget"]["open_bids_count"] == 1
+
+
+# -- Kaderlimit: die Sperre, die der Prompt allein nicht trägt (P2-14) ----
+
+
+def _squad_of(size: int) -> tuple[SquadPlayer, ...]:
+    return tuple(SquadPlayer(player=_player(f"s{i}"), lineup_order=i) for i in range(size))
+
+
+async def test_buying_without_a_free_squad_slot_becomes_hold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kickbase lehnt ein Gebot bei vollem Kader schon bei der Abgabe ab.
+
+    §1.1 des Prompts sagt das seit P1-9 ausdrücklich. Im bezahlten Eval-Lauf
+    vom 2026-09-26 wählte das Modell trotzdem dreimal einstimmig `BUY` bei
+    `squad_slots_left: 0` — mit Begründungen wie „Kaderplatz frei nach
+    Verkauf". Der Denkfehler: pro Tick wird genau **eine** Aktion ausgeführt,
+    der Verkauf findet also nicht statt. Deshalb steht die Regel jetzt im Code,
+    wie schon bei D3.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _buy("m1", 9_000_000),
+        squad_players=_squad_of(3),
+        market=(_market("m1"),),
+        constraints=LeagueConstraints(squad_limit=3),
+    )
+    assert decision.action is TradeAction.HOLD
+    assert "Kader ist voll" in decision.reason
+
+
+async def test_open_bids_fill_the_last_squad_slot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ein laufendes Gebot belegt den Platz, den es gewinnen will.
+
+    Kickbase rechnet offene Gebote gegen das Kaderlimit — zwei Spieler bei
+    Limit 3 und ein laufendes Gebot heißt: **kein** freier Platz mehr. Ohne
+    diese Zählung kauft der Bot einen dritten Spieler, dessen Gebot dann
+    abgelehnt wird.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _buy("m2", 9_000_000),
+        squad_players=_squad_of(2),
+        market=(_market("m1"), _market("m2")),
+        open_bids={
+            "m1": OpenBid(
+                player_id="m1",
+                price=Decimal(9_000_000),
+                placed_at=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
+            )
+        },
+        constraints=LeagueConstraints(squad_limit=3),
+    )
+    assert decision.action is TradeAction.HOLD
+    assert "offenen Geboten" in decision.reason
+
+
+async def test_raising_a_bid_works_even_with_a_full_squad(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Die Erhöhung eines laufenden Gebots braucht **keinen** weiteren Platz.
+
+    Das Gebot belegt ihn bereits. Würde die Sperre auch hier greifen, könnte
+    der Bot ein Bietduell nie gewinnen, sobald der Kader voll ist — und genau
+    dann läuft ja ein Gebot.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _buy("m1", 11_000_000),
+        squad_players=_squad_of(3),
+        market=(_market("m1"),),
+        open_bids={
+            "m1": OpenBid(
+                player_id="m1",
+                price=Decimal(9_000_000),
+                placed_at=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
+            )
+        },
+        constraints=LeagueConstraints(squad_limit=3),
+    )
+    assert decision.action is TradeAction.BUY
+    assert decision.price == Decimal(11_000_000)
+
+
+async def test_unknown_squad_limit_does_not_block_buying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """„Limit unbekannt" darf sich nicht wie „kein Platz" anfühlen (Plan §9).
+
+    Sonst hielte eine Datenlücke den Bot dauerhaft vom Kaufen ab — dieselbe
+    Regel, die `club_room_left()` für das Vereinslimit befolgt.
+    """
+    decision = await _decide(
+        monkeypatch,
+        _buy("m1", 9_000_000),
+        squad_players=_squad_of(20),
+        market=(_market("m1"),),
+        constraints=LeagueConstraints(squad_limit=None),
+    )
+    assert decision.action is TradeAction.BUY
+
+
+def test_payload_counts_open_bids_against_the_squad_limit() -> None:
+    """Der Prompt sagt „offene Gebote zählen mit" — die Zahl muss es auch tun.
+
+    Bis P2-14 rechnete `squad_slots_left` sie nicht ein: bei 15 von 16 Plätzen
+    und einem laufenden Gebot wies der Payload einen freien Platz aus, den es
+    nicht gab, und lud damit zu genau dem Kauf ein, den Kickbase ablehnt.
+    """
+    payload = _build_user_payload(
+        _context(
+            squad_players=_squad_of(2),
+            market=(_market("m1"),),
+            open_bids={
+                "m1": OpenBid(
+                    player_id="m1",
+                    price=Decimal(9_000_000),
+                    placed_at=datetime(2026, 9, 24, 12, 0, tzinfo=UTC),
+                )
+            },
+            constraints=LeagueConstraints(squad_limit=3),
+        )
+    )
+    assert payload["constraints"]["squad_slots_left"] == 0
+    assert payload["trading"]["squad_slots_free"] == 0

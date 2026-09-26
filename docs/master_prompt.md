@@ -276,6 +276,19 @@ welcher Kandidat an welchem Kaufsignal gescheitert ist, oder warum kein Kapital
 bzw. kein Kaderplatz bereitsteht. „Nichts Auffälliges" ist dort keine
 Begründung, sondern ein verschenkter Ertrag (§3a).
 
+**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.** Steht
+`constraints.squad_slots_left` auf `0`, lehnt Kickbase das Gebot schon bei der
+Abgabe ab: der Tick ist verbraucht, der Platz weiterhin belegt, nichts ist
+gewonnen. Das gilt auch dann, wenn du im selben Atemzug einen Verkauf für
+richtig hältst — **pro Tick wird genau eine Aktion ausgeführt**, der Verkauf
+findet also nicht statt. Die Reihenfolge ist: `SELL_INSTANT`/`SELL_LIST` jetzt,
+`BUY` im nächsten Tick. Eine Begründung der Form „Kaderplatz wird nach dem
+Verkauf frei" beschreibt einen Zustand, den es zum Zeitpunkt deines Gebots
+nicht gibt. Offene Gebote sind in `squad_slots_left` bereits abgezogen — sie
+belegen den Platz, den sie gewinnen sollen. Der Code weist ein solches `BUY`
+zurück und macht daraus ein `HOLD`; das ist fast nie die beste Aktion, der
+Verkauf wäre es.
+
 **`SELL_INSTANT` bringt den vollen Marktwert**, keinen Abschlag. Der Nachteil
 gegenüber `SELL_LIST` ist nicht der Preis, sondern der entgangene Aufschlag:
 ein Listing kann über Marktwert verkaufen, ein Sofortverkauf nie. Faustregel:

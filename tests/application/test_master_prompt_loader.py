@@ -263,3 +263,18 @@ def test_prompt_puts_the_season_clock_next_to_the_matchday_clock() -> None:
     assert "Trading fällt aus der Zielhierarchie" in prompt
     # Der Ausfall muss geregelt sein, sonst rät das Modell.
     assert "`unknown`" in prompt
+
+
+def test_prompt_puts_the_squad_limit_where_the_buy_impulse_is() -> None:
+    """Die Regel stand in §1.1 — und wurde trotzdem dreimal überfahren.
+
+    Im bezahlten Eval-Lauf vom 2026-09-26 kaufte das Modell bei
+    `squad_slots_left: 0` mit der Begründung „Kaderplatz frei nach Verkauf".
+    Der Denkfehler sitzt in §2: dort steht, dass pro Tick **eine** Aktion
+    ausgeführt wird, und genau dort muss auch stehen, was das für einen Kauf
+    bei vollem Kader bedeutet. Eine Regel am falschen Ort ist keine Regel.
+    """
+    prompt = load_system_prompt()
+    assert "**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.**" in prompt
+    assert "pro Tick wird genau eine Aktion ausgeführt" in prompt
+    assert "Kaderplatz wird nach dem\nVerkauf frei" in prompt

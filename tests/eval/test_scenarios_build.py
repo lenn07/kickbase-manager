@@ -6,10 +6,13 @@ auf — nach dem Modell-Call, nicht davor. Deshalb läuft er im Default-Run mit.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.application.ai_decision_engine import _build_user_payload
 from app.domain.trade import TradeAction
 
 from tests.eval.scenarios import SCENARIOS
+from tests.eval.test_prompt_eval import _REJECTED_MARKER, _TRANSPORT_MARKER
 
 
 def test_every_scenario_builds_a_valid_payload() -> None:
@@ -236,3 +239,25 @@ def test_every_scenario_carries_a_season_phase() -> None:
         trading = _build_user_payload(scenario.context)["trading"]
         assert trading["season_phase"] in {"regular", "endgame", "over"}, scenario.name
         assert trading["matchdays_left"] is not None, scenario.name
+
+
+def test_the_eval_knows_both_fallback_markers_of_the_engine() -> None:
+    """Die Eval unterscheidet Transportfehler von zurückgewiesenen Antworten.
+
+    Beide erscheinen als HOLD mit `AI-Only-Fallback`-Präfix und bedeuten das
+    Gegenteil voneinander — Timeout heißt „nie beim Modell gewesen",
+    zurückgewiesen heißt „Modell hat geantwortet und eine Regel verletzt".
+    Driften die Textbausteine in `ai_decision_engine.py` von denen im Eval-Test
+    ab, meldet die Eval einen echten Prompt-Befund als Infrastrukturfehler.
+    Dieser Test läuft im Default-Run und fängt das ab, bevor jemand Geld für
+    einen Lauf ausgibt.
+    """
+    engine_source = (
+        Path(__file__).resolve().parents[2] / "app" / "application" / "ai_decision_engine.py"
+    ).read_text(encoding="utf-8")
+    for marker in (_TRANSPORT_MARKER, _REJECTED_MARKER):
+        prefix = marker.removeprefix("AI-Only-Fallback ")
+        assert f"AI-Only-Fallback {prefix}" in engine_source, (
+            f"Marker {marker!r} steht nicht mehr in der Engine — `_reject_fallbacks` "
+            "würde diesen Fall nicht mehr erkennen."
+        )

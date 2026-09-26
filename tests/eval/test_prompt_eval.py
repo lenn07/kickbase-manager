@@ -45,11 +45,15 @@ RUNS_PER_SCENARIO = 3
 pytestmark = pytest.mark.eval
 
 
-# `AiDecisionEngine` fängt jeden LLM-Fehler ab und liefert ein HOLD mit diesem
+# `AiDecisionEngine` fängt jeden Fehler ab und liefert ein HOLD mit diesem
 # Präfix. Für die Produktion ist das richtig — ein Tick darf nicht crashen. Für
 # die Eval ist es fatal: ein Szenario, das HOLD erlaubt, wäre grün, obwohl nie
 # ein Modell gefragt wurde.
 _FALLBACK_MARKER = "AI-Only-Fallback"
+# Die beiden Fälle dahinter bedeuten **Gegensätzliches** und dürfen nicht
+# denselben Fehlertext bekommen:
+_TRANSPORT_MARKER = "AI-Only-Fallback (LLM-Fehler)"  # Timeout, 401 — Infrastruktur
+_REJECTED_MARKER = "AI-Only-Fallback (ungültige Antwort)"  # Code-Sperre — Prompt-Befund
 
 
 @pytest.fixture(scope="module")
@@ -72,17 +76,49 @@ def api_key() -> str:
 
 
 def _reject_fallbacks(scenario: Scenario, decisions: list[TradeDecision]) -> None:
-    """Bricht ab, wenn die Engine gar nicht beim Modell war.
+    """Bricht ab, wenn die Engine die Antwort nicht vom Modell hat.
 
     Muss **vor** jeder inhaltlichen Assertion laufen: sonst wird ein 401 oder
     Timeout als Regelverstoß gemeldet und jemand sucht den Fehler im Prompt.
+
+    Seit P2-14 gibt es zwei Gründe für ein Fallback-HOLD, und sie bedeuten das
+    **Gegenteil** voneinander:
+
+    - **Transport** (Timeout, 401): das Modell wurde nie gefragt. Kein
+      Prompt-Befund, der Lauf ist an dieser Stelle wertlos.
+    - **Zurückgewiesen**: das Modell hat geantwortet, und eine Code-Sperre hat
+      die Antwort verworfen — ein Nachgebot ohne Wirkung (D3) oder ein Kauf
+      ohne Kaderplatz. Das ist ein **echter Regelverstoß**, nur einer, den der
+      Betrieb abfängt. Ohne diese Unterscheidung würde er künftig als
+      „Infrastrukturfehler" durchgehen und niemand sähe ihn sich an.
     """
-    fallbacks = [d for d in decisions if _FALLBACK_MARKER in d.reason]
-    if fallbacks:
+    rejected = [d for d in decisions if _REJECTED_MARKER in d.reason]
+    if rejected:
         pytest.fail(
-            f"[{scenario.name}] {len(fallbacks)} von {len(decisions)} Läufen kamen nicht beim "
+            f"[{scenario.name}] {len(rejected)} von {len(decisions)} Antworten wurden von einer "
+            f"**Code-Sperre** verworfen. Das Modell hat geantwortet und dabei eine Regel "
+            f"verletzt, die der Code auffängt — ein Prompt-Befund, kein Transportproblem:\n"
+            f"Regel: {scenario.rule}\n" + "\n".join(f"  - {d.reason}" for d in rejected)
+        )
+
+    transport = [d for d in decisions if _TRANSPORT_MARKER in d.reason]
+    if transport:
+        pytest.fail(
+            f"[{scenario.name}] {len(transport)} von {len(decisions)} Läufen kamen nicht beim "
             f"Modell an — kein Prompt-Befund, sondern ein Infrastrukturfehler:\n"
-            + "\n".join(f"  - {d.reason}" for d in fallbacks)
+            + "\n".join(f"  - {d.reason}" for d in transport)
+        )
+
+    other = [
+        d
+        for d in decisions
+        if _FALLBACK_MARKER in d.reason and d not in rejected and d not in transport
+    ]
+    if other:
+        pytest.fail(
+            f"[{scenario.name}] Unbekannter Fallback-Grund — der Marker in "
+            f"`ai_decision_engine.py` hat sich geändert, ohne dass dieser Test nachgezogen "
+            f"wurde:\n" + "\n".join(f"  - {d.reason}" for d in other)
         )
 
 

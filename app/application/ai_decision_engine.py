@@ -325,7 +325,13 @@ def _validate_against_context(
     if action is TradeAction.BUY:
         if player_id not in {mp.player.id for mp in context.market}:
             raise _InvalidDecisionError(f"BUY auf Spieler {player_id!r}, der nicht am Markt ist")
-        _reject_pointless_rebid(player_id, price, context)
+        if player_id in context.open_bids:
+            # Eine Erhöhung des eigenen Gebots braucht **keinen** weiteren
+            # Kaderplatz — das laufende Gebot belegt ihn schon. Deshalb hier
+            # nur die Rebid-Prüfung, nicht die Slot-Sperre.
+            _reject_pointless_rebid(player_id, price, context)
+            return
+        _reject_buy_without_a_squad_slot(context)
         return
 
     in_squad = player_id in {sp.player.id for sp in context.squad.players}
@@ -333,6 +339,38 @@ def _validate_against_context(
         raise _InvalidDecisionError(
             f"{action.value} für Spieler {player_id!r}, der nicht im Kader steht"
         )
+
+
+def _reject_buy_without_a_squad_slot(context: DecisionContext) -> None:
+    """Blockt einen Kauf, für den kein Kaderplatz frei ist.
+
+    Kickbase lehnt ein solches Gebot **bei der Abgabe** ab: der Tick ist
+    verbraucht, im Log steht ein Executor-Fehler, und der Kaderplatz ist
+    weiterhin belegt. §1.1 des Prompts sagt das seit P1-9 ausdrücklich — im
+    bezahlten Eval-Lauf vom 2026-09-26 wählte das Modell trotzdem dreimal
+    einstimmig `BUY` bei `squad_slots_left: 0`, mit Begründungen wie
+    „Kaderplatz frei nach Verkauf". Das ist der Denkfehler: pro Tick wird genau
+    **eine** Aktion ausgeführt, der geplante Verkauf findet also nicht statt.
+
+    Dieselbe Antwort wie bei D3 (`_reject_pointless_rebid`): eine Regel, die im
+    Betrieb Geld und Ticks kostet, gehört in den Code und nicht in einen
+    Appell. Der Prompt behält sie zusätzlich — ein blockiertes `BUY` wird zu
+    `HOLD`, und ein `HOLD` ist hier fast nie die beste Aktion (der Verkauf
+    wäre es).
+
+    **Kein Limit bekannt heißt nicht „keiner frei":** ist `squad_limit` `None`,
+    greift die Sperre nicht. Sonst hielte eine Datenlücke den Bot dauerhaft vom
+    Kaufen ab (Plan §9).
+    """
+    limits = context.constraints
+    slots_left = limits.squad_room_left(len(context.squad.players), len(context.open_bids))
+    if slots_left is None or slots_left > 0:
+        return
+    raise _InvalidDecisionError(
+        f"BUY, aber der Kader ist voll: {len(context.squad.players)} Spieler bei Limit "
+        f"{limits.squad_limit} und {len(context.open_bids)} offenen Geboten. Kickbase lehnt "
+        "das Gebot schon bei der Abgabe ab. Erst verkaufen, dann im nächsten Tick kaufen."
+    )
 
 
 def _reject_pointless_rebid(
@@ -636,7 +674,12 @@ def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
     Praxis tat es das nicht und handelte deshalb fast nur auf Punkte-Motive.
     """
     squad_size = len(context.squad.players)
-    slots_free = context.constraints.squad_room_left(squad_size)
+    # Offene Gebote zählen mit: Kickbase rechnet sie gegen das Kaderlimit, und
+    # der Prompt sagt das in §1.1 auch. Bis P2-14 tat die **Zahl** es nicht —
+    # bei 15/16 Spielern und einem laufenden Gebot wies der Payload einen
+    # freien Platz aus, den es nicht gab, und lud damit zu genau dem Kauf ein,
+    # den Kickbase ablehnt.
+    slots_free = context.constraints.squad_room_left(squad_size, len(context.open_bids))
     pnl_total = sum(
         (sp.unrealized_pnl for sp in context.squad.players if sp.unrealized_pnl is not None),
         Decimal(0),
@@ -712,7 +755,8 @@ def _constraints_block(context: DecisionContext) -> dict[str, Any]:
         "interval_min": context.interval_min,
         # Liga-Regeln von Kickbase.
         "squad_limit": limits.squad_limit,
-        "squad_slots_left": limits.squad_room_left(squad_size),
+        # Wie in `_trading_block`: offene Gebote belegen Kaderplätze.
+        "squad_slots_left": limits.squad_room_left(squad_size, len(context.open_bids)),
         "club_limit": limits.club_limit,
         "club_limit_is_unlimited": limits.club_limit_is_unlimited,
         "players_per_club": dict(limits.players_per_club),
