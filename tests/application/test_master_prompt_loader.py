@@ -294,3 +294,19 @@ def test_season_phase_and_risk_appetite_do_not_overwrite_each_other() -> None:
     prompt = load_system_prompt()
     assert "sagt, *was* du tust — nicht, *wie riskant*" in prompt
     assert "unabhängig von `trading.season_phase`" in prompt
+
+
+def test_the_chain_rule_stands_where_the_hard_rules_are() -> None:
+    """Die Lehre aus P2-14, angewandt auf P2-16.
+
+    Im ersten bezahlten Lauf stand die Kettenregel nur in §2 — das Modell
+    beschrieb die Kette in seiner Begründung („Dann SET_LINEUP …") und
+    lieferte trotzdem eine einzelne Aktion. Eine Regel wirkt dort, wo die
+    Entscheidung fällt: bei den beiden harten Regeln in §1.1, die sie
+    zusammenführt.
+    """
+    prompt = load_system_prompt()
+    assert "gehören\n     beide Antworten in **einen** Tick" in prompt
+    assert "`follow_up_actions`" in prompt
+    # Und in §2 muss aus der Erlaubnis eine Pflicht werden, wenn beides offen ist.
+    assert "Verlangt, wenn zwei harte Regeln offen sind" in prompt

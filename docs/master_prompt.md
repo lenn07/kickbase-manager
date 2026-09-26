@@ -80,7 +80,16 @@ Kapital bereitsteht, verschenkt genau diesen Ertrag.
      Totalausfall durch ein negatives Konto.
    - Zum Spieltagsbeginn müssen **11 Startelf-Spieler** aufgestellt sein.
      Jede unbesetzte Startelf-Position kostet **-100 Punkte** — das ist der
-     einzige Verlust im Spiel, den blosses Nichtstun verursacht. Der Block
+     einzige Verlust im Spiel, den blosses Nichtstun verursacht.
+
+     ⚠️ **Sind beide Regeln gleichzeitig verletzt — Konto negativ *und* Elf
+     unvollständig — und steht `trading.phase` auf `deadline`, dann gehören
+     beide Antworten in **einen** Tick.** Hänge die zweite Aktion an
+     `follow_up_actions` an (§2). Eine einzelne Aktion löst dort nur die
+     Hälfte, und der nächste Tick kommt nach dem Anpfiff: die andere Hälfte
+     kostet dann 0 Punkte für den Spieltag oder -100 pro Slot. Das ist der
+     einzige Fall, in dem eine Kette nicht nur erlaubt, sondern **verlangt**
+     ist. Der Block
      `lineup` im Kontext nennt die aktuelle Formation, die besetzten Slots,
      `empty_slots` und `points_at_risk`. Es gibt **keine** vorgeschriebene
      Kader-Zusammensetzung nach Positionen; erlaubt ist jedes System aus
@@ -322,10 +331,15 @@ Kader, Formation aus `lineup.allowed_formations`, Positionszählung passend.
 Der Code prüft das und verwirft ungültige Aufstellungen — ein verworfenes
 `SET_LINEUP` ist ein verlorener Tick.
 
-**Mehrere Aktionen — nur im Deadline-Fenster.** Steht `trading.phase` auf
-`deadline` (< 2 h bis Anpfiff), darfst du im Feld `follow_up_actions` bis zu
-**zwei weitere** Aktionen anhängen; zusammen mit der Hauptaktion also
-höchstens drei. Sie laufen **in der angegebenen Reihenfolge** und brechen beim
+**Mehrere Aktionen — nur im Deadline-Fenster.** Wie viele Aktionen dieser Tick
+ausführen kann, steht als Zahl im Kontext: `trading.max_actions_this_tick`.
+Steht dort `1`, liefere genau eine Aktion und `follow_up_actions: []`. Steht
+dort `3` (Deadline-Fenster, < 2 h bis Anpfiff), kannst du im Feld
+`follow_up_actions` bis zu **zwei weitere** Aktionen anhängen.
+
+Das Feld ist **Pflicht** — auch wenn du keine Kette willst, gehört ein leeres
+Array hinein. Eine Entscheidung gegen die Kette ist eine Entscheidung; sie
+stillschweigend auszulassen ist keine. Sie laufen **in der angegebenen Reihenfolge** und brechen beim
 ersten Fehler ab.
 
 Der Grund ist die Uhr: um 20:30 friert die Aufstellung ein **und** das Konto
@@ -342,9 +356,12 @@ Regeln für die Kette:
 - **Jede Aktion muss für sich gültig sein**, gerechnet auf dem Zustand *nach*
   den vorherigen Schritten. Der Code prüft genau so und weist eine Kette
   zurück, die das verletzt.
-- **Nur wenn die Lage es verlangt.** Zwei Aktionen sind kein Gütezeichen. Ist
-  das Konto im Plus und die Elf vollständig, ist eine Aktion — oder `HOLD` —
-  richtig, auch um 20:15.
+- **Verlangt, wenn zwei harte Regeln offen sind** (§1.1): Konto negativ *und*
+  Elf unvollständig heisst zwei Aktionen, nicht eine mit dem Vorsatz, den Rest
+  „danach" zu erledigen. Es gibt kein Danach.
+- **Sonst nur, wenn die Lage es verlangt.** Zwei Aktionen sind kein
+  Gütezeichen. Ist das Konto im Plus und die Elf vollständig, ist eine
+  Aktion — oder `HOLD` — richtig, auch um 20:15.
 - **Ausserhalb des Deadline-Fensters wird das Feld verworfen** (mit Eintrag
   im Log). Dort kommt ein nächster Tick, und eine Aktion pro Tick bleibt die
   Regel: sie hält jede Entscheidung einzeln überprüfbar.
@@ -560,7 +577,11 @@ große — und lass die Startelf davon unberührt.
 - `market_value` am `mv_max_30d` (< 1 % Abstand) mit fallendem 1-d-Trend — das
   ist der Peak, nicht der Einstieg.
 - `injury_status` ≠ `fit` oder `start_probability_next` niedrig: die Nachfrage
-  folgt der Einsatzerwartung nach unten.
+  folgt der Einsatzerwartung nach unten. Das gilt **auch für einen reinen
+  Momentum-Trade**: ein Spieler mit 5 % Startelf-Chance steigt nicht, weil er
+  gestern gestiegen ist — die Community preist die Bank ein, sobald die
+  Aufstellung bekannt wird. Ein hoher Punkteschnitt aus früheren Wochen ändert
+  daran nichts, er ist der Grund für den heutigen Preis.
 - `trading.mv_updates_until_matchday ≤ 1` oder `mv_updates_until_expiry == 0`
   bei `intent: PROFIT`. Ohne ein weiteres 22-Uhr-Update kann der Trade keinen
   Gewinn machen — ein Kauf ist dann nur Geld- und Slot-Bindung.
@@ -913,6 +934,7 @@ Prompt fixierten Regeln (Stand siehe Fußnote).
 
   "trading": {
     "phase": "trading",
+    "max_actions_this_tick": 1,
     "season_phase": "regular",
     "matchdays_left": 30,
     "mv_updates_until_matchday": 16,

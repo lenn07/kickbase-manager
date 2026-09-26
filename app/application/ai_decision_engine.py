@@ -131,6 +131,12 @@ _INPUT_SCHEMA: dict[str, Any] = {
 MAX_ACTIONS_PER_TICK = 3
 _MAX_FOLLOW_UPS = MAX_ACTIONS_PER_TICK - 1
 
+# **Pflichtfeld, nicht optional.** Im ersten bezahlten Lauf (2026-09-26) hat das
+# Modell die Folgeaktion dreimal in Prosa beschrieben („Dann SET_LINEUP …") und
+# das optionale Feld trotzdem leer gelassen. Ein verlangtes Feld wird
+# beantwortet, und sei es mit `[]` — dann ist die Entscheidung gegen eine Kette
+# wenigstens eine getroffene.
+_INPUT_SCHEMA["required"].append("follow_up_actions")
 _INPUT_SCHEMA["properties"]["follow_up_actions"] = {
     "type": "array",
     "maxItems": _MAX_FOLLOW_UPS,
@@ -852,6 +858,13 @@ def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
     _, minutes_until_matchday = _time_until(now, context.next_matchday_start, context.interval_min)
     return {
         "phase": _trading_phase(minutes_until_matchday),
+        # Wie viele Aktionen dieser Tick ausführen kann (P2-16). Steht als
+        # **Zahl** im Payload und nicht nur als Regel im Prompt: dieselbe Lehre
+        # wie bei `phase` und `season_phase` — ein Wert in den Daten wird
+        # gelesen, eine Bedingung im Fliesstext überlesen. Im ersten bezahlten
+        # Lauf beschrieb das Modell die Folgeaktion dreimal in Prosa und
+        # lieferte trotzdem eine einzelne.
+        "max_actions_this_tick": MAX_ACTIONS_PER_TICK if _is_deadline_window(context) else 1,
         # Die zweite, langsame Uhr: `phase` misst den Abstand zum nächsten
         # Anpfiff, `season_phase` den zum Saisonende. Beide zusammen sagen, ob
         # ein Trade noch Zeit hat, sich in Punkte zu verwandeln.

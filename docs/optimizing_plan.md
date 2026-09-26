@@ -1449,8 +1449,14 @@ Code nicht sichtbar, und zwei davon liefen seit Wochen mit:
 bestimmtes Szenario zeigt. Im Betrieb bedeutet jeder davon einen **verbrauchten Tick**: die
 Engine liefert `HOLD` mit `AI-Only-Fallback (LLM-Fehler)`, und das Fenster ist weg.
 
-Der Wert ist nicht verändert worden — 90 s ist eine bewusste Setzung, und ob 120 s die Rate
-messbar senken, ist mit fünf Fällen nicht belegt. Zwei Dinge sind aber festzuhalten:
+**Nachtrag nach P2-16: der Wert ist auf 150 s angehoben.** Mit den Aktionsketten hat das
+Muster sich gezeigt — die Timeouts häufen sich beim **längsten** Szenario, dem Deadline-Fall
+mit mehreren Aktionen (zweimal in zwei Läufen). Längere Antwort, längere Generierung, und es
+trifft ausgerechnet den Tick, der am wichtigsten ist: im Deadline-Fenster entscheidet er über
+Konto und Aufstellung, und es folgt kein zweiter. Ein Timeout kostet dort nicht einen Tick,
+sondern den Spieltag.
+
+Zwei Dinge bleiben festzuhalten:
 
 1. Der System-Prompt ist in Phase 3 um rund ein Drittel gewachsen (§1 trägt jetzt
    Zielhierarchie, Saisonphase, Risikoappetit und Wertungsmodus). Längere Prompts heißen

@@ -1238,6 +1238,7 @@
   "ticks_until_matchday_start": 193,
   "trading": {
     "matchdays_left": 30,
+    "max_actions_this_tick": 1,
     "mv_updates_until_matchday": 16,
     "phase": "trading",
     "profit_positions": 1,

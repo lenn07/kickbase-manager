@@ -18,8 +18,10 @@ from typing import Any
 
 import pytest
 from app.application.ai_decision_engine import (
+    _INPUT_SCHEMA,
     MAX_ACTIONS_PER_TICK,
     AiDecisionEngine,
+    _build_user_payload,
 )
 from app.application.decision_engine import DecisionContext
 from app.domain.lineup import DEFAULT_FORMATION
@@ -315,3 +317,44 @@ async def test_selling_the_same_player_twice_is_refused(
     )
     assert decision.action is TradeAction.HOLD
     assert "nicht im Kader" in decision.reason
+
+
+def test_the_payload_states_how_many_actions_are_possible() -> None:
+    """Die Zahl steht in den Daten, nicht nur als Bedingung im Prompt.
+
+    Im ersten bezahlten Lauf (2026-09-26) beschrieb das Modell die Folgeaktion
+    dreimal in Prosa („Dann SET_LINEUP …") und lieferte trotzdem eine einzelne.
+    Dieselbe Lehre wie bei `trading.phase` und `season_phase`: ein Wert in den
+    Daten wird gelesen, eine Bedingung im Fliesstext überlesen.
+    """
+    deadline = _build_user_payload(_context(minutes_until_kickoff=45))["trading"]
+    assert deadline["phase"] == "deadline"
+    assert deadline["max_actions_this_tick"] == MAX_ACTIONS_PER_TICK
+
+    normal = _build_user_payload(_context(minutes_until_kickoff=600))["trading"]
+    assert normal["phase"] != "deadline"
+    assert normal["max_actions_this_tick"] == 1
+
+
+def test_follow_up_actions_is_a_required_field() -> None:
+    """Ein optionales Feld wird ignoriert, ein verlangtes beantwortet.
+
+    Auch `[]` ist eine Antwort — und zwar eine, die belegt, dass das Modell
+    über die Kette nachgedacht und sich dagegen entschieden hat.
+    """
+    assert "follow_up_actions" in _INPUT_SCHEMA["required"]
+    assert "follow_up_actions" in _INPUT_SCHEMA["properties"]
+
+
+async def test_an_empty_follow_up_list_is_a_normal_single_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Das Pflichtfeld darf den gewöhnlichen Tick nicht verändern."""
+    decision = await _decide(
+        monkeypatch,
+        _main_action("SELL_INSTANT", player_id="s0", follow_up_actions=[]),
+        _context(),
+    )
+    assert decision.action is TradeAction.SELL
+    assert decision.follow_ups == ()
+    assert len(decision.chain) == 1
