@@ -196,3 +196,43 @@ def test_the_mirrored_league_scenarios_differ_only_in_the_table() -> None:
     assert trailing["league"]["my_rank"] == 4
     assert leading["league"]["my_rank"] == 1
     assert trailing["league"]["matchdays_left"] == leading["league"]["matchdays_left"] == 2
+
+
+def test_the_mirrored_season_scenarios_differ_only_in_the_clock() -> None:
+    """Das Paar aus P2-14 belegt seine Regel nur, wenn sonst alles gleich ist.
+
+    Zwei Szenarien, ein Unterschied: Spieltag 4 gegen Spieltag 31. Weicht noch
+    etwas anderes ab, kann ein abweichendes Modellverhalten auch daher kommen —
+    dann misst das Paar nicht die Saisonphase, sondern irgendetwas.
+
+    Der `trading`-Block darf sich unterscheiden, aber **nur** in den beiden
+    Feldern, die die Saison-Uhr ausmachen.
+    """
+    by_name = {s.name: s for s in SCENARIOS}
+    early = _build_user_payload(by_name["early_season_trades_for_capital"].context)
+    late = _build_user_payload(by_name["endgame_stops_pure_trading"].context)
+
+    for block in ("squad", "market", "lineup", "budget", "constraints"):
+        assert early[block] == late[block], f"Block `{block}` unterscheidet sich"
+
+    season_fields = {"season_phase", "matchdays_left"}
+    for key in early["trading"]:
+        if key in season_fields:
+            continue
+        assert early["trading"][key] == late["trading"][key], (
+            f"`trading.{key}` unterscheidet sich, gehört aber nicht zur Saison-Uhr"
+        )
+
+    assert early["trading"]["season_phase"] == "regular"
+    assert late["trading"]["season_phase"] == "endgame"
+    assert early["trading"]["matchdays_left"] == 30
+    assert late["trading"]["matchdays_left"] == 3
+
+
+def test_every_scenario_carries_a_season_phase() -> None:
+    """Ohne Saison-Uhr fiele jedes Szenario auf `unknown` zurück — und der Prompt
+    entschiede dann ausdrücklich ohne sie."""
+    for scenario in SCENARIOS:
+        trading = _build_user_payload(scenario.context)["trading"]
+        assert trading["season_phase"] in {"regular", "endgame", "over"}, scenario.name
+        assert trading["matchdays_left"] is not None, scenario.name

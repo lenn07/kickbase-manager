@@ -247,3 +247,19 @@ def test_prompt_does_not_promise_the_rivals_names() -> None:
     """
     prompt = load_system_prompt()
     assert "Namen stehen dort bewusst nicht" in prompt
+
+
+def test_prompt_puts_the_season_clock_next_to_the_matchday_clock() -> None:
+    """P2-14: zwei Uhren, und der Prompt muss sagen, welche wofür gilt.
+
+    `phase` misst bis zum Anpfiff, `season_phase` bis zum Saisonende. Fehlt die
+    zweite, tradet der Bot im Mai weiter, als wäre im August — der Gewinn käme
+    dann zu spät, um noch in Punkte umgesetzt zu werden.
+    """
+    prompt = load_system_prompt()
+    assert "`trading.season_phase`" in prompt
+    for label in ("`regular`", "`endgame`", "`over`"):
+        assert label in prompt, f"Saisonphase {label} fehlt in §1"
+    assert "Trading fällt aus der Zielhierarchie" in prompt
+    # Der Ausfall muss geregelt sein, sonst rät das Modell.
+    assert "`unknown`" in prompt

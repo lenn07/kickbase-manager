@@ -1237,9 +1237,11 @@
   "starting_xi_count": 8,
   "ticks_until_matchday_start": 193,
   "trading": {
+    "matchdays_left": 30,
     "mv_updates_until_matchday": 16,
     "phase": "trading",
     "profit_positions": 1,
+    "season_phase": "regular",
     "spendable_before_debt_limit": 48587940,
     "squad_slots_free": 8,
     "squad_slots_used": 8,

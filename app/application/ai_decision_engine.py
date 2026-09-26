@@ -555,6 +555,40 @@ _TRADING_PHASE_DEADLINE_MIN = 120
 _TRADING_PHASE_PREP_MIN = 24 * 60
 _MV_UPDATE_PERIOD_MIN = 24 * 60
 
+# Ab wie vielen **verbleibenden** Spieltagen das Trading sein Ziel verliert.
+# Acht, also ab Spieltag 26 von 34 (Plan §6/P2-14).
+#
+# Die Zahl folgt aus dem Zweck des Tradings, nicht aus einer Kurve: Marktwert
+# ist kein Siegkriterium, sondern Kapital, und Kapital zählt erst, wenn es in
+# Spieler umgesetzt ist, die noch punkten. Ein Trade-Zyklus braucht einige Tage
+# bis zum Verkauf, der Nachkauf einen weiteren Tick, und der neue Spieler
+# braucht Spieltage, an denen er aufläuft. Bleiben weniger als acht, reicht die
+# Kette nicht mehr durch — am letzten Spieltag ist ein Konto voller Geld exakt
+# null Punkte wert.
+_SEASON_ENDGAME_MATCHDAYS_LEFT = 8
+
+
+def _season_phase(context: DecisionContext) -> str:
+    """Wo in der **Saison** dieser Tick steht — als Label, nicht als Rechnung.
+
+    Dasselbe Muster wie `_trading_phase` und aus demselben Grund: die Grenze
+    stand bisher nur als Prosa im Prompt, und das Modell musste sie aus
+    `league.matchdays_left` selbst herleiten. Eine Herleitung, die schiefgehen
+    kann, entscheidet dann darüber, ob ein Trade überhaupt noch legitim ist.
+
+    `unknown` heißt, dass die Ligatabelle fehlt — dann gilt weiter die
+    Spieltags-Logik aus `phase`, und der Prompt sagt es ausdrücklich.
+    """
+    ranking = context.league_ranking
+    left = ranking.matchdays_left if ranking is not None else None
+    if left is None:
+        return "unknown"
+    if left <= 0:
+        return "over"
+    if left <= _SEASON_ENDGAME_MATCHDAYS_LEFT:
+        return "endgame"
+    return "regular"
+
 
 def _trading_phase(minutes_until_matchday: int | None) -> str:
     """Welches Ziel in diesem Tick vorgeht — als Label, nicht als Rechenaufgabe.
@@ -613,6 +647,13 @@ def _trading_block(context: DecisionContext, now: datetime) -> dict[str, Any]:
     _, minutes_until_matchday = _time_until(now, context.next_matchday_start, context.interval_min)
     return {
         "phase": _trading_phase(minutes_until_matchday),
+        # Die zweite, langsame Uhr: `phase` misst den Abstand zum nächsten
+        # Anpfiff, `season_phase` den zum Saisonende. Beide zusammen sagen, ob
+        # ein Trade noch Zeit hat, sich in Punkte zu verwandeln.
+        "season_phase": _season_phase(context),
+        "matchdays_left": (
+            context.league_ranking.matchdays_left if context.league_ranking else None
+        ),
         # Wie viele Marktwert-Bewegungen bis zum Anpfiff überhaupt noch kommen.
         "mv_updates_until_matchday": _mv_updates_between(
             context.mv_update_at, context.next_matchday_start

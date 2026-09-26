@@ -799,3 +799,18 @@ def test_head_to_head_fields_stay_out_of_a_season_points_league(payload: dict[st
     assert "my_h2h_match_points" not in payload["league"]
     assert all("h2h_match_points" not in r for r in payload["league"]["rivals"])
     assert "missing_data:h2h_opponent" not in payload["league"]["missing_data_flags"]
+
+
+def test_season_phase_is_the_second_slow_clock(payload: dict[str, Any]) -> None:
+    """P2-14: `phase` misst bis zum Anpfiff, `season_phase` bis zum Saisonende.
+
+    Beide zusammen entscheiden, ob ein Trade überhaupt noch Zeit hat, sich in
+    Punkte zu verwandeln. Der Snapshot steht an Spieltag 4 von 34 — also
+    mitten in der Saison, `regular`.
+    """
+    trading = payload["trading"]
+    assert trading["season_phase"] == "regular"
+    assert trading["matchdays_left"] == 30
+    # Die beiden Uhren dürfen nicht durcheinandergeraten.
+    assert trading["phase"] == "trading"
+    assert trading["matchdays_left"] == payload["league"]["matchdays_left"]
