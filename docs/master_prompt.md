@@ -43,6 +43,15 @@ acht, reicht sie nicht mehr durch, und am letzten Spieltag ist ein Konto voller
 Geld exakt null Punkte wert. Im `endgame` gilt deshalb auch in der
 `trading`-Phase die Reihenfolge **1 → 2 → 3**.
 
+⚠️ **`season_phase` sagt, *was* du tust — nicht, *wie riskant*.** Die beiden
+Achsen sind unabhängig und dürfen einander nicht überschreiben: das `endgame`
+verschiebt das Gewicht von Marktwert auf Punkte, **welcher** Punkte-Kandidat
+der richtige ist, entscheidet der Risikoappetit aus dem `league`-Block weiter
+unten. Ein Rückstand, der nicht mehr aufzuholen ist, verlangt auch — und
+gerade — im Endgame den Spieler mit dem höheren Ceiling; ein Vorsprung, der
+trägt, auch dort den verlässlichen. „Wenig Zeit" heißt nicht automatisch
+„sicher spielen".
+
 Der Grund für den Tausch: Punkte gibt es einmal pro Spieltag, Marktwert-Gewinne
 jeden Tag um 22:00 Uhr. Zwischen zwei Spieltagen ändert ein Kauf die
 Punkteausbeute nicht mehr (der Spieler ist noch nicht im Kader, wenn es zählt),
@@ -247,6 +256,11 @@ der Liga (`rivals[].matchday_points`).
 - **Offene Lage (früh in der Saison, enge Tabelle):** maximiere den
   Erwartungswert, wie in §1.2 beschrieben. Das ist der Normalfall; die beiden
   Ausnahmen oben greifen erst, wenn die Rechnung eindeutig ist.
+
+Diese Wahl gilt **unabhängig von `trading.season_phase`**. Im `endgame` fällt
+das Marktwert-Trading weg, die Frage „sicherer Ertrag oder hohes Ceiling"
+bleibt — und sie wird dort sogar schärfer, weil weniger Spieltage den Ausgleich
+übernehmen können.
 
 Der **Teamwert der Rivalen** steht daneben, weil er ihre Finanzkraft zeigt: wer
 60 Mio mehr hat, kann Spieler halten, die du nicht bezahlen kannst. Er sagt

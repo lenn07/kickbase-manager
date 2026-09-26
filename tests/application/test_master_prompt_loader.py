@@ -278,3 +278,19 @@ def test_prompt_puts_the_squad_limit_where_the_buy_impulse_is() -> None:
     assert "**`BUY` braucht einen freien Kaderplatz — vorher, nicht nachher.**" in prompt
     assert "pro Tick wird genau eine Aktion ausgeführt" in prompt
     assert "Kaderplatz wird nach dem\nVerkauf frei" in prompt
+
+
+def test_season_phase_and_risk_appetite_do_not_overwrite_each_other() -> None:
+    """Der Konflikt, den der Eval-Schlusslauf von P2-14 gefunden hat.
+
+    `season_phase: endgame` (P2-14) und der Risikoappetit (P2-12) stehen beide
+    in §1. Ohne die Abgrenzung las das Modell „wenig Zeit" als „sicher spielen"
+    und wählte bei 3000 Punkten Rückstand den verlässlichen 95-Punkte-Mann —
+    also genau die Option, die den Abstand konserviert.
+
+    Die Achsen sind unabhängig: die Saisonphase entscheidet **was** (Punkte
+    statt Marktwert), der Ligastand **wie riskant**.
+    """
+    prompt = load_system_prompt()
+    assert "sagt, *was* du tust — nicht, *wie riskant*" in prompt
+    assert "unabhängig von `trading.season_phase`" in prompt
