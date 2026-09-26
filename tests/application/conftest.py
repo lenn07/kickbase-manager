@@ -135,6 +135,11 @@ class FakeKickbase:
     async def get_competition_table(self, competition_id: str = "1") -> list[TeamStanding]:
         return []
 
+    async def collect_daily_bonus(self) -> dict[str, object]:
+        # Kein Fake-Bonus: Tests, die ihn brauchen, ueberschreiben die Methode
+        # (siehe `_BonusKickbase` in test_daily_bonus_uc.py).
+        return {}
+
     async def get_ranking(self, league_id: str) -> LeagueRanking:
         # Leere Tabelle heisst „kein Ligakontext bekannt" — der Payload sagt
         # dann `missing_data:league_ranking`. Tests zum Rang ueberschreiben die

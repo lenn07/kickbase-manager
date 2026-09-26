@@ -29,6 +29,7 @@ _log = logging.getLogger(__name__)
 
 _JOB_ID = "kickbase-tick"
 _DIGEST_JOB_ID = "kickbase-hold-digest"
+_BONUS_JOB_ID = "kickbase-daily-bonus"
 # Präfix aller Fenster-Jobs (P1-10). Eigene IDs, damit `set_windows()` sie
 # gezielt ersetzen kann, ohne den Intervall-Job anzufassen.
 _WINDOW_JOB_PREFIX = "kickbase-window-"
@@ -225,6 +226,47 @@ class KickbaseScheduler:
 
     def has_digest_job(self) -> bool:
         return self._scheduler.get_job(_DIGEST_JOB_ID) is not None
+
+    def set_daily_bonus(self, callback: TickCallable | None, *, hour: int = 9) -> None:
+        """Setzt oder entfernt den täglichen Bonus-Job (P2-15).
+
+        Eigener Job und **nicht** unter dem Tick-Lock: der Bonus konkurriert
+        mit keiner Entscheidung — er liest den Kontostand und holt ab. Ihn
+        unter dasselbe Lock zu hängen hiesse, dass ein hängender Tick den
+        Bonus-Tag verfallen lässt, und eine gerissene Streak holt kein
+        späterer Lauf zurück.
+
+        Der Use-Case selbst sorgt dafür, dass pro Kalendertag höchstens ein
+        Versuch stattfindet — ein Neustart um 09:05 löst also keinen zweiten
+        Call aus, obwohl der Job dann erneut geplant wird.
+        """
+        if not 0 <= hour <= 23:  # noqa: PLR2004 — Cron-Stunden 0..23
+            raise ValueError("bonus hour muss zwischen 0 und 23 liegen.")
+
+        if callback is None:
+            if self._scheduler.get_job(_BONUS_JOB_ID) is not None:
+                self._scheduler.remove_job(_BONUS_JOB_ID)
+                _log.info("Bonus-Job entfernt.")
+            return
+
+        async def safe_bonus() -> None:
+            try:
+                await callback()
+            except Exception:
+                _log.exception("Bonus-Abholung fehlgeschlagen.")
+
+        self._scheduler.add_job(
+            safe_bonus,
+            trigger=CronTrigger(hour=hour, minute=0),
+            id=_BONUS_JOB_ID,
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        _log.info("Bonus-Job gesetzt — täglich um %02d:00 Uhr.", hour)
+
+    def has_bonus_job(self) -> bool:
+        return self._scheduler.get_job(_BONUS_JOB_ID) is not None
 
     # -- Introspection --------------------------------------------------
 

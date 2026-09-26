@@ -223,3 +223,70 @@ async def test_manual_trigger_waits_instead_of_running_beside() -> None:
     await asyncio.gather(background, manual)
 
     assert order == ["start", "end", "start", "end"]
+
+
+# -- Bonus-Job (P2-15) ---------------------------------------------------
+
+
+async def test_set_daily_bonus_registers_and_removes_job() -> None:
+    scheduler = await _make_scheduler([])
+    scheduler.start()
+    try:
+        assert scheduler.has_bonus_job() is False
+
+        async def bonus_cb() -> None:
+            return None
+
+        scheduler.set_daily_bonus(bonus_cb, hour=9)
+        assert scheduler.has_bonus_job() is True
+
+        scheduler.set_daily_bonus(None)
+        assert scheduler.has_bonus_job() is False
+    finally:
+        await scheduler.shutdown()
+
+
+def test_set_daily_bonus_rejects_invalid_hour() -> None:
+    async def tick() -> None:
+        return None
+
+    scheduler = KickbaseScheduler(tick=tick, interval_min=1)
+    with pytest.raises(ValueError, match="zwischen 0 und 23"):
+        scheduler.set_daily_bonus(lambda: (_ for _ in ()).throw(RuntimeError()), hour=24)  # type: ignore[arg-type]
+
+
+async def test_the_bonus_job_does_not_share_the_tick_lock() -> None:
+    """Ein hängender Tick darf den Bonus-Tag nicht verfallen lassen.
+
+    Der Tick-Lock aus P1-10 schützt davor, dass zwei **Entscheidungen** auf
+    derselben Lage laufen. Der Bonus ist keine Entscheidung — er liest den
+    Kontostand und holt ab. Läge er unter demselben Lock, würde ein blockierter
+    Tick die Streak reissen, und die holt kein späterer Lauf zurück.
+    """
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_tick() -> None:
+        started.set()
+        await release.wait()
+
+    scheduler = KickbaseScheduler(tick=slow_tick, interval_min=1)
+    scheduler.start()
+    try:
+        tick_task = asyncio.create_task(scheduler.trigger_now())
+        await asyncio.wait_for(started.wait(), timeout=1)
+
+        bonus_ran = asyncio.Event()
+
+        async def bonus_cb() -> None:
+            bonus_ran.set()
+
+        scheduler.set_daily_bonus(bonus_cb, hour=9)
+        # Direkt aufrufen statt auf 9:00 zu warten: geprüft wird, dass der
+        # Callback nicht am Tick-Lock hängt.
+        await bonus_cb()
+        assert bonus_ran.is_set()
+    finally:
+        release.set()
+        await tick_task
+        await scheduler.shutdown()

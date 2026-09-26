@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -14,6 +14,7 @@ from sqlmodel import Session
 
 from app import __version__
 from app.application.ai_decision_engine import AiDecisionEngine
+from app.application.daily_bonus_uc import BonusOutcome, CollectDailyBonusUseCase
 from app.application.decision_engine import DecisionEngine, HoldOnlyDecisionEngine
 from app.application.digest_scheduling import apply_digest_settings
 from app.application.player_enrichment import PlayerEnricher
@@ -75,6 +76,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             metrics.scheduler_paused.set(0)
             _apply_initial_windows(scheduler, engine)
             apply_digest_settings(scheduler, engine, vault)
+            # Der Bonus-Job läuft unabhängig vom Entscheidungs-Tick (P2-15).
+            # Er wird immer gesetzt, auch wenn der Kill-Switch aus ist: der
+            # Use-Case entscheidet dann, nichts zu tun — so steht im Log, dass
+            # der Job lebt, und ein Umlegen des Schalters wirkt ohne Neustart.
+            scheduler.set_daily_bonus(
+                _build_bonus_callback(engine, settings), hour=settings.bonus_hour
+            )
         else:
             metrics.scheduler_running.set(0)
         try:
@@ -242,6 +250,31 @@ async def _run_tick(engine: Engine, vault: FernetVault, settings: Settings) -> T
             return await uc.run()
         finally:
             await kickbase.aclose()
+
+
+def _build_bonus_callback(
+    engine: Engine, settings: Settings
+) -> Callable[[], Awaitable[BonusOutcome]]:
+    """Baut den Callback für den täglichen Bonus-Job (P2-15).
+
+    Frische DB-Session und frischer Kickbase-Client pro Lauf, wie beim Tick —
+    der Job läuft einmal am Tag, hält also keinen State über Stunden.
+    """
+
+    async def bonus_job() -> BonusOutcome:
+        vault = FernetVault.load_or_create(data_dir=settings.data_dir)
+        with Session(engine) as db:
+            kickbase = HttpxKickbaseClient(session_store=DbSessionStore(db, vault))
+            try:
+                return await CollectDailyBonusUseCase(
+                    session=db,
+                    kickbase=kickbase,
+                    enabled=settings.bonus_collect_enabled,
+                ).run()
+            finally:
+                await kickbase.aclose()
+
+    return bonus_job
 
 
 def _build_decision_engine(

@@ -216,6 +216,19 @@ class KickbaseGateway(Protocol):
         """
         ...
 
+    async def collect_daily_bonus(self) -> Mapping[str, object]:
+        """Täglichen Login-Bonus abholen (P2-15) — gibt die **Rohantwort** zurück.
+
+        Kein DTO, und das ist Absicht: der Endpunkt wurde nie abgerufen (§3.4),
+        seine Felder sind unbekannt, und geratene Feldnamen wären schlimmer als
+        keine (Plan §9). Was der Bonus gebracht hat, misst der Aufrufer am
+        **Kontostand** vor und nach dem Call; die Rohantwort wandert ins
+        `trade_log`, damit der erste echte Lauf die Feldnamen liefert.
+
+        ⚠️ Ein GET, der wie ein Write wirkt.
+        """
+        ...
+
     async def get_ranking(self, league_id: str) -> LeagueRanking:
         """Ligatabelle der eigenen Liga: Rang, Punkte, Teamwert je Mitspieler (P2-12).
 

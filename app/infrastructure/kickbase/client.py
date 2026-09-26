@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from http import HTTPStatus
@@ -212,6 +213,12 @@ class HttpxKickbaseClient:
     async def get_ranking(self, league_id: str) -> LeagueRanking:
         data = await self._request("GET", f"/v4/leagues/{league_id}/ranking")
         return RankingResponseDTO.model_validate(data).to_domain(league_id)
+
+    async def collect_daily_bonus(self) -> Mapping[str, Any]:
+        # Rohantwort, kein DTO: die Felder dieses Endpunkts sind unverifiziert
+        # (siehe `KickbaseGateway.collect_daily_bonus`). Der erste echte Lauf
+        # schreibt sie ins trade_log — daraus kann später ein DTO entstehen.
+        return await self._request("GET", "/v4/bonus/collect")
 
     async def get_market_value_history(
         self, league_id: str, player_id: str, days: int = 7
