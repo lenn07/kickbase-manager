@@ -27,8 +27,8 @@
 | `GET /v4/leagues/{l}/players/{p}` | 200 | Spielerdetail inkl. `sl`, `mdsum[]`, `sec` |
 | `GET /v4/leagues/{l}/players/{p}/performance` | 200 | alle Saisons, Spieltag für Spieltag |
 | `GET /v4/leagues/{l}/players/{p}/marketvalue/365` | 200 | Marktwert-Zeitreihe |
-| `GET /v4/competitions/1/matchdays` | 200 | Spielplan |
-| `GET /v4/competitions/1/table` | 200 | Bundesliga-Tabelle (FDR-Grundlage) |
+| `GET /v4/competitions/1/matchdays` | 200 | **Kompletter Spielplan**: 34 Spieltage, 306 Paarungen mit `t1`/`t2`/`dt`/`st` — siehe §3 |
+| `GET /v4/competitions/1/table` | 200 | Bundesliga-Tabelle (FDR-Grundlage), **unsortiert** — siehe §3 |
 | `GET /v4/leagues/{l}/settings` | **500** | `{"err":2,"errMsg":"NotFound"}` — **existiert nicht** |
 | `GET /v4/leagues/{l}/market/{p}/offers` | **405** | `Allow: POST` — nur Gebot abgeben |
 | `GET /v4/leagues/{l}/market/{p}` | **405** | `Allow: DELETE` — nur Listing zurückziehen |
@@ -104,7 +104,25 @@ Root: `day, nd (34), lfmd, shmdn, gpm, ti, clpc` → P2-12.
 
 ### `GET /v4/competitions/1/table`
 `it[]` je Verein: `tid, tn, cp (Punkte), cpl (Platz), pcpl (Vorplatz), mc (Spiele), gd, sp, mi`
-→ FDR-Grundlage für P2-11.
+→ FDR-Grundlage, seit P2-11 **gelesen** (`cpl`, `gd`, `mc`, `tid`, `tn`).
+
+⚠️ Die Zeilen kommen **unsortiert**: die Response vom 23.09. beginnt mit Bayern (`cpl: 2`),
+dann Stuttgart (`cpl: 15`), dann Elversberg (`cpl: 7`). Wer die Reihenfolge für die Tabelle
+nimmt, liest den falschen Verein als Tabellenführer. `sp` ist die **Kickbase**-Punktausbeute des
+Vereins (Bayern 9.500, Gladbach 2.325), nicht seine Spielstärke — für die Gegnerstärke zählt die
+sportliche Tabelle.
+
+### `GET /v4/competitions/1/matchdays` — der komplette Spielplan
+Root: `day` (aktueller Spieltag), `it[]` = 34 Spieltags-Gruppen mit `day` und `it[]`.
+Je Paarung: `mi, day, dt, t1, t2, t1sy, t2sy, st, il, t1im, t2im, fst`; gespielte zusätzlich
+`t1g, t2g, mtd, mt`, kommende teils `bo` (Wettquoten).
+
+`st == 2` heißt **beendet** — im Lauf vom 23.09. ausnahmslos: Spieltage 1–4 alle `st: 2` mit
+Toren, Spieltage 5–34 alle `st: 0` ohne. 9 Paarungen je Spieltag, 306 insgesamt.
+
+→ Seit P2-11 die Quelle des Restspielplans, **statt** `mdsum[]` aus `/players/{p}`: derselbe
+Inhalt für einen Call statt für einen Call pro Spieler. Der Tick kennt den Endpunkt ohnehin als
+Fallback für den Spieltagsstart (P0-1).
 
 ---
 

@@ -172,7 +172,17 @@ def _context(
     squad_limit: int | None = 16,
     open_bids: dict[str, int] | None = None,
     held_days: dict[str, int] | None = None,
-    hours_until_mv_update: int = 8,
+    # 4 h, nicht 8: beim Default-Listing (6 h Restlaufzeit) liegt damit **ein**
+    # Marktwert-Update vor dem Zuschlag — der Normalfall. Bei 8 h lief jedes
+    # Default-Listing vor dem Update ab, `mv_updates_until_expiry` stand überall
+    # auf 0, und seit §3a daraus eine harte Kaufbremse ist („ohne weiteres Update
+    # kann der Trade keinen Gewinn machen"), war der Default identisch mit der
+    # ausdrücklich gemeinten Ausnahme aus `no_trade_without_a_mv_update`. Im
+    # bezahlten Lauf vom 2026-09-26 endeten sechs Szenarien mit genau dieser
+    # Begründung auf HOLD, und `underpay_is_blocked` meldete grün für eine
+    # Gebots-Regel, die es nie geprüft hat. Der Wächter dazu steht in
+    # `test_scenarios_build.py`.
+    hours_until_mv_update: int = 4,
     team_outlook_overrides: dict[str, TeamOutlook] | None = None,
 ) -> DecisionContext:
     """Baut eine Lage. `placed_in_lineup` steuert, wie viele Slots besetzt sind.
@@ -893,8 +903,12 @@ def _no_trade_without_a_mv_update() -> Scenario:
             team_value=150_000_000,
             minutes_until_matchday=5 * 24 * 60,
             enrichment_overrides=overrides,
-            # Läuft vor dem nächsten 22-Uhr-Update ab: kein Drift-Anteil.
+            # Läuft vor dem nächsten 22-Uhr-Update ab: kein Drift-Anteil. Beide
+            # Zahlen gehören zusammen und stehen deshalb beide hier — der
+            # Default sorgt inzwischen für das Gegenteil (ein Update vor dem
+            # Zuschlag), und diese Ausnahme darf nicht von ihm abhängen.
             market_expiry_s=5 * 3600,
+            hours_until_mv_update=8,
         ),
         allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
         forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
@@ -1043,26 +1057,45 @@ def _stale_trade_frees_the_slot() -> Scenario:
 
 
 def _easier_fixture_wins_the_duel() -> Scenario:
-    """Zwei identische Stürmer, ein Unterschied: der Gegner am nächsten Spieltag.
+    """Zehn Spieler, ein leerer Startelf-Slot, zwei Stürmer zur Auswahl.
 
     Der Fall, für den P2-11 gebaut wurde. Bis dahin standen Restspielplan und
     Gegnerstärke nicht im Payload, und §1.2 verbot ausdrücklich, mit ihnen zu
-    rechnen — die beiden Spieler hier waren für das Modell **nicht
-    unterscheidbar**. Jetzt spielt der eine zu Hause gegen den Tabellenletzten
-    (`fdr` 1), der andere auswärts beim Tabellenführer (`fdr` 5).
+    rechnen — die beiden Kandidaten hier waren für das Modell **nicht
+    unterscheidbar**: gleiche Position, gleicher Marktwert, gleiche Punkte,
+    gleiche Form, gleicher Trend. Der einzige Unterschied ist das nächste Spiel:
+    einer zu Hause gegen den Tabellenletzten (`fdr` 1), einer auswärts beim
+    Tabellenführer (`fdr` 5).
 
-    Die Lage ist `matchday_prep` (20 h bis Anpfiff): Punkte gehen dort vor
-    Trading, die Gegnerstärke ist also entscheidungsrelevant und nicht bloß
-    Beiwerk. Geprüft wird nicht „kaufe jemanden", sondern: **wenn** gekauft
-    wird, dann nicht der mit dem schweren Spiel. Dieselbe Konstruktion wie in
-    `joker_is_no_starter` — eine Regel über die Auswahl, nicht über die Aktion.
+    **Warum der Kader zu klein ist.** Die erste Fassung dieses Szenarios stand
+    mit vollständiger Elf in der `matchday_prep`-Phase — und das Modell wählte im
+    bezahlten Lauf vom 2026-09-26 dreimal `HOLD`. Formal grün (HOLD ist erlaubt,
+    der verbotene Spieler wurde nicht gewählt), inhaltlich wertlos: eine Regel
+    über die *Auswahl* wird nur geprüft, wenn überhaupt gewählt wird. Genau
+    derselbe Befund wie bei `max_bid_ratio` in P2-13. Mit zehn Spielern und einem
+    leeren Startelf-Slot ist Nichtstun garantiert -100 Punkte wert und mit
+    `SET_LINEUP` nicht heilbar — es gibt keinen elften Spieler. `BUY` fällt also,
+    und die Auswahl ist messbar.
 
-    Und es ist gleichzeitig der Wächter gegen eine verdrehte FDR-Skala: bei
+    Es ist gleichzeitig der Wächter gegen eine verdrehte FDR-Skala: bei
     invertierter Richtung wählt das Modell zuverlässig den falschen Spieler.
     """
-    squad = _squad_of_twelve()
+    squad = [
+        _player("101", "Keeper", Position.GOALKEEPER, 8_000_000),
+        *[_player(f"20{i}", f"Abwehr{i}", Position.DEFENDER, 12_000_000) for i in range(1, 5)],
+        *[
+            _player(f"30{i}", f"Mittelfeld{i}", Position.MIDFIELDER, 15_000_000)
+            for i in range(1, 5)
+        ],
+        _player("401", "Sturm1", Position.FORWARD, 18_000_000),
+    ]
     easy = _player(
-        "980", "Heim gegen Letzten", Position.FORWARD, 9_000_000, average_points=120.0, team_id="28"
+        "980",
+        "Heim gegen Letzten",
+        Position.FORWARD,
+        9_000_000,
+        average_points=120.0,
+        team_id="28",
     )
     hard = _player(
         "981",
@@ -1072,6 +1105,9 @@ def _easier_fixture_wins_the_duel() -> Scenario:
         average_points=120.0,
         team_id="15",
     )
+    # Identisch bis auf die team_id — jede Abweichung hier würde das Szenario auf
+    # ein anderes Kriterium umlenken.
+    overrides = {p.id: _enrichment(p) for p in (easy, hard)}
     outlook = {
         "28": TeamOutlook(
             team_id="28",
@@ -1081,7 +1117,7 @@ def _easier_fixture_wins_the_duel() -> Scenario:
             is_home=True,
             fdr=1,
             fdr_next3=1.3,
-            next_kickoff=NOW + timedelta(minutes=20 * 60),
+            next_kickoff=NOW + timedelta(days=2),
             next_matchday=5,
         ),
         "15": TeamOutlook(
@@ -1092,30 +1128,38 @@ def _easier_fixture_wins_the_duel() -> Scenario:
             is_home=False,
             fdr=5,
             fdr_next3=4.7,
-            next_kickoff=NOW + timedelta(minutes=20 * 60),
+            next_kickoff=NOW + timedelta(days=2),
             next_matchday=5,
         ),
     }
     return Scenario(
         name="easier_fixture_wins_the_duel",
         description=(
-            "Zwei gleichwertige Stuermer — einer heim gegen Platz 18, einer auswaerts bei Platz 1"
+            "10 Spieler, 1 leerer Startelf-Slot, zwei identische Stuermer — "
+            "einer heim gegen Platz 18, einer auswaerts bei Platz 1"
         ),
         context=_context(
             squad_players=squad,
             market_players=[easy, hard],
             cash=20_000_000,
-            team_value=150_000_000,
-            minutes_until_matchday=20 * 60,
+            team_value=120_000_000,
+            minutes_until_matchday=2 * 24 * 60,
+            placed_in_lineup=len(squad),
+            enrichment_overrides=overrides,
             team_outlook_overrides=outlook,
+            # Beide Listings laufen lange vor dem Anpfiff ab: das Warten hat
+            # keinen Grund, und ein MW-Update liegt vor dem Zuschlag.
+            market_expiry_s=12 * 3600,
         ),
-        allowed=frozenset({TradeAction.BUY, TradeAction.HOLD, TradeAction.LIST_ON_MARKET}),
-        forbidden=frozenset({TradeAction.ACCEPT_OFFER, TradeAction.DECLINE_OFFER}),
+        allowed=frozenset({TradeAction.BUY}),
+        forbidden=frozenset({TradeAction.HOLD, TradeAction.SELL, TradeAction.ACCEPT_OFFER}),
         forbidden_player_ids=frozenset({hard.id}),
+        expects_full_lineup=False,
+        min_bid_ratio=1.0,
         rule=(
-            "`fdr` 1 = leichtester Gegner, 5 = schwerster. Bei gleichen Punkten entscheidet "
-            "der Spielplan; die Defensive/Offensive gegen schwache Gegner ist die "
-            "verlaesslichste Punktequelle (§1.2)"
+            "`fdr` 1 = leichtester Gegner, 5 = schwerster. Bei sonst gleichen Spielern "
+            "entscheidet der Spielplan; die Defensive/Offensive gegen schwache Gegner ist "
+            "die verlaesslichste Punktequelle (§1.2)"
         ),
     )
 

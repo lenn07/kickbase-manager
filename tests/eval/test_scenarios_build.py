@@ -99,3 +99,63 @@ def test_every_scenario_knows_its_next_opponent() -> None:
             )
             assert 1 <= entry["fdr"] <= 5, f"{scenario.name}: fdr {entry['fdr']} außerhalb 1..5"
             assert "missing_data:fixtures" not in entry["missing_data_flags"], scenario.name
+
+
+# Das eine Szenario, dessen **Gegenstand** ein Listing ohne Marktwert-Update ist.
+_NO_MV_UPDATE_SCENARIO = "no_trade_without_a_mv_update"
+
+
+def test_only_one_scenario_lacks_a_market_value_update() -> None:
+    """`mv_updates_until_expiry == 0` ist seit §3a eine harte Kaufbremse.
+
+    Der Befund aus dem bezahlten Lauf vom 2026-09-26: die Defaults von
+    `_context` (Listing 6 h, nächstes Update in 8 h) ließen **jedes**
+    Default-Listing vor dem Update ablaufen. Sechs Szenarien endeten daraufhin
+    einstimmig auf `HOLD` mit der Begründung „kein Trade-Gewinn möglich" — und
+    `underpay_is_blocked` meldete grün für eine Gebots-Regel, die es nie geprüft
+    hat, weil eine Preisschranke nur bei `BUY` greift.
+
+    Der Default darf deshalb nicht mit der ausdrücklich gemeinten Ausnahme
+    zusammenfallen. Dieselbe Klasse von Befund wie `mv_max_30d == market_value`
+    in P2-13: eine Voreinstellung, die nebenbei jede Lage zu einer
+    Sonderlage macht, kostet nicht nur einen bezahlten Lauf — sie tarnt sich als
+    grünes Häkchen.
+    """
+    for scenario in SCENARIOS:
+        market = _build_user_payload(scenario.context)["market"]
+        updates = [entry["mv_updates_until_expiry"] for entry in market]
+        if scenario.name == _NO_MV_UPDATE_SCENARIO:
+            assert all(value == 0 for value in updates), (
+                f"{scenario.name} ist die Ausnahme und muss bei 0 bleiben: {updates}"
+            )
+            continue
+        assert any(value is None or value >= 1 for value in updates), (
+            f"{scenario.name}: kein Listing überlebt ein Marktwert-Update "
+            f"({updates}) — §3a verbietet dann jeden Trade-Kauf, und das Szenario "
+            "prüft seine eigene Regel nicht mehr."
+        )
+
+
+def test_selection_rules_force_a_choice() -> None:
+    """Eine Regel über die **Auswahl** braucht ein Szenario, in dem gewählt wird.
+
+    `forbidden_player_ids` greift nur, wenn das Modell überhaupt eine
+    `player_id` liefert. Ist `HOLD` erlaubt, kann ein Szenario grün melden, ohne
+    die Regel berührt zu haben — genau so ist `easier_fixture_wins_the_duel` im
+    ersten bezahlten Lauf durchgelaufen (3x HOLD).
+
+    Deshalb: wer eine Auswahl verbietet, muss entweder `HOLD` ausschließen oder
+    mindestens zwei Kandidaten anbieten, zwischen denen die Regel entscheidet.
+    Die zweite Variante ist schwächer und bleibt erlaubt — sie deckt Lagen ab,
+    in denen Zurückhaltung selbst vertretbar ist (`bid_already_running`,
+    `joker_is_no_starter`).
+    """
+    for scenario in SCENARIOS:
+        if not scenario.forbidden_player_ids:
+            continue
+        market = _build_user_payload(scenario.context)["market"]
+        forces_action = TradeAction.HOLD not in scenario.allowed
+        assert forces_action or len(market) > 1, (
+            f"{scenario.name}: verbietet eine Auswahl, erlaubt HOLD und bietet nur "
+            f"{len(market)} Marktspieler — die Regel kann nicht geprüft werden."
+        )
