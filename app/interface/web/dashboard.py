@@ -82,7 +82,7 @@ async def dashboard_page(
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"status": status, "history": history},
+        {"status": status, "history": history, "nav_active": "dashboard"},
     )
 
 

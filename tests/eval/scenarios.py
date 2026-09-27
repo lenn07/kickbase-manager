@@ -287,7 +287,6 @@ def _context(
         squad=squad,
         market=market,
         budget=Decimal(cash),
-        min_action_score=0.6,
         max_trade_pct=0.25,
         min_cash_reserve=0,
         team_value=Decimal(team_value),

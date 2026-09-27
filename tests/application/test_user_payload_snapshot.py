@@ -101,7 +101,6 @@ def _build_context() -> DecisionContext:
         squad=squad,
         market=market,
         budget=league_me.budget,
-        min_action_score=0.6,
         max_trade_pct=0.25,
         min_cash_reserve=1_000_000,
         blacklist=(),

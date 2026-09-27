@@ -1,9 +1,12 @@
 """Entscheidungs-Engine (ADR-5).
 
-Phase 3 liefert einen Stub, der immer `HOLD` zurückgibt — damit der
-Scheduler-Pfad End-to-End getestet werden kann. Phase 4 ersetzt die Impl durch
-die Heuristik-Schicht, Phase 5 verdrahtet den LLM-Kurator obendrauf, Phase 6
-den AI-Only-Modus (Master-Prompt).
+Im Betrieb steckt genau eine Implementierung dahinter: `AiDecisionEngine`
+(Master-Prompt, Tool-Use). `HoldOnlyDecisionEngine` ist der Fallback für den
+Fall, dass kein entschlüsselbarer Anthropic-Key vorliegt — er hält den Tick
+auf HOLD, statt ihn scheitern zu lassen.
+
+`DecisionContext` ist die Schnittstelle zwischen Tick und Engine: alles, was
+die Engine sehen darf, steht hier und sonst nirgends.
 """
 
 from __future__ import annotations
@@ -95,7 +98,6 @@ class DecisionContext:
     squad: Squad
     market: tuple[MarketPlayer, ...]
     budget: Decimal
-    min_action_score: float
     max_trade_pct: float
     min_cash_reserve: int
     blacklist: tuple[str, ...] = ()
@@ -125,8 +127,8 @@ class DecisionContext:
     # `seller_id == manager_id`-Einträge aus dem Market-Response und mischt
     # sie mit dem letzten LIST_ON_MARKET-Timestamp aus dem trade_log.
     own_listings: Mapping[str, ListingRecord] = field(default_factory=dict)
-    # AI-Only-Modus: pro Spieler angereicherte Signale (Trend, Startelf,
-    # Injury-Label, avg_points_last5). Für den Heuristik-Pfad ohne Bedeutung.
+    # Pro Spieler angereicherte Signale (Trend, Startelf, Injury-Label,
+    # avg_points_last5) — vom `PlayerEnricher` gefüllt, gecacht in der DB.
     enrichment: Mapping[str, PlayerEnrichment] = field(default_factory=dict)
     # Letzte N Tick-Aktionen für den `recent_actions`-Block im Master-Prompt —
     # aufsteigend sortiert (älteste zuerst). Standard leer, damit Legacy-Tests
@@ -166,10 +168,15 @@ class DecisionEngine(Protocol):
 
 
 class HoldOnlyDecisionEngine:
-    """Phase-3-Stub: bewusst konservativ, wartet auf Phase 4/5."""
+    """Fallback ohne nutzbaren Anthropic-Key — hält den Tick auf HOLD.
 
-    _REASON = "Phase-3-Stub: Heuristik + LLM sind noch nicht aktiv."
+    Der Grund steht als Klartext im `trade_log`, damit im Dashboard sichtbar
+    ist, warum nichts passiert: nicht „das Modell wollte nicht", sondern „es
+    wurde gar nicht gefragt".
+    """
+
+    _REASON = "HOLD: Kein nutzbarer Anthropic-Key — das Modell wurde nicht befragt."
 
     async def decide(self, context: DecisionContext) -> TradeDecision:
-        del context  # Kontext wird erst in Phase 4/5 ausgewertet.
+        del context  # Ohne Key gibt es nichts auszuwerten.
         return TradeDecision.hold(self._REASON)

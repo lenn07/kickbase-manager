@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Daten{% endblock %}
+{% block stepper %}{% endblock %}
+{% block subtitle %}<p>Was der Container gespeichert hat — und wie du ihn wieder auf Stand bringst.</p>{% endblock %}
+{% block body %}
+  <div class="stack">
+    <section class="card">
+      <div class="card-head"><h2>Wenn du selbst gehandelt hast</h2></div>
+      <p class="card-note" style="margin-top:-0.5rem">
+        Drei Dinge gibt Kickbase nicht zurück: welche Gebote gerade laufen, wann ein
+        eigenes Angebot begonnen hat, und mit welcher Absicht ein Spieler gekauft wurde.
+        Der Auto-Manager merkt sich die selbst. Kaufst oder verkaufst du in der
+        Kickbase-App von Hand, weiß er davon nichts — ein zurückgezogenes Gebot gilt ihm
+        weiter als laufend und bindet Budget, das längst frei ist.
+      </p>
+      <p class="card-note">
+        Der <strong>Abgleich</strong> holt Kader und Markt frisch und streicht jede
+        Notiz, die dazu nicht mehr passt. Die Historie bleibt dabei vollständig stehen.
+      </p>
+    </section>
+
+    {# Das Fragment bringt `id="data-panel"` selbst mit — es ist das Ziel
+       aller vier Aktionen und tauscht sich per outerHTML gegen sich selbst. #}
+    {% include "_data_panel.html" %}
+  </div>
+{% endblock %}

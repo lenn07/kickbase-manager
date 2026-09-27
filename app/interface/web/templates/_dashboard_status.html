@@ -1,90 +1,93 @@
-<div class="panel-header">
+<div class="card-head">
   <h2>{{ status.league_name }}</h2>
-  <span>
+  <span class="actions">
     {% if status.dry_run %}
-      <span class="badge dry">Dry-Run</span>
+      <span class="badge dry">Testbetrieb</span>
     {% else %}
-      <span class="badge live">Live</span>
+      <span class="badge live">Scharf</span>
     {% endif %}
-    {% if status.scheduler_paused %}
-      <span class="badge paused">Pausiert</span>
-    {% endif %}
+    {% if status.scheduler_paused %}<span class="badge paused">Pausiert</span>{% endif %}
   </span>
 </div>
 
 {% if status.kickbase_error %}
-  <div class="error">Kickbase-Fehler: {{ status.kickbase_error }}</div>
+  <div class="notice error" style="margin-bottom:0.9rem">
+    <strong>Kickbase antwortet nicht</strong>{{ status.kickbase_error }}
+  </div>
 {% endif %}
 
-<div class="status-grid">
+<div class="stat-grid">
   <div class="stat">
-    <div class="label">Budget</div>
-    <div class="value {% if status.budget is none %}muted{% endif %}">
-      {% if status.budget is not none %}{{ "{:,.0f}".format(status.budget).replace(",", ".") }} €{% else %}—{% endif %}
+    <div class="stat-label">Budget</div>
+    <div class="stat-value {% if status.budget is none %}muted{% elif status.budget < 0 %}warn{% endif %}">
+      {% if status.budget is not none %}{{ status.budget | euro }}{% else %}—{% endif %}
     </div>
   </div>
   <div class="stat">
-    <div class="label">Kader-Wert</div>
-    <div class="value {% if status.team_value is none %}muted{% endif %}">
-      {% if status.team_value is not none %}{{ "{:,.0f}".format(status.team_value).replace(",", ".") }} €{% else %}—{% endif %}
+    <div class="stat-label">Kaderwert</div>
+    <div class="stat-value {% if status.team_value is none %}muted{% endif %}">
+      {% if status.team_value is not none %}{{ status.team_value | euro }}{% else %}—{% endif %}
     </div>
   </div>
   <div class="stat">
-    <div class="label">Kader-Größe</div>
-    <div class="value {% if status.squad_size is none %}muted{% endif %}">
+    <div class="stat-label">Kadergröße</div>
+    <div class="stat-value {% if status.squad_size is none %}muted{% endif %}">
       {% if status.squad_size is not none %}{{ status.squad_size }}{% else %}—{% endif %}
     </div>
   </div>
   <div class="stat">
-    <div class="label">Intervall</div>
-    <div class="value">{{ status.interval_min }} min</div>
+    <div class="stat-label">Intervall</div>
+    <div class="stat-value">{{ status.interval_min }} min</div>
   </div>
   <div class="stat">
-    <div class="label">Nächster Tick</div>
-    <div class="value {% if not status.next_run %}muted{% endif %}">
-      {% if status.next_run %}{{ status.next_run.strftime("%H:%M:%S") }}{% else %}—{% endif %}
+    <div class="stat-label">Nächster Durchlauf</div>
+    <div class="stat-value {% if not status.next_run %}muted{% endif %}">
+      {% if status.next_run %}{{ status.next_run.strftime("%H:%M") }}{% else %}—{% endif %}
     </div>
+    {% if status.next_run %}<div class="stat-sub">{{ status.next_run.strftime("%d.%m.") }}</div>{% endif %}
   </div>
   <div class="stat">
-    <div class="label">Letzte Aktion</div>
-    <div class="value {% if not status.last_action %}muted{% endif %}">
+    <div class="stat-label">Letzte Aktion</div>
+    <div class="stat-value {% if not status.last_action %}muted{% endif %}" style="font-size:0.95rem">
       {% if status.last_action %}
-        {{ status.last_action.action }}
-        {% if status.last_action.player_name %}· {{ status.last_action.player_name }}{% endif %}
+        {{ status.last_action.action | action_label }}
       {% else %}
         noch keine
       {% endif %}
     </div>
+    {% if status.last_action %}
+      <div class="stat-sub">
+        {% if status.last_action.player_name %}{{ status.last_action.player_name }} · {% endif %}
+        {{ status.last_action.ts | when }}
+      </div>
+    {% endif %}
   </div>
 </div>
 
 {% if status.scheduler_enabled %}
-<div class="controls">
-  {% if status.scheduler_paused %}
-    <button hx-post="/api/scheduler/resume"
-            hx-swap="none"
-            hx-on::after-request="htmx.trigger('#status-panel', 'refresh')">
-      ▶︎ Fortsetzen
+  <div class="actions spread">
+    {% if status.scheduler_paused %}
+      <button hx-post="/api/scheduler/resume" hx-swap="none"
+              hx-on::after-request="htmx.trigger('#status-panel', 'refresh')">
+        Fortsetzen
+      </button>
+    {% else %}
+      <button class="btn-secondary" hx-post="/api/scheduler/pause" hx-swap="none"
+              hx-on::after-request="htmx.trigger('#status-panel', 'refresh')">
+        Pausieren
+      </button>
+    {% endif %}
+    <button class="btn-secondary" hx-post="/api/scheduler/trigger" hx-swap="none"
+            hx-disabled-elt="this"
+            hx-on::after-request="htmx.trigger('#status-panel', 'refresh'); htmx.trigger('#history-panel', 'refresh')">
+      Jetzt ausführen
     </button>
-  {% else %}
-    <button class="secondary"
-            hx-post="/api/scheduler/pause"
-            hx-swap="none"
-            hx-on::after-request="htmx.trigger('#status-panel', 'refresh')">
-      ⏸ Pausieren
-    </button>
-  {% endif %}
-  <button class="secondary"
-          hx-post="/api/scheduler/trigger"
-          hx-swap="none"
-          hx-on::after-request="htmx.trigger('#status-panel', 'refresh'); htmx.trigger('#history-panel', 'refresh')">
-    ⚡︎ Jetzt ausführen
-  </button>
-  <a href="/settings" class="secondary" style="background:rgba(148,163,184,0.2);color:var(--text);padding:0.45rem 0.85rem;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600">
-    ⚙︎ Einstellungen
-  </a>
-</div>
+    <a class="btn btn-secondary" href="/data">Daten prüfen</a>
+  </div>
 {% else %}
-  <p class="hint">Scheduler ist deaktiviert (KB_SCHEDULER_ENABLED=false).</p>
-  <p class="hint"><a href="/settings">⚙︎ Einstellungen öffnen</a></p>
+  <div class="notice info" style="margin-top:1rem">
+    <strong>Auto-Loop ist abgeschaltet</strong>
+    Der Scheduler läuft nicht (<code>KB_SCHEDULER_ENABLED=false</code>). Es findet kein
+    Durchlauf statt, bis er wieder eingeschaltet wird.
+  </div>
 {% endif %}

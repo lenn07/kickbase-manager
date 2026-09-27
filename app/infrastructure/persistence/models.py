@@ -80,7 +80,6 @@ class SettingsRow(SQLModel, table=True):
     dry_run: bool = Field(default=True)
     max_trade_pct: float = Field(default=0.25)
     min_cash_reserve: int = Field(default=0)
-    min_action_score: float = Field(default=0.6)
     blacklist: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     digest_enabled: bool = Field(default=False)
     digest_hour: int = Field(default=20)
@@ -182,7 +181,22 @@ class MarketMetaRow(SQLModel, table=True):
 
 
 class TradeLogRow(SQLModel, table=True):
-    """Historie aller Entscheidungen inkl. HOLD-Ticks (Nachvollziehbarkeit im Dashboard)."""
+    """Historie aller Entscheidungen inkl. HOLD-Ticks (Nachvollziehbarkeit im Dashboard).
+
+    Die Tabelle hat zwei Rollen, und die Datenverwaltung trennt sie:
+
+    - **Historie** — was ist passiert. Wird im Dashboard gezeigt und nur auf
+      ausdrückliche Anweisung gelöscht.
+    - **Gedächtnis** — woraus der Bot seinen Weltzustand ableitet: Kaufpreise
+      für die Gewinn-Mitnahme, laufende eigene Gebote, eigene Listings. Kickbase
+      liefert diese drei nicht zurück, sie stehen nur hier.
+
+    Genau die zweite Rolle wird falsch, sobald in der Kickbase-App von Hand
+    gehandelt wird: ein selbst verkaufter Spieler steht weiter als offener Kauf
+    im Log. `superseded_at` ist die Antwort darauf — gesetzt heißt „die Realität
+    hat diese Zeile überholt": die Historie bleibt lesbar, das Gedächtnis liest
+    sie nicht mehr.
+    """
 
     __tablename__ = "trade_log"
 
@@ -198,3 +212,6 @@ class TradeLogRow(SQLModel, table=True):
     response_code: int | None = None
     notified_at: datetime | None = None
     context: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # Gesetzt = von der Realität überholt, siehe Klassen-Docstring. Die Zeile
+    # bleibt in der Historie stehen; die Gedächtnis-Queries überspringen sie.
+    superseded_at: datetime | None = Field(default=None, index=True)

@@ -1,17 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Kickbase-Login{% endblock %}
+{% block page_class %}narrow{% endblock %}
+{% block subtitle %}<p>Schritt 1 von 4 — Zugangsdaten prüfen und Ligen laden.</p>{% endblock %}
 {% block content %}
-  <h2 style="margin-top:0">Mit Kickbase anmelden</h2>
-  <p class="hint">Wir prüfen die Zugangsdaten direkt gegen die Kickbase-API und laden anschließend deine Ligen. Passwort wird verschlüsselt gespeichert.</p>
+  <p class="hint">
+    Die Zugangsdaten werden direkt gegen die Kickbase-API geprüft. Das Passwort
+    wird verschlüsselt gespeichert und verlässt den Container nur Richtung Kickbase.
+  </p>
 
-  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  {% if error %}<div class="notice error" style="margin:0.9rem 0">{{ error }}</div>{% endif %}
 
   <form method="post"
         action="/setup/kickbase"
         hx-post="/setup/kickbase"
-        hx-target="closest .panel"
+        hx-target="closest .card"
         hx-swap="outerHTML"
-        hx-disabled-elt="button">
+        hx-disabled-elt="button"
+        style="margin-top:1rem">
     <label>
       E-Mail
       <input type="email" name="email" value="{{ email or '' }}" required autofocus autocomplete="username">
@@ -20,6 +25,6 @@
       Passwort
       <input type="password" name="password" required autocomplete="current-password">
     </label>
-    <button type="submit">Anmelden &amp; Ligen laden</button>
+    <div class="actions"><button type="submit">Anmelden und Ligen laden</button></div>
   </form>
 {% endblock %}

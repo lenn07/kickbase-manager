@@ -78,6 +78,10 @@ prüfen — offene Fragen blockieren manche Pakete.
 - [x] **P2-15** Täglicher Bonus (`/v4/bonus/collect`) — gebaut + abgesichert; **erster scharfer Lauf steht aus** (Kill-Switch `KB_BONUS_COLLECT_ENABLED`)
 - [x] **P2-16** Mehrere Aktionen pro Tick im Deadline-Fenster (`follow_up_actions`, max. 3)
 
+### Phase 4 — Bedienbarkeit & Aufräumen · Status: **abgeschlossen** (2026-09-27)
+- [x] **P3-17** Datenverwaltung (`/data`): Bestand, Abgleich nach eigenem Handeln, Vergessen, Export  ⟵ *[Plan-Ergänzung aus dem Betrieb, siehe §6 und Changelog]*
+- [x] **P3-18** Toten Code entfernt (§4.2) + Oberfläche neu gefasst + Schema-Migrationen
+
 ### Messbare Erfolgskriterien (Definition of Done je Phase)
 
 | Phase | Messbar fertig, wenn … |
@@ -87,14 +91,13 @@ prüfen — offene Fragen blockieren manche Pakete.
 | **2** | HTTP-Calls/Tick gesunken (Messung im Log: „X aus dem Cache, Y per HTTP") · `avg_points_last5` ist echte L5 · das Kaderlimit im **aktiven** Pfad kommt aus `mppu` statt aus einer Konstante ⟵ *[korrigiert, siehe unten]* · Ticks feuern in den Fenstern aus P1-10 |
 | **3** | USER-JSON enthält Gegnerstärke + Ligarang · Overbid ist formelbasiert · Deadline-Tick kann ≥ 2 Aktionen ausführen |
 
-> **[Plan-Ergänzung 2026-09-24] Das Phase-2-DoD verlangte etwas, das §4.2 verbietet.**
-> Ursprünglich stand dort „keine hartkodierten Limits mehr in `kb_rules.py`". §4.2 führt dieselbe
-> Datei als toten Code mit „nicht anfassen, nicht erweitern" — beides zusammen ist nicht
+> **[Plan-Ergänzung 2026-09-24, erledigt 2026-09-27] Das Phase-2-DoD verlangte etwas, das §4.2
+> verbot.** Ursprünglich stand dort „keine hartkodierten Limits mehr in `kb_rules.py`". §4.2 führte
+> dieselbe Datei als toten Code mit „nicht anfassen, nicht erweitern" — beides zusammen war nicht
 > erfüllbar. Aufgelöst zugunsten von §4.2: D10 wirkt dort, wo er schadet, nämlich im aktiven
-> AI-Pfad über `constraints.squad_limit` im USER-JSON. Die Konstante `_MAX_SQUAD_SIZE = 15` bleibt
-> im Heuristik-Pfad stehen, bis dieser entfernt oder reaktiviert wird; sie wird von keinem Tick
-> gelesen. Wer den Pfad reaktiviert, muss sie als Erstes ersetzen — dieser Absatz ist die Notiz
-> dazu.
+> AI-Pfad über `constraints.squad_limit` im USER-JSON. Die Konstante `_MAX_SQUAD_SIZE = 15` blieb
+> vorerst im Heuristik-Pfad stehen, von keinem Tick gelesen. **P3-18 hat den Pfad entfernt** — die
+> Konstante ist damit mitsamt ihrer Datei weg, und der Widerspruch löst sich auf.
 
 ---
 
@@ -348,9 +351,16 @@ Tick (alle 120 min)
  → Master-Prompt als Cache-Prefix → claude-sonnet-4-6, Tool-Use „submit_decision"
  → genau 1 Aktion → TradeExecutor (dry_run-fähig) → trade_log → SMTP
 ```
-**Toter Code** (im AI-Only-Modus nicht im Pfad): `app/application/heuristic_engine.py`,
-`app/application/llm_curator.py`, `app/domain/scoring.py`, `app/domain/kb_rules.py`.
-Nicht anfassen, nicht erweitern — ggf. in einem separaten Aufräum-Paket entfernen.
+**Toter Code — entfernt in P3-18 (2026-09-27).** Bis dahin lagen vier Module ausserhalb
+des Pfads und wurden nur noch von ihren eigenen Tests gehalten:
+`app/application/heuristic_engine.py`, `app/application/llm_curator.py`,
+`app/domain/scoring.py`, `app/domain/kb_rules.py` — zusammen rund 1.600 Zeilen Produktivcode
+und 1.900 Zeilen Tests. Mit ihnen fiel `min_action_score` weg: der Schwellwert war die
+Stellschraube der Heuristik, wurde im AI-Pfad nie gelesen, stand aber weiter im
+`DecisionContext`, in `SettingsRow` und als Eingabefeld in der Oberfläche.
+
+Die Regel für neuen Code bleibt: Was nicht im aktiven Pfad steht, wird nicht gepflegt —
+und was nicht gepflegt wird, gehört gelöscht, nicht kommentiert.
 
 ---
 
@@ -1511,6 +1521,8 @@ Zwei Dinge bleiben festzuhalten:
 | 2026-09-26 | P2-12 | Eval gegen den Ligakontext-Prompt: **41/41** (ein Timeout nachgefahren), 84 Calls, 24:37 min | **Der Nachweis sind die beiden gespiegelten Szenarien**: identische Lage — gleicher Kader, gleicher Markt, ein leerer Startelf-Slot, zwei Restspieltage — nur der Tabellenstand gedreht. Bei 3000 Punkten **Rueckstand** kauft das Modell dreimal einstimmig den volatilen Spieler („Rueckstand 3000 Pkt, nur 2 MD uebrig → Varianz noetig. Hohes Ceiling (190) > sicherer Ertrag (95)"), bei 3000 Punkten **Vorsprung** dreimal den sicheren („95 Punkte-Schnitt, 85 % Startelf"). Ein Modell, das den `league`-Block ignoriert, waehlt in beiden denselben Spieler und faellt in genau einem durch — deshalb belegen erst beide zusammen die Regel. Ein statischer Waechter prueft, dass sich die uebrigen Payload-Bloecke zwischen den zwei Szenarien **nicht** unterscheiden; sonst koennte ein abweichendes Verhalten auch woandersher kommen. |
 | 2026-09-26 | P2-11 | Eval gegen den Spielplan-Prompt: erster Lauf **36/37** (1 Timeout), nach zwei Korrekturen an der Messgrundlage **37/37** (72 + 74 Calls, 20:32 + 19:19 min) | **Der Lauf hat keinen Prompt-Fehler gefunden, sondern zwei Loecher in der Eval selbst.** (a) Die `_context`-Defaults (Listing 6 h, naechstes MW-Update in 8 h) liessen **jedes** Default-Listing vor dem Update ablaufen — `mv_updates_until_expiry` stand ueberall auf 0, und seit §3a daraus eine harte Kaufbremse ist, war der Default identisch mit der ausdruecklich gemeinten Ausnahme `no_trade_without_a_mv_update`. Sechs Szenarien endeten einstimmig auf HOLD mit „kein Trade-Gewinn moeglich", und `underpay_is_blocked` meldete gruen fuer eine Gebots-Regel, die es nie ausgefuehrt hat (Preisschranken greifen nur bei BUY — die Log-Zeile sagt es sogar selbst: „min_bid_ratio in diesem Lauf NICHT geprueft"). Default jetzt 4 h, die Ausnahme setzt beide Zahlen selbst. (b) `easier_fixture_wins_the_duel` lief dreimal HOLD und hat damit seine **eigene** Regel nicht gemessen: `forbidden_player_ids` greift nur, wenn das Modell ueberhaupt waehlt. Neu gebaut als Lage mit 10 Spielern und einem leeren Startelf-Slot — mit `SET_LINEUP` nicht heilbar, also faellt BUY. **Wirkung im Nachlauf:** `underpay_is_blocked` bietet +2,2 % (Schranke erstmals ausgeuebt), `joker_is_no_starter` kauft den Durchspieler statt zu halten, und die drei verbliebenen HOLDs sind inhaltlich begruendet (Startelf 5 %, fallender Trend, Klumpenrisiko) statt mit dem MW-Update. **Der Nachweis fuer P2-11 selbst:** `easier_fixture_wins_the_duel` liefert BUY x3 auf den Spieler mit `fdr` 1 und nennt den Grund im Klartext — „FDR 1 (Heimspiel vs. Letzter)". Die Felder werden gelesen, nicht nur mitgeschickt, und die Skala ist nicht verdreht. Zwei statische Waechter fangen beide Loecher kuenftig **vor** dem bezahlten Lauf ab. |
 | 2026-09-26 | P2-13 | **Befund an der Eval-Basis:** `_enrichment` setzte `mv_max_30d == market_value` | Damit stand **jeder** Spieler in **jedem** Szenario am 30-Tage-Hoch. Solange der Prompt daraus nichts ableitete, war das folgenlos; seit §3a „MW am `mv_max_30d` ist der Peak, nicht der Einstieg" eine Kaufbremse ist, haette die Voreinstellung jedes Kauf-Szenario nebenbei zu einem Peak-Szenario gemacht — die Eval waere gruen geblieben und haette gemessen, dass der Bot nicht kauft. Default jetzt 5 % Luft, `_profit_peak` setzt den Peak ausdruecklich. Gleiche Klasse von Befund: `_context` setzte `mv_update_at` nicht, also standen alle Update-Zaehler auf `null` und die Drift-Regel waere in der Eval unpruefbar geblieben. |
+| 2026-09-27 | P3-17 | **Datenverwaltung unter `/data`:** Bestand aller gespeicherten Daten, Abgleich gegen Kader und Markt, Gedächtnis zurücksetzen, Historie löschen, JSON-Export; neue Spalte `trade_log.superseded_at` | **Der Auslöser kam aus dem Betrieb:** wer in der Kickbase-App selbst handelt, hinterlässt im Bot ein Weltbild, das nicht mehr stimmt. Drei Dinge liefert Kickbase nicht zurück und der Bot leitet sie deshalb aus dem eigenen `trade_log` ab — laufende Gebote (D3/P1-11), der Beginn eines eigenen Listings, der Kauf-Intent. Ein von Hand zurückgezogenes Gebot galt ihm weiter als laufend und band Budget, das längst frei war. **Die Antwort ist der Abgleich, nicht das Löschen:** `reconcile` hält das Gedächtnis gegen Kader und Markt und markiert widerlegte Zeilen als überholt — die Historie bleibt vollständig, nur die Ableitung hört auf. Drei Befunde markieren: Kauf ohne Spieler in Kader **und** Markt; Gebot vor Beginn des aktuellen Listings (dieselbe Regel wie in `_open_bids`, jetzt festgeschrieben); Listing, das nicht mehr als eigenes im Markt liegt. **Eine Grenze wird ausgewiesen statt kaschiert:** einen Kauf, den der Bot nie gemacht hat, kann der Abgleich nicht ergänzen — Kickbase liefert den Einstand (`mvgl`, P1-6), die Absicht nicht. Der Bericht zählt diese Spieler, statt so zu tun, als wüsste er es. **Subtilste Regel:** `superseded_at` filtert nur, wo der Bot seinen **Weltzustand** liest (Käufe, Listings, `recent_actions`). Wo die Tabelle als **Sicherung** dient, zählt die Zeile weiter — sonst löste ausgerechnet ein Gedächtnis-Reset den zweiten Bonus-Abruf am selben Tag aus, den die Tagessperre aus P2-15 verhindern soll. 39 neue Tests. |
+| 2026-09-27 | P3-18 | **Toter Code entfernt** (§4.2: `heuristic_engine`, `llm_curator`, `domain/scoring`, `domain/kb_rules` samt Tests und `min_action_score`), **Oberfläche neu gefasst**, **Schema-Migrationen** ergänzt | ~3.500 Zeilen weg, die seit dem AI-Only-Modus nur noch von ihren eigenen Tests gehalten wurden. Mit ihnen fiel `min_action_score`: im AI-Pfad nie gelesen, aber weiter im `DecisionContext`, in der Tabelle und als Eingabefeld — eine Stellschraube, die nichts mehr schraubte. **Das Entfernen einer Spalte hat einen Preis, den `create_all` nicht zahlt:** SQLModel legt fehlende Tabellen an, fehlende Spalten nicht, und eine überzählige NOT-NULL-Spalte ohne Server-Default lässt das erste INSERT scheitern. Daher `persistence/migrations.py` — idempotente Schritte, die bei jedem Start laufen und nur additiv oder verlustfrei sein dürfen; was Daten wegwirft, gehört nach `/data`, wo der Nutzer es auslöst. **Oberfläche:** das CSS lag inline in `base.html` und wurde je Seite per `extra_head` ergänzt — dieselbe Kachel war an zwei Stellen definiert und hatte sich auseinanderentwickelt. Jetzt eine statische Datei, Navigation über alle Seiten, helle und dunkle Palette mit Umschalter, und die Anzeige-Formate (Euro, Zeitabstand, Aktionsnamen) als Jinja-Filter statt als `"{:,.0f}".format(x).replace(",", ".")` an vier Stellen. Die Begründungen des Modells sprengten die Historien-Tabelle — jetzt auf drei Zeilen geklemmt und ohne JavaScript aufklappbar. |
 
 ---
 

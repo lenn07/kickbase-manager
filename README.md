@@ -99,6 +99,57 @@ Spieltag. Ein Kader mit acht Spielern verliert also 300 Punkte, die kein
 späterer Tick zurückholt — der Guard kann aber nur besetzen, was im Kader
 steht. Die fehlenden Plätze füllt nur ein Kauf.
 
+## Wenn du selbst in der Kickbase-App handelst
+
+Der Bot hält zwei Sorten Wissen: was er gerade bei Kickbase abgefragt hat, und
+was er sich selbst gemerkt hat. Die zweite Sorte steht im `trade_log` und ist
+die **einzige** Quelle für drei Dinge, die Kickbase nicht zurückliefert:
+
+- **welche eigenen Gebote gerade laufen** — das Gebots-Array im Market-Payload
+  ist bis heute unbenannt, der Bot rekonstruiert sie aus seinen eigenen Käufen;
+- **wann ein eigenes Angebot begonnen hat** — Basis des Stale-Fallbacks;
+- **mit welcher Absicht** ein Spieler gekauft wurde. Den Einstandspreis liefert
+  Kickbase über `mvgl` mit, die Absicht nicht.
+
+Kaufst oder verkaufst du in der App von Hand, weiß der Bot davon nichts. Ein
+zurückgezogenes Gebot gilt ihm weiter als laufend und bindet Budget, das längst
+frei ist; ein neu aufgesetztes Angebot erbt den Zeitstempel des alten.
+
+**Die Lösung ist ein Klick auf „Mit Kickbase abgleichen" unter `/data`.** Der
+Abgleich holt Kader und Markt frisch und markiert jede Notiz, die dazu nicht
+mehr passt, als überholt — die Historie bleibt vollständig lesbar, der Bot
+leitet nur nichts mehr daraus ab. Er verwirft dabei auch die Zwischenspeicher.
+
+| Knopf | Was passiert | Wann |
+|---|---|---|
+| **Mit Kickbase abgleichen** | Kader + Markt neu lesen, widerlegte Notizen streichen, Zwischenspeicher verwerfen | Nach jedem eigenen Handeln in der App — der Normalfall |
+| **Zwischenspeicher verwerfen** | Nur die gecachten Kickbase-Antworten weg, Gedächtnis unberührt | Wenn Marktwerte oder Leistungsdaten veraltet wirken |
+| **Gedächtnis zurücksetzen** | Alle Einträge als überholt markieren, Zeilen bleiben stehen | Wenn der Abgleich nicht reicht — der Bot vergisst laufende Gebote und Kaufabsichten |
+| **Historie endgültig löschen** | Alle `trade_log`-Zeilen entfernen, auch im Dashboard | Nur wenn du wirklich bei null anfangen willst |
+| **Alles herunterladen** | JSON mit Bestand, Einstellungen und kompletter Historie | Für Backup oder Auswertung |
+
+Zwei Dinge überleben jedes Aufräumen:
+
+- **Die Tagessperre für den Login-Bonus.** Sie ist keine Erinnerung, sondern
+  eine Sicherung gegen einen zweiten Abruf am selben Tag — ein Reset, der sie
+  aufhöbe, löste genau das aus, was sie verhindern soll.
+- **Deine Zugänge.** Kickbase-Passwort, Token, Anthropic-Key und SMTP-Passwort
+  liegen verschlüsselt in der Datenbank und stehen weder auf der Seite noch in
+  der Export-Datei; die E-Mail-Adresse erscheint maskiert.
+
+Was der Abgleich **nicht** kann: einen Kauf ergänzen, den der Bot nie gemacht
+hat. Für selbst gekaufte oder zugeloste Spieler kennt er den Einstandspreis
+(von Kickbase), aber nicht die Absicht dahinter — der Bericht zählt sie
+deshalb aus, statt so zu tun, als wüsste er es.
+
+## Schema-Updates
+
+Die Datenbank wird bei jedem Start automatisch auf den Stand der aktuellen
+Modelle gebracht (`app/infrastructure/persistence/migrations.py`). Die Schritte
+sind idempotent und ausschließlich additiv oder verlustfrei — ein Schritt, der
+Daten wegwirft, gehört nach `/data`, wo du ihn selbst auslöst. Ein Backup vor
+einem Update bleibt trotzdem die günstigste Versicherung, siehe unten.
+
 ## Betrieb & Härtung (Phase 7)
 
 ### Endpunkte
@@ -107,6 +158,8 @@ steht. Die fehlenden Plätze füllt nur ein Kauf.
 |--------------|-------------------------------------------------------------|
 | `/`          | Redirect zum Setup-Wizard bzw. Dashboard                    |
 | `/dashboard` | Live-Status, Historie, Log-Stream                           |
+| `/data`      | Datenverwaltung: Bestand, Abgleich, Gedächtnis, Export      |
+| `/settings`  | Intervall, Leitplanken, Tages-Digest                        |
 | `/health`    | Health-Check für Docker/Uptime-Monitore (`{"status":"ok"}`) |
 | `/metrics`   | Prometheus-Text-Format, siehe unten                         |
 | `/api/docs`  | OpenAPI-Swagger                                             |
@@ -198,6 +251,9 @@ app/
 ├── application/     # Use-Cases
 ├── infrastructure/  # Adapter (Kickbase, LLM, DB, Scheduler, SMTP)
 └── interface/       # FastAPI + HTMX
+    └── web/
+        ├── templates/  # Jinja2
+        └── static/     # app.css — ein Stylesheet für alle Seiten
 ```
 
 Abhängigkeiten zeigen **immer nach innen** (Interface → Application → Domain).

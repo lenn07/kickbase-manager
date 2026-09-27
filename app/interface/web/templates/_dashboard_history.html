@@ -1,49 +1,65 @@
-<div class="panel-header">
+<div class="card-head">
   <h2>Aktions-Historie</h2>
-  <span class="hint">letzte {{ history|length }} Ticks</span>
+  <span class="hint">letzte {{ history|length }} Durchläufe</span>
 </div>
 
 {% if not history %}
-  <p class="empty">Noch keine Ticks — sobald der Scheduler läuft, erscheinen hier die Entscheidungen.</p>
+  <p class="empty">
+    Noch keine Durchläufe — sobald der Auto-Loop das erste Mal feuert, steht hier, was er
+    entschieden hat und warum.
+  </p>
 {% else %}
-  {% set intent_labels = {
-    "SQUAD_FILL": "Kader füllen",
-    "PROFIT": "Geld machen",
-    "POINTS": "Punkte sammeln",
-    "SQUAD_TRIM": "Aussortieren",
-    "DEBT_RELIEF": "Schulden abbauen"
-  } %}
-  <table class="history">
-    <thead>
-      <tr>
-        <th>Zeit</th>
-        <th>Aktion</th>
-        <th>Spieler</th>
-        <th>Grund</th>
-        <th>Preis</th>
-        <th>Ausgeführt</th>
-        <th>Begründung</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in history %}
-        {% set intent = row.context.get("intent") if row.context else None %}
+  <div class="table-scroll">
+    <table class="history">
+      <thead>
         <tr>
-          <td>{{ row.ts.strftime("%d.%m. %H:%M:%S") }}</td>
-          <td class="action-{{ row.action }}">{{ row.action }}</td>
-          <td>{{ row.player_name or "—" }}</td>
-          <td>
-            {% if intent %}
-              <span class="intent-badge intent-{{ intent }}">{{ intent_labels.get(intent, intent) }}</span>
-            {% else %}
-              <span class="hint">—</span>
-            {% endif %}
-          </td>
-          <td>{% if row.price %}{{ "{:,.0f}".format(row.price).replace(",", ".") }} €{% else %}—{% endif %}</td>
-          <td>{% if row.executed %}✓{% else %}·{% endif %}</td>
-          <td>{{ row.reason_text or "" }}</td>
+          <th>Zeit</th>
+          <th>Aktion</th>
+          <th>Spieler</th>
+          <th>Absicht</th>
+          <th>Preis</th>
+          <th>Status</th>
+          <th>Begründung</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for row in history %}
+          {% set intent = row.context.get("intent") if row.context else None %}
+          <tr {% if row.superseded_at %}class="superseded"
+              title="Beim Abgleich als überholt markiert — der Bot leitet daraus nichts mehr ab."{% endif %}>
+            <td class="time">{{ row.ts | when }}</td>
+            <td class="action action-{{ row.action }}">{{ row.action | action_label }}</td>
+            <td>{{ row.player_name or "—" }}</td>
+            <td>
+              {% if intent %}
+                <span class="badge intent intent-{{ intent }}">{{ intent | intent_label }}</span>
+              {% else %}
+                <span class="hint">—</span>
+              {% endif %}
+            </td>
+            <td class="price">{% if row.price %}{{ row.price | euro }}{% else %}—{% endif %}</td>
+            <td>
+              {% if row.superseded_at %}
+                <span class="badge neutral">überholt</span>
+              {% elif row.executed %}
+                <span class="badge live">gesendet</span>
+              {% else %}
+                <span class="badge neutral">nur notiert</span>
+              {% endif %}
+            </td>
+            <td class="reason">
+              {% if row.reason_text %}
+                {# Die Begründungen des Modells werden mehrere hundert Zeichen lang.
+                   Geklemmt auf drei Zeilen, per Klick vollständig — ohne JavaScript. #}
+                <details>
+                  <summary>{{ row.reason_text }}</summary>
+                  <p>{{ row.reason_text }}</p>
+                </details>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endif %}

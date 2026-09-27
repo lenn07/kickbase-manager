@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
 
@@ -48,8 +49,10 @@ from app.interface.api import router as api_router
 from app.interface.api.logs import router as logs_router
 from app.interface.api.scheduler import router as scheduler_router
 from app.interface.web.dashboard import router as dashboard_router
+from app.interface.web.data import router as data_router
 from app.interface.web.router import router as web_router
 from app.interface.web.settings import router as settings_router
+from app.interface.web.templates import TEMPLATE_DIR
 
 _log = logging.getLogger(__name__)
 
@@ -114,8 +117,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(scheduler_router)
     app.include_router(logs_router)
     app.include_router(dashboard_router)
+    app.include_router(data_router)
     app.include_router(settings_router)
+    # Der Setup-Router fängt `/` ab und muss deshalb zuletzt kommen.
     app.include_router(web_router)
+
+    # Stylesheet und Co. liegen neben den Templates, nicht in einem eigenen
+    # Baum: sie gehören zur Interface-Schicht und werden mit ihr versioniert.
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(TEMPLATE_DIR.parent / "static")),
+        name="static",
+    )
     return app
 
 

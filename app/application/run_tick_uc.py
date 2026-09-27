@@ -220,7 +220,6 @@ class RunTickUseCase:
             squad=squad,
             market=tuple(market),
             budget=league_me.budget,
-            min_action_score=settings.min_action_score,
             max_trade_pct=settings.max_trade_pct,
             min_cash_reserve=settings.min_cash_reserve,
             blacklist=tuple(settings.blacklist),
@@ -798,8 +797,13 @@ def _load_recent_actions(trades: TradeLogRepository, user_id: int) -> tuple[Rece
     `list_recent` liefert absteigend — wir drehen um, damit der Prompt die
     Historie chronologisch (älteste zuerst) sieht, was leichter zu lesen ist.
     Fehlende Intents/Actions werden übersprungen (Konsistenz > Vollständigkeit).
+
+    Überholte Zeilen bleiben draußen (`include_superseded=False`): was der
+    Abgleich als widerlegt markiert hat, soll das Modell nicht als „das habe
+    ich zuletzt getan" lesen — sonst begründet es den nächsten Zug mit einem
+    Gebot, das gar nicht mehr läuft.
     """
-    rows = trades.list_recent(user_id=user_id, limit=_MAX_RECENT_ACTIONS)
+    rows = trades.list_recent(user_id=user_id, limit=_MAX_RECENT_ACTIONS, include_superseded=False)
     out: list[RecentAction] = []
     for row in reversed(rows):
         try:
