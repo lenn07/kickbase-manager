@@ -1,0 +1,573 @@
+/* Kickbase Auto-Manager — gemeinsames Stylesheet.
+ *
+ * Eine Datei für alle Seiten (Setup, Dashboard, Daten, Einstellungen). Vorher
+ * lag das CSS inline in `base.html` und wurde je Seite per `extra_head`
+ * ergänzt — dieselbe Kachel war dadurch an zwei Stellen definiert und hat sich
+ * auseinanderentwickelt. Hier gilt: eine Regel, ein Ort.
+ *
+ * Aufbau: 1 Farbwerte · 2 Grundgerüst · 3 Navigation · 4 Karten · 5 Kacheln
+ *         6 Knöpfe · 7 Formulare · 8 Tabellen · 9 Meldungen · 10 Log · 11 Setup
+ */
+
+/* -- 1 Farbwerte ------------------------------------------------------
+ *
+ * Zwei vollständige Paletten. Hell ist der Standard, dunkel greift über die
+ * Systemeinstellung — und `data-theme` auf <html> schlägt beides, damit der
+ * Umschalter im Kopf in beide Richtungen wirkt und nicht nur „dunkler als das
+ * System" kann. Jede Farbe hat ihre Erstdefinition hier im :root-Block; die
+ * beiden Blöcke darunter überschreiben nur.
+ */
+:root {
+  color-scheme: light;
+
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-sunken: #eef0f3;
+  --border: #dcdfe4;
+  --border-strong: #c3c8d0;
+
+  --text: #1b1f24;
+  --text-muted: #5c6672;
+  --text-faint: #8a939f;
+
+  --accent: #3355e8;
+  --accent-hover: #2743c4;
+  --accent-contrast: #ffffff;
+  --accent-soft: #e6eaff;
+
+  --ok: #1a7f37;
+  --ok-soft: #dcf5e3;
+  --warn: #9a6700;
+  --warn-soft: #fbefd0;
+  --danger: #c4372f;
+  --danger-soft: #fbe2e0;
+  --info-soft: #e4eef8;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgba(16, 19, 23, 0.06), 0 4px 12px rgba(16, 19, 23, 0.04);
+
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bg: #0e1116;
+    --surface: #171b21;
+    --surface-sunken: #11151a;
+    --border: #262c35;
+    --border-strong: #363d48;
+
+    --text: #e6e9ee;
+    --text-muted: #9aa4b2;
+    --text-faint: #6b7686;
+
+    --accent: #7d95ff;
+    --accent-hover: #93a7ff;
+    --accent-contrast: #0e1116;
+    --accent-soft: #1d2440;
+
+    --ok: #46c464;
+    --ok-soft: #14301d;
+    --warn: #d6a138;
+    --warn-soft: #33270d;
+    --danger: #f2655b;
+    --danger-soft: #3a1815;
+    --info-soft: #17222f;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.25);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e1116;
+  --surface: #171b21;
+  --surface-sunken: #11151a;
+  --border: #262c35;
+  --border-strong: #363d48;
+
+  --text: #e6e9ee;
+  --text-muted: #9aa4b2;
+  --text-faint: #6b7686;
+
+  --accent: #7d95ff;
+  --accent-hover: #93a7ff;
+  --accent-contrast: #0e1116;
+  --accent-soft: #1d2440;
+
+  --ok: #46c464;
+  --ok-soft: #14301d;
+  --warn: #d6a138;
+  --warn-soft: #33270d;
+  --danger: #f2655b;
+  --danger-soft: #3a1815;
+  --info-soft: #17222f;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* -- 2 Grundgerüst --------------------------------------------------- */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Geldbeträge und Uhrzeiten stehen untereinander in Tabellen und Kacheln.
+ * Ohne feste Ziffernbreite wandern die Spalten bei jedem Refresh. */
+.num, .stat-value, table.history td, .log-stream { font-variant-numeric: tabular-nums; }
+
+.page {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+.page.narrow { max-width: 620px; }
+
+h1, h2, h3 { line-height: 1.25; margin: 0; font-weight: 600; }
+h1 { font-size: 1.35rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.02rem; }
+h3 { font-size: 0.9rem; }
+p { margin: 0 0 0.75rem; }
+p:last-child { margin-bottom: 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.hint { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+.hint.ok { color: var(--ok); }
+.hint.error { color: var(--danger); }
+.empty { color: var(--text-faint); font-style: italic; }
+.stack { display: flex; flex-direction: column; gap: 1rem; }
+
+/* -- 3 Navigation ----------------------------------------------------- */
+
+.topbar {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.brand:hover { text-decoration: none; }
+.brand-mark {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.nav { display: flex; gap: 0.2rem; margin-left: auto; flex-wrap: wrap; }
+.nav a {
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+.nav a:hover { background: var(--surface-sunken); color: var(--text); text-decoration: none; }
+.nav a.active { background: var(--accent-soft); color: var(--accent); }
+
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+}
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--text); background: none; }
+
+.page-head { margin-bottom: 1.25rem; }
+.page-head p { color: var(--text-muted); margin: 0.15rem 0 0; font-size: 0.9rem; }
+
+/* -- 4 Karten --------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.15rem;
+  box-shadow: var(--shadow);
+}
+.card + .card { margin-top: 1rem; }
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+.card-head > h2 { display: flex; align-items: center; gap: 0.5rem; }
+.card-head .hint { margin-left: auto; }
+.card-note {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  margin: -0.5rem 0 0.9rem;
+  max-width: 62ch;
+}
+
+/* -- 5 Kacheln -------------------------------------------------------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+.stat {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.8rem;
+}
+.stat-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.stat-value { font-size: 1.1rem; font-weight: 600; margin-top: 0.2rem; }
+.stat-value.muted { color: var(--text-faint); font-weight: 500; }
+.stat-value.ok { color: var(--ok); }
+.stat-value.warn { color: var(--danger); }
+.stat-sub { color: var(--text-faint); font-size: 0.76rem; margin-top: 0.1rem; }
+
+.badge {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.badge.dry { background: var(--warn-soft); color: var(--warn); }
+.badge.live { background: var(--ok-soft); color: var(--ok); }
+.badge.paused { background: var(--danger-soft); color: var(--danger); }
+.badge.neutral { background: var(--surface-sunken); color: var(--text-muted); }
+
+/* Intent-Marken der Aktions-Historie. Bewusst alle in derselben gedämpften
+ * Sättigung: sie sollen die Zeile gliedern, nicht überstrahlen. */
+.intent { background: var(--surface-sunken); color: var(--text-muted); }
+.intent-SQUAD_FILL { background: var(--info-soft); color: var(--accent); }
+.intent-PROFIT { background: var(--ok-soft); color: var(--ok); }
+.intent-POINTS { background: var(--accent-soft); color: var(--accent); }
+.intent-SQUAD_TRIM { background: var(--surface-sunken); color: var(--text-muted); }
+.intent-DEBT_RELIEF { background: var(--warn-soft); color: var(--warn); }
+
+/* -- 6 Knöpfe --------------------------------------------------------- */
+
+.actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.actions.spread { margin-top: 1rem; }
+
+button, .btn {
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+button:hover, .btn:hover { background: var(--accent-hover); text-decoration: none; }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover { background: var(--surface-sunken); }
+
+.btn-danger { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger-soft); }
+
+button[disabled], .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+/* HTMX setzt die Klasse für die Dauer des Requests. */
+.htmx-request button, button.htmx-request { opacity: 0.6; cursor: progress; }
+
+/* -- 7 Formulare ------------------------------------------------------ */
+
+form { display: flex; flex-direction: column; gap: 1rem; }
+label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; font-weight: 500; }
+label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+input, select, textarea {
+  font: inherit;
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+textarea { resize: vertical; font-family: var(--font-mono); font-size: 0.82rem; }
+input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--accent); }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible,
+.btn:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem 1rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+legend {
+  padding: 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.field-row { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+.field-row > * { flex: 1 1 180px; }
+.field-hint { color: var(--text-faint); font-size: 0.78rem; font-weight: 400; }
+
+/* -- 8 Tabellen ------------------------------------------------------- */
+
+.table-scroll { overflow-x: auto; margin: 0 -1.15rem; padding: 0 1.15rem; }
+
+table.history { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 640px; }
+table.history th {
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+table.history td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+table.history tbody tr:last-child td { border-bottom: 0; }
+table.history tbody tr:hover { background: var(--surface-sunken); }
+table.history td.time, table.history td.price { white-space: nowrap; }
+table.history td.reason { color: var(--text-muted); min-width: 24ch; max-width: 46ch; }
+
+/* Begründungen des Modells werden lang. Geklemmt auf drei Zeilen, per Klick
+ * ganz — `summary` trägt den gekürzten Text, das `<p>` darunter den vollen,
+ * sodass beim Aufklappen nichts springt und beides aus derselben Quelle kommt. */
+td.reason details summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+  list-style: none;
+}
+td.reason details summary::-webkit-details-marker { display: none; }
+td.reason details[open] summary { display: none; }
+td.reason details p { margin: 0; }
+td.reason details::after {
+  content: "mehr";
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: var(--accent);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+td.reason details[open]::after { content: "weniger"; }
+
+td.action { font-weight: 600; white-space: nowrap; }
+td.action-BUY { color: var(--ok); }
+td.action-SELL, td.action-SELL_INSTANT { color: var(--accent); }
+td.action-LIST_ON_MARKET { color: var(--warn); }
+td.action-ACCEPT_OFFER { color: var(--ok); }
+td.action-DECLINE_OFFER, td.action-HOLD { color: var(--text-muted); }
+td.action-ERROR { color: var(--danger); }
+
+/* Überholte Zeilen bleiben lesbar, treten aber zurück — sie sind Historie,
+ * keine Grundlage mehr. */
+tr.superseded td { opacity: 0.55; }
+tr.superseded td.action { text-decoration: line-through; }
+
+/* -- 9 Meldungen ------------------------------------------------------ */
+
+.notice {
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.88rem;
+}
+.notice + .notice, .notice + form, .notice + .stat-grid { margin-top: 0.9rem; }
+.notice strong { display: block; margin-bottom: 0.15rem; }
+.notice ul { margin: 0.35rem 0 0; padding-left: 1.1rem; color: var(--text-muted); }
+.notice li + li { margin-top: 0.2rem; }
+.notice.ok { background: var(--ok-soft); border-left-color: var(--ok); }
+.notice.warn { background: var(--warn-soft); border-left-color: var(--warn); }
+.notice.error { background: var(--danger-soft); border-left-color: var(--danger); }
+.notice.info { background: var(--info-soft); border-left-color: var(--accent); }
+
+/* -- 10 Log-Stream ---------------------------------------------------- */
+
+.log-stream {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.7rem;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line.level-INFO { color: var(--text); }
+.log-line.level-WARNING { color: var(--warn); }
+.log-line.level-ERROR, .log-line.level-CRITICAL { color: var(--danger); }
+.log-line.level-DEBUG { color: var(--text-faint); }
+
+/* -- 11 Setup-Schritte ------------------------------------------------ */
+
+.steps {
+  display: flex;
+  gap: 0.35rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+}
+.steps li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  min-width: 0;
+}
+.steps li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.steps .marker {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-sunken);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.steps li.done { color: var(--ok); border-color: var(--ok); }
+.steps li.done .marker { background: var(--ok); color: var(--surface); }
+.steps li.current { color: var(--text); border-color: var(--accent); }
+.steps li.current .marker { background: var(--accent); color: var(--accent-contrast); }
+
+.choice-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.choice-list label {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  cursor: pointer;
+}
+.choice-list label:hover { border-color: var(--accent); }
+
+/* -- Schmale Schirme -------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .page { padding: 1rem 0.85rem 3rem; }
+  .card { padding: 0.95rem; }
+  .table-scroll { margin: 0 -0.95rem; padding: 0 0.95rem; }
+  .steps { font-size: 0; gap: 0.25rem; }
+  .steps li { justify-content: center; padding: 0.4rem; }
+  .steps li span:last-child { display: none; }
+  .steps .marker { font-size: 0.7rem; }
+
+  /* Volle Breite statt nebeneinander. `flex: 1 1 auto` reichte nicht: ein
+   * Flex-Item schrumpft nicht unter seine min-content-Breite, und „Zwischen-
+   * speicher verwerfen" ist breiter als ein halber Telefonschirm — die Zeile
+   * lief über den Rand, statt umzubrechen. */
+  .actions > button, .actions > .btn { flex: 1 1 100%; justify-content: center; }
+
+  /* Fließtext in den Karten darf die Spalte nicht sprengen. */
+  .card-note, .hint { max-width: 100%; }
+
+  /* Die Kachel-Untertitel sind teils lang; sie dürfen umbrechen statt zu schieben. */
+  .stat { min-width: 0; }
+  .stat-value { overflow-wrap: anywhere; }
+
+  /* Kopfleiste zweizeilig: oben Marke und Umschalter, darunter die Navigation
+   * über die volle Breite. Vorher blieben alle drei Links in einer Zeile neben
+   * der Marke — `.nav` kann nicht unter seine Inhaltsbreite schrumpfen und hat
+   * so den gesamten Seitenkörper über den Schirmrand hinausgeschoben. */
+  .topbar-inner { padding: 0.55rem 0.85rem; row-gap: 0.5rem; }
+  .theme-toggle { margin-left: auto; }
+  .nav { order: 3; width: 100%; margin-left: 0; gap: 0.3rem; }
+  .nav a { flex: 1; text-align: center; font-size: 0.84rem; padding: 0.35rem 0.4rem; }
+}

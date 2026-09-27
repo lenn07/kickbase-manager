@@ -1,19 +1,35 @@
 {% extends "base.html" %}
-{% block title %}Setup abgeschlossen{% endblock %}
+{% block title %}Einrichtung abgeschlossen{% endblock %}
+{% block page_class %}narrow{% endblock %}
+{% block subtitle %}<p>Alle vier Schritte sind bestätigt.</p>{% endblock %}
 {% block content %}
-  <h2 style="margin-top:0">Setup abgeschlossen 🎉</h2>
-  <p>Alle drei Verifikations-Schritte sind grün.</p>
-  <ul>
-    <li>Kickbase-Login: <strong>OK</strong></li>
-    <li>Aktive Liga: <strong>{{ active_league.name }}</strong> ({{ active_league.kb_league_id }})</li>
-    <li>Anthropic-Key: <strong>verifiziert</strong></li>
-    <li>SMTP-Test-Mail: <strong>zugestellt</strong></li>
-  </ul>
-  <p class="hint">
-    Der Auto-Loop läuft im Hintergrund im konfigurierten Intervall — Live-Status,
-    History und Log-Stream findest du im Dashboard.
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat-label">Kickbase-Login</div>
+      <div class="stat-value ok">bestätigt</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Aktive Liga</div>
+      <div class="stat-value">{{ active_league.name }}</div>
+      <div class="stat-sub">ID {{ active_league.kb_league_id }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Anthropic-Key</div>
+      <div class="stat-value ok">verifiziert</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Test-Mail</div>
+      <div class="stat-value ok">zugestellt</div>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:1rem">
+    Der Auto-Loop läuft ab jetzt im eingestellten Intervall. Live-Status, Historie und
+    Log-Stream stehen im Dashboard; unter „Daten“ siehst du, was der Container gespeichert hat.
   </p>
-  <p style="margin-top:1.5rem">
-    <a href="/dashboard"><button type="button">Zum Dashboard</button></a>
-  </p>
+
+  <div class="actions" style="margin-top:1.25rem">
+    <a class="btn" href="/dashboard">Zum Dashboard</a>
+    <a class="btn btn-secondary" href="/settings">Einstellungen prüfen</a>
+  </div>
 {% endblock %}

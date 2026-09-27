@@ -1,86 +1,83 @@
 {% extends "base.html" %}
 {% block title %}Einstellungen{% endblock %}
-{% block header_subtitle %}Intervall &amp; Guardrails{% endblock %}
 {% block stepper %}{% endblock %}
+{% block subtitle %}<p>Takt des Auto-Loops, Leitplanken für jeden Trade und der tägliche Digest.</p>{% endblock %}
 {% block body %}
-  <section class="panel">
-    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem">
-      <h2 style="margin:0">Auto-Manager-Einstellungen</h2>
-      <a href="/dashboard" class="hint">← zurück zum Dashboard</a>
-    </div>
-
-    {% if error %}<div class="error">{{ error }}</div>{% endif %}
-    {% if success %}<div class="hint ok" style="margin-bottom:0.75rem">{{ success }}</div>{% endif %}
-    {% if info %}<div class="hint" style="margin-bottom:0.75rem">{{ info }}</div>{% endif %}
+  <section class="card">
+    {% if error %}<div class="notice error">{{ error }}</div>{% endif %}
+    {% if success %}<div class="notice ok">{{ success }}</div>{% endif %}
+    {% if info %}<div class="notice info">{{ info }}</div>{% endif %}
 
     {% set f = form %}
-    <form method="post" action="/settings" hx-post="/settings" hx-target="closest .panel" hx-swap="outerHTML">
+    <form method="post" action="/settings"
+          hx-post="/settings" hx-target="closest .card" hx-swap="outerHTML"
+          hx-disabled-elt="button"
+          {% if error or success or info %}style="margin-top:0.9rem"{% endif %}>
       <fieldset>
-        <legend>Scheduler</legend>
-        <div class="row">
+        <legend>Auto-Loop</legend>
+        <div class="field-row">
           <label>
-            Intervall (Minuten)
+            Intervall in Minuten
             <input name="interval_min" type="number"
                    min="{{ interval_min_bound }}" max="{{ interval_max_bound }}"
                    required value="{{ f.interval_min }}">
-            <span class="hint">Range: {{ interval_min_bound }}–{{ interval_max_bound }} min. Änderung wirkt sofort ohne Neustart.</span>
+            <span class="field-hint">
+              {{ interval_min_bound }}–{{ interval_max_bound }} min. Wirkt sofort, ohne Neustart.
+            </span>
           </label>
-          <label style="flex-direction:row;align-items:center;gap:0.5rem;padding-top:1.5rem">
-            <input type="checkbox" name="dry_run" value="on"
-                   {% if f.dry_run %}checked{% endif %}>
-            Dry-Run (Trades nur simulieren, nicht senden)
+          <label class="inline" style="align-self:center">
+            <input type="checkbox" name="dry_run" value="on" {% if f.dry_run %}checked{% endif %}>
+            <span>
+              Testbetrieb — Entscheidungen werden protokolliert, aber nicht an Kickbase gesendet
+            </span>
           </label>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Guardrails</legend>
-        <div class="row">
+        <legend>Leitplanken</legend>
+        <div class="field-row">
           <label>
-            max_trade_pct
+            Höchstanteil je Trade
             <input name="max_trade_pct" type="number" step="0.01" min="0.01" max="1.0"
                    required value="{{ '%.2f' % f.max_trade_pct }}">
-            <span class="hint">Max. Anteil des Budgets pro einzelnem Trade (0.01–1.0).</span>
+            <span class="field-hint">Anteil des Budgets für einen einzelnen Kauf (0,01–1,0).</span>
           </label>
           <label>
-            min_cash_reserve
-            <input name="min_cash_reserve" type="number" min="0"
-                   required value="{{ f.min_cash_reserve }}">
-            <span class="hint">Untergrenze für den freien Cash-Bestand in €.</span>
-          </label>
-          <label>
-            min_action_score
-            <input name="min_action_score" type="number" step="0.01" min="0" max="10"
-                   required value="{{ '%.2f' % f.min_action_score }}">
-            <span class="hint">Schwellwert für Nicht-HOLD-Entscheidungen (0–10).</span>
+            Mindest-Barreserve in €
+            <input name="min_cash_reserve" type="number" min="0" required value="{{ f.min_cash_reserve }}">
+            <span class="field-hint">Untergrenze, die nach einem Kauf stehen bleiben muss.</span>
           </label>
         </div>
         <label>
-          Blacklist
+          Gesperrte Spieler
           <textarea name="blacklist" rows="4"
-                    style="background:#0f172a;color:var(--text);border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:0.55rem 0.75rem;font:inherit;resize:vertical"
-                    placeholder="Ein Player-Identifier pro Zeile">{{ f.blacklist_text }}</textarea>
-          <span class="hint">Diese Spieler werden weder gekauft noch angeboten. Leere Zeilen und Duplikate werden entfernt.</span>
+                    placeholder="Eine Spieler-ID pro Zeile">{{ f.blacklist_text }}</textarea>
+          <span class="field-hint">
+            Diese Spieler werden weder gekauft noch angeboten. Leerzeilen und Doppelte fallen weg.
+          </span>
         </label>
       </fieldset>
 
       <fieldset>
-        <legend>HOLD-Digest (F-9, geplant)</legend>
-        <div class="row">
-          <label style="flex-direction:row;align-items:center;gap:0.5rem">
-            <input type="checkbox" name="digest_enabled" value="on"
-                   {% if f.digest_enabled %}checked{% endif %}>
-            Täglichen Digest der HOLD-Ticks per E-Mail senden
+        <legend>Tages-Digest</legend>
+        <div class="field-row">
+          <label class="inline" style="align-self:center">
+            <input type="checkbox" name="digest_enabled" value="on" {% if f.digest_enabled %}checked{% endif %}>
+            <span>Einmal täglich eine Mail mit allen Durchläufen ohne Aktion</span>
           </label>
-          <label>
-            Digest-Stunde (0–23, lokale Zeit)
-            <input name="digest_hour" type="number" min="0" max="23"
-                   required value="{{ f.digest_hour }}">
+          <label style="flex-basis:160px">
+            Uhrzeit (Stunde)
+            <input name="digest_hour" type="number" min="0" max="23" required value="{{ f.digest_hour }}">
+            <span class="field-hint">Lokale Zeit.</span>
           </label>
         </div>
       </fieldset>
 
-      <button type="submit">Speichern</button>
+      <div class="actions">
+        <button type="submit">Speichern</button>
+        <a class="btn btn-secondary" href="/dashboard">Zurück zum Dashboard</a>
+      </div>
     </form>
   </section>
 {% endblock %}

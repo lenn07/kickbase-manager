@@ -1,34 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Liga wählen{% endblock %}
+{% block page_class %}narrow{% endblock %}
+{% block subtitle %}<p>Schritt 2 von 4 — eine Liga pro Container.</p>{% endblock %}
 {% block content %}
-  <h2 style="margin-top:0">Welche Liga soll der Auto-Manager betreuen?</h2>
-  <p class="hint">Pro Container-Instanz eine Liga (Single-League-Betrieb).</p>
-
-  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  {% if error %}<div class="notice error" style="margin-bottom:0.9rem">{{ error }}</div>{% endif %}
 
   {% if not leagues %}
-    <p class="hint">Keine Ligen gefunden. Bitte prüfe deinen Kickbase-Account.</p>
-    <p><a href="/setup/kickbase">Zurück zum Login</a></p>
+    <p class="hint">Keine Ligen gefunden. Prüfe deinen Kickbase-Account.</p>
+    <p style="margin-top:0.75rem"><a href="/setup/kickbase">Zurück zum Login</a></p>
   {% else %}
     <form method="post"
           action="/setup/leagues"
           hx-post="/setup/leagues"
-          hx-target="closest .panel"
+          hx-target="closest .card"
           hx-swap="outerHTML"
           hx-disabled-elt="button">
-      <ul class="leagues">
+      <ul class="choice-list">
         {% for league in leagues %}
-          <label>
-            <input type="radio" name="kb_league_id" value="{{ league.kb_league_id }}"
-                   {% if league.is_active or (loop.first and not leagues | selectattr('is_active') | list) %}checked{% endif %}>
-            <span>
-              <strong>{{ league.name }}</strong>
-              <br><span class="hint">ID {{ league.kb_league_id }}</span>
-            </span>
-          </label>
+          <li>
+            <label>
+              <input type="radio" name="kb_league_id" value="{{ league.kb_league_id }}"
+                     {% if league.is_active or (loop.first and not leagues | selectattr('is_active') | list) %}checked{% endif %}>
+              <span>
+                <strong>{{ league.name }}</strong><br>
+                <span class="field-hint">ID {{ league.kb_league_id }}</span>
+              </span>
+            </label>
+          </li>
         {% endfor %}
       </ul>
-      <button type="submit">Liga bestätigen</button>
+      <div class="actions"><button type="submit">Liga bestätigen</button></div>
     </form>
   {% endif %}
 {% endblock %}

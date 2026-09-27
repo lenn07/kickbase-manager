@@ -56,7 +56,8 @@ def test_root_redirects_to_kickbase_when_empty(client: TestClient) -> None:
 def test_kickbase_form_renders(client: TestClient) -> None:
     response = client.get("/setup/kickbase")
     assert response.status_code == 200
-    assert "Mit Kickbase anmelden" in response.text
+    assert "Kickbase-Login" in response.text
+    assert 'name="password"' in response.text
 
 
 def test_full_wizard_happy_path(client: TestClient) -> None:

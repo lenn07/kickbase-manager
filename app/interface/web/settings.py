@@ -34,9 +34,6 @@ _INTERVAL_MIN = 15
 _INTERVAL_MAX = 24 * 60
 _DIGEST_HOUR_MIN = 0
 _DIGEST_HOUR_MAX = 23
-# Obergrenze der Heuristik-Utility (siehe HeuristicDecisionEngine); Schwellwert
-# darüber wäre praktisch nie erreichbar und ergibt keine sinnvolle Semantik.
-_ACTION_SCORE_MAX = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +44,6 @@ class SettingsFormData:
     dry_run: bool
     max_trade_pct: float
     min_cash_reserve: int
-    min_action_score: float
     blacklist_text: str
     digest_enabled: bool
     digest_hour: int
@@ -59,7 +55,6 @@ class SettingsFormData:
             dry_run=row.dry_run,
             max_trade_pct=row.max_trade_pct,
             min_cash_reserve=row.min_cash_reserve,
-            min_action_score=row.min_action_score,
             blacklist_text="\n".join(row.blacklist),
             digest_enabled=row.digest_enabled,
             digest_hour=row.digest_hour,
@@ -86,7 +81,6 @@ async def settings_submit(
     interval_min: Annotated[int, Form()],
     max_trade_pct: Annotated[float, Form()],
     min_cash_reserve: Annotated[int, Form()],
-    min_action_score: Annotated[float, Form()],
     digest_hour: Annotated[int, Form()],
     blacklist: Annotated[str, Form()] = "",
     dry_run: Annotated[str, Form()] = "",
@@ -101,7 +95,6 @@ async def settings_submit(
         dry_run=_checkbox(dry_run),
         max_trade_pct=max_trade_pct,
         min_cash_reserve=min_cash_reserve,
-        min_action_score=min_action_score,
         blacklist_text=blacklist,
         digest_enabled=_checkbox(digest_enabled),
         digest_hour=digest_hour,
@@ -123,7 +116,6 @@ async def settings_submit(
         dry_run=form.dry_run,
         max_trade_pct=form.max_trade_pct,
         min_cash_reserve=form.min_cash_reserve,
-        min_action_score=form.min_action_score,
         blacklist=_parse_blacklist(form.blacklist_text),
         digest_enabled=form.digest_enabled,
         digest_hour=form.digest_hour,
@@ -173,6 +165,7 @@ def _render(
             "info": info,
             "interval_min_bound": _INTERVAL_MIN,
             "interval_max_bound": _INTERVAL_MAX,
+            "nav_active": "settings",
         },
     )
 
@@ -184,8 +177,6 @@ def _validate(form: SettingsFormData) -> str | None:
         return "max_trade_pct muss zwischen 0.01 und 1.0 liegen."
     if form.min_cash_reserve < 0:
         return "min_cash_reserve darf nicht negativ sein."
-    if not 0.0 <= form.min_action_score <= _ACTION_SCORE_MAX:
-        return "min_action_score muss zwischen 0 und 10 liegen."
     if not _DIGEST_HOUR_MIN <= form.digest_hour <= _DIGEST_HOUR_MAX:
         return "digest_hour muss zwischen 0 und 23 liegen."
     return None

@@ -14,6 +14,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 # Wichtig: Import registriert die Tabellen-Klassen bei SQLModel.metadata.
 from app.infrastructure.persistence import models as _models  # noqa: F401
+from app.infrastructure.persistence.migrations import apply_migrations
 
 
 def make_engine(db_path: Path | str, *, echo: bool = False) -> Engine:
@@ -27,7 +28,14 @@ def make_engine(db_path: Path | str, *, echo: bool = False) -> Engine:
 
 
 def init_db(engine: Engine) -> None:
+    """Legt fehlende Tabellen an und gleicht bestehende Schemata nach.
+
+    Die Reihenfolge zählt: `create_all` zuerst, damit eine frische Datenbank
+    vollständig ist, bevor die Migrationsschritte über sie laufen — die prüfen
+    den Ist-Zustand selbst und tun dort dann nichts.
+    """
     SQLModel.metadata.create_all(engine)
+    apply_migrations(engine)
 
 
 def session_scope(engine: Engine) -> Iterator[Session]:

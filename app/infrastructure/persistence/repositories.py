@@ -7,10 +7,12 @@ Persistenz keine Krypto-Verantwortung trägt.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from sqlalchemy import delete, func
 from sqlmodel import Session, select
 
 from app.domain.models import (
@@ -33,6 +35,11 @@ from app.infrastructure.persistence.models import (
     TradeLogRow,
     UserRow,
 )
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite gibt naive Datetimes zurück — sie sind per Konvention UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class UserRepository:
@@ -211,7 +218,6 @@ class SettingsRepository:
         existing.dry_run = row.dry_run
         existing.max_trade_pct = row.max_trade_pct
         existing.min_cash_reserve = row.min_cash_reserve
-        existing.min_action_score = row.min_action_score
         existing.blacklist = row.blacklist
         existing.digest_enabled = row.digest_enabled
         existing.digest_hour = row.digest_hour
@@ -232,13 +238,20 @@ class TradeLogRepository:
         self._session.refresh(row)
         return row
 
-    def list_recent(self, *, user_id: int, limit: int = 50) -> list[TradeLogRow]:
-        stmt = (
-            select(TradeLogRow)
-            .where(TradeLogRow.user_id == user_id)
-            .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
-            .limit(limit)
-        )
+    def list_recent(
+        self, *, user_id: int, limit: int = 50, include_superseded: bool = True
+    ) -> list[TradeLogRow]:
+        """Die jüngsten Zeilen, absteigend nach Zeit.
+
+        `include_superseded=True` (Default) ist die Historie-Sicht fürs
+        Dashboard: sie zeigt auch, was der Abgleich als überholt markiert hat —
+        dass ein Kauf stattfand, bleibt wahr. Der Tick setzt `False` und sieht
+        damit nur, worauf er sich noch stützen darf.
+        """
+        stmt = select(TradeLogRow).where(TradeLogRow.user_id == user_id)
+        if not include_superseded:
+            stmt = stmt.where(TradeLogRow.superseded_at.is_(None))  # type: ignore[union-attr]
+        stmt = stmt.order_by(TradeLogRow.ts.desc()).limit(limit)  # type: ignore[attr-defined]
         return list(self._session.exec(stmt))
 
     def latest(self, user_id: int) -> TradeLogRow | None:
@@ -253,6 +266,12 @@ class TradeLogRepository:
         `list_recent` zu filtern hiesse, das Limit gegen einen aktiven
         Handelstag zu verlieren — 20 Trades an einem Tag würden die
         Bonus-Historie aus dem Fenster schieben.
+
+        Überholte Zeilen zählen hier **mit**, anders als bei Käufen und
+        Listings. Der Unterschied ist die Rolle: die BONUS-Zeile ist kein
+        Weltbild, sondern eine Tagessperre gegen einen zweiten Abruf. Ein
+        Gedächtnis-Reset darf sie nicht aufheben — sonst löst ausgerechnet
+        das Aufräumen den Doppelabruf aus, den die Sperre verhindern soll.
         """
         stmt = (
             select(TradeLogRow)
@@ -271,12 +290,16 @@ class TradeLogRepository:
         Spieler, die inzwischen wieder verkauft wurden, filtern wir absichtlich
         nicht raus — die Anwendungsschicht schneidet die Menge mit dem aktuellen
         Squad, wodurch verkaufte Spieler ohnehin nicht mehr benutzt werden.
+
+        Überholte Zeilen (`superseded_at`) bleiben draußen: sie beschreiben
+        einen Kauf, den die Kickbase-Wirklichkeit widerlegt hat.
         """
         stmt = (
             select(TradeLogRow)
             .where(TradeLogRow.user_id == user_id)
             .where(TradeLogRow.action == "BUY")
             .where(TradeLogRow.executed.is_(True))  # type: ignore[union-attr]
+            .where(TradeLogRow.superseded_at.is_(None))  # type: ignore[union-attr]
             .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
         )
         rows = self._session.exec(stmt)
@@ -293,12 +316,14 @@ class TradeLogRepository:
         Der Aufrufer schneidet die Menge mit den aktuell tatsächlich auf dem
         Kickbase-Markt liegenden eigenen Spielern; alte Log-Einträge zu
         Spielern, die längst wieder aus dem Markt sind, stören dabei nicht.
+        Überholte Zeilen bleiben wie bei den Käufen draußen.
         """
         stmt = (
             select(TradeLogRow)
             .where(TradeLogRow.user_id == user_id)
             .where(TradeLogRow.action == "LIST_ON_MARKET")
             .where(TradeLogRow.executed.is_(True))  # type: ignore[union-attr]
+            .where(TradeLogRow.superseded_at.is_(None))  # type: ignore[union-attr]
             .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
         )
         rows = self._session.exec(stmt)
@@ -330,6 +355,151 @@ class TradeLogRepository:
             row.notified_at = ts
         if rows:
             self._session.commit()
+
+    def mark_superseded(self, rows: Iterable[TradeLogRow], *, ts: datetime) -> int:
+        """Markiert Zeilen als von der Realität überholt. Gibt die Anzahl zurück.
+
+        Bereits markierte Zeilen behalten ihren ursprünglichen Zeitstempel —
+        wann etwas ungültig wurde, ist eine Tatsache und kein Zählerstand.
+        """
+        touched = 0
+        for row in rows:
+            if row.superseded_at is not None:
+                continue
+            row.superseded_at = ts
+            touched += 1
+        if touched:
+            self._session.commit()
+        return touched
+
+    def supersede_all(self, user_id: int, *, ts: datetime) -> int:
+        """Erklärt das gesamte Gedächtnis für ungültig, ohne Historie zu löschen.
+
+        Das ist die schonende Hälfte von „Gedächtnis löschen": der Bot leitet
+        aus keiner Zeile mehr etwas ab, das Dashboard zeigt trotzdem weiter,
+        was passiert ist. Wer die Zeilen wirklich loswerden will, nimmt
+        `delete_all`.
+        """
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .where(TradeLogRow.superseded_at.is_(None))  # type: ignore[union-attr]
+        )
+        return self.mark_superseded(self._session.exec(stmt), ts=ts)
+
+    def delete_all(self, user_id: int) -> int:
+        """Löscht die gesamte Historie des Nutzers. Gibt die Anzahl zurück."""
+        count = self.count(user_id)
+        self._session.exec(delete(TradeLogRow).where(TradeLogRow.user_id == user_id))  # type: ignore[call-overload]
+        self._session.commit()
+        return count
+
+    def list_all(self, user_id: int) -> list[TradeLogRow]:
+        """Die komplette Historie, älteste zuerst — für den Export."""
+        stmt = (
+            select(TradeLogRow).where(TradeLogRow.user_id == user_id).order_by(TradeLogRow.ts.asc())  # type: ignore[attr-defined]
+        )
+        return list(self._session.exec(stmt))
+
+    def live_by_action(self, *, user_id: int, action: str) -> list[TradeLogRow]:
+        """Ausgeführte, noch gültige Zeilen einer Aktionsart — Basis des Abgleichs."""
+        stmt = (
+            select(TradeLogRow)
+            .where(TradeLogRow.user_id == user_id)
+            .where(TradeLogRow.action == action)
+            .where(TradeLogRow.executed.is_(True))  # type: ignore[union-attr]
+            .where(TradeLogRow.superseded_at.is_(None))  # type: ignore[union-attr]
+            .order_by(TradeLogRow.ts.desc())  # type: ignore[attr-defined]
+        )
+        return list(self._session.exec(stmt))
+
+    def count(self, user_id: int) -> int:
+        return _scalar_count(
+            self._session,
+            select(func.count()).select_from(TradeLogRow).where(TradeLogRow.user_id == user_id),
+        )
+
+    def stats(self, user_id: int) -> TradeLogStats:
+        """Kennzahlen für die Datenverwaltung — ein Query je Zahl, alle klein."""
+        base = select(func.count()).select_from(TradeLogRow).where(TradeLogRow.user_id == user_id)
+        total = _scalar_count(self._session, base)
+        executed = _scalar_count(self._session, base.where(TradeLogRow.executed.is_(True)))  # type: ignore[union-attr]
+        superseded = _scalar_count(
+            self._session,
+            base.where(TradeLogRow.superseded_at.is_not(None)),  # type: ignore[union-attr]
+        )
+        span = self._session.exec(
+            select(func.min(TradeLogRow.ts), func.max(TradeLogRow.ts)).where(
+                TradeLogRow.user_id == user_id
+            )
+        ).first()
+        oldest, newest = (span[0], span[1]) if span is not None else (None, None)
+        return TradeLogStats(
+            total=total,
+            executed=executed,
+            superseded=superseded,
+            oldest=_as_utc(oldest) if oldest is not None else None,
+            newest=_as_utc(newest) if newest is not None else None,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class TradeLogStats:
+    """Was in der Historie steht — für die Anzeige unter `/daten`."""
+
+    total: int
+    executed: int
+    superseded: int
+    oldest: datetime | None
+    newest: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class CacheStats:
+    """Füllstand und Haltbarkeit eines Caches.
+
+    `fresh` zählt die Zeilen, die zum Messzeitpunkt noch gültig sind. Die
+    Differenz zu `rows` sind Zeilen, die beim nächsten Zugriff ohnehin neu
+    geholt würden — sie kosten nichts als Plattenplatz, deshalb räumt sie
+    niemand automatisch weg.
+    """
+
+    rows: int
+    fresh: int
+    oldest_fetch: datetime | None
+    newest_fetch: datetime | None
+
+
+def _scalar_count(session: Session, stmt: object) -> int:
+    value = session.exec(stmt).one()  # type: ignore[call-overload]
+    # SQLAlchemy liefert je nach Statement einen Skalar oder ein 1-Tupel.
+    if isinstance(value, tuple):
+        value = value[0]
+    return int(value)
+
+
+def _cache_stats(session: Session, model: type, *, now: datetime) -> CacheStats:
+    """Gemeinsame Zählung für alle vier Caches — sie haben dieselben Zeitfelder."""
+    rows = _scalar_count(session, select(func.count()).select_from(model))
+    fresh = _scalar_count(
+        session, select(func.count()).select_from(model).where(model.valid_until > now)
+    )
+    span = session.exec(select(func.min(model.fetched_at), func.max(model.fetched_at))).first()
+    oldest, newest = (span[0], span[1]) if span is not None else (None, None)
+    return CacheStats(
+        rows=rows,
+        fresh=fresh,
+        oldest_fetch=_as_utc(oldest) if oldest is not None else None,
+        newest_fetch=_as_utc(newest) if newest is not None else None,
+    )
+
+
+def _clear_table(session: Session, model: type) -> int:
+    """Leert eine Cache-Tabelle vollständig. Gibt die Zahl der Zeilen zurück."""
+    count = _scalar_count(session, select(func.count()).select_from(model))
+    session.exec(delete(model))  # type: ignore[call-overload]
+    session.commit()
+    return count
 
 
 class MarketValueCacheRepository:
@@ -391,10 +561,11 @@ class MarketValueCacheRepository:
         row.valid_until = valid_until
         self._session.commit()
 
+    def stats(self, *, now: datetime) -> CacheStats:
+        return _cache_stats(self._session, MarketValueCacheRow, now=now)
 
-def _as_utc(value: datetime) -> datetime:
-    """SQLite gibt naive Datetimes zurück — sie sind per Konvention UTC."""
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    def clear(self) -> int:
+        return _clear_table(self._session, MarketValueCacheRow)
 
 
 class PlayerPerformanceCacheRepository:
@@ -467,6 +638,12 @@ class PlayerPerformanceCacheRepository:
         row.valid_until = valid_until
         self._session.commit()
 
+    def stats(self, *, now: datetime) -> CacheStats:
+        return _cache_stats(self._session, PlayerPerformanceCacheRow, now=now)
+
+    def clear(self) -> int:
+        return _clear_table(self._session, PlayerPerformanceCacheRow)
+
 
 class CompetitionContextCacheRepository:
     """Tages-Cache für Tabelle + Spielplan — implementiert `CompetitionContextCache`.
@@ -527,6 +704,12 @@ class CompetitionContextCacheRepository:
         row.valid_until = valid_until
         self._session.commit()
 
+    def stats(self, *, now: datetime) -> CacheStats:
+        return _cache_stats(self._session, CompetitionContextCacheRow, now=now)
+
+    def clear(self) -> int:
+        return _clear_table(self._session, CompetitionContextCacheRow)
+
     def _row(self, competition_id: str) -> CompetitionContextCacheRow | None:
         stmt = select(CompetitionContextCacheRow).where(
             CompetitionContextCacheRow.competition_id == competition_id
@@ -570,3 +753,15 @@ class MarketMetaRepository:
         self._session.commit()
         self._session.refresh(row)
         return row
+
+    def list_all(self) -> list[MarketMetaRow]:
+        return list(self._session.exec(select(MarketMetaRow)))
+
+    def clear(self) -> int:
+        """Leert die Markt-Uhren.
+
+        Anders als die drei Caches verliert das hier kurz eine Fähigkeit: bis
+        zum nächsten Tick kennt der Scheduler den Anpfiff nicht und legt keine
+        Deadline-Fenster. Der erste Tick nach dem Leeren holt ihn zurück.
+        """
+        return _clear_table(self._session, MarketMetaRow)

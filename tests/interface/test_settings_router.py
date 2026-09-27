@@ -108,7 +108,6 @@ def _valid_form(**overrides: object) -> dict[str, object]:
         "interval_min": 120,
         "max_trade_pct": 0.25,
         "min_cash_reserve": 0,
-        "min_action_score": 0.6,
         "digest_hour": 20,
         "blacklist": "",
     }
@@ -174,7 +173,6 @@ def test_settings_submit_persists_all_guardrails(client: TestClient, tmp_path: P
             dry_run="",  # dry_run off
             max_trade_pct=0.5,
             min_cash_reserve=1_000_000,
-            min_action_score=1.25,
             digest_enabled="on",
             digest_hour=8,
             blacklist="player-1\nplayer-2\nplayer-1\n\n",  # duplicate + leerzeilen
@@ -192,7 +190,6 @@ def test_settings_submit_persists_all_guardrails(client: TestClient, tmp_path: P
         assert row.dry_run is False
         assert row.max_trade_pct == 0.5
         assert row.min_cash_reserve == 1_000_000
-        assert row.min_action_score == 1.25
         assert row.digest_enabled is True
         assert row.digest_hour == 8
         assert row.blacklist == ["player-1", "player-2"]

@@ -96,7 +96,7 @@ def test_status_fragment_returns_html(client: TestClient) -> None:
     r = client.get("/dashboard/status")
     assert r.status_code == 200
     assert "Budget" in r.text
-    assert "Kader-Wert" in r.text
+    assert "Kaderwert" in r.text
 
 
 def test_status_fragment_conflicts_before_setup(client: TestClient) -> None:
@@ -108,7 +108,7 @@ def test_history_fragment_empty_after_setup(client: TestClient) -> None:
     _complete_setup(client)
     r = client.get("/dashboard/history")
     assert r.status_code == 200
-    assert "Noch keine Ticks" in r.text
+    assert "Noch keine Durchläufe" in r.text
 
 
 def test_history_fragment_conflicts_before_setup(client: TestClient) -> None:

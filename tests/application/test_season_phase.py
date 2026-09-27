@@ -50,7 +50,6 @@ def _context(*, matchday: int | None, total_matchdays: int = 34) -> DecisionCont
         squad=Squad(league_id=LEAGUE_ID, manager_id=MANAGER_ID, players=()),
         market=(),
         budget=Decimal(0),
-        min_action_score=0.6,
         max_trade_pct=0.25,
         min_cash_reserve=0,
         now=NOW,

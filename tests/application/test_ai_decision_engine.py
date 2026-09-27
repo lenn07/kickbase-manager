@@ -108,7 +108,6 @@ def _context(
         squad=Squad(league_id=LEAGUE_ID, manager_id=MANAGER_ID, players=squad_players),
         market=market,
         budget=Decimal(3_500_000),
-        min_action_score=0.6,
         max_trade_pct=0.5,
         min_cash_reserve=0,
         team_value=Decimal(128_000_000),

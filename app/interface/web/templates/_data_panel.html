@@ -1,0 +1,186 @@
+<div id="data-panel" class="stack">
+
+  {% if result %}
+    <div class="notice {{ result.tone }}">
+      <strong>{{ result.headline }}</strong>
+      {% if result.lines %}
+        <ul>
+          {% for line in result.lines %}{% if line %}<li>{{ line }}</li>{% endif %}{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Aktionen</h2>
+      <span class="hint">Stand {{ inventory.collected_at | when }}</span>
+    </div>
+
+    <div class="actions">
+      <button hx-post="/data/reconcile"
+              hx-target="#data-panel" hx-swap="outerHTML"
+              hx-disabled-elt="this">
+        Mit Kickbase abgleichen
+      </button>
+      <button class="btn-secondary"
+              hx-post="/data/refresh"
+              hx-target="#data-panel" hx-swap="outerHTML"
+              hx-disabled-elt="this">
+        Zwischenspeicher verwerfen
+      </button>
+      <a class="btn btn-secondary" href="/data/export.json">Alles herunterladen</a>
+    </div>
+
+    <p class="card-note" style="margin:0.9rem 0 0">
+      Der Abgleich fragt Kader und Markt neu ab und verwirft dabei auch die
+      Zwischenspeicher — er ist der Knopf für den Normalfall. „Verwerfen“ allein wirft
+      nur die zwischengespeicherten Kickbase-Antworten weg und lässt das Gedächtnis in Ruhe.
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Gedächtnis und Historie</h2>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat">
+        <div class="stat-label">Einträge gesamt</div>
+        <div class="stat-value">{{ inventory.trade_log.total }}</div>
+        {% if inventory.trade_log.oldest %}
+          <div class="stat-sub">ältester {{ inventory.trade_log.oldest | age }}</div>
+        {% endif %}
+      </div>
+      <div class="stat">
+        <div class="stat-label">An Kickbase gesendet</div>
+        <div class="stat-value">{{ inventory.trade_log.executed }}</div>
+        <div class="stat-sub">der Rest wurde nur notiert</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Als überholt markiert</div>
+        <div class="stat-value {% if inventory.trade_log.superseded %}muted{% endif %}">
+          {{ inventory.trade_log.superseded }}
+        </div>
+        <div class="stat-sub">zählen nicht mehr ins Gedächtnis</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Letzter Eintrag</div>
+        <div class="stat-value {% if not inventory.trade_log.newest %}muted{% endif %}"
+             style="font-size:0.95rem">
+          {{ inventory.trade_log.newest | when }}
+        </div>
+      </div>
+    </div>
+
+    <div class="actions spread">
+      <button class="btn-danger"
+              hx-post="/data/forget"
+              hx-target="#data-panel" hx-swap="outerHTML"
+              hx-disabled-elt="this"
+              hx-confirm="Gedächtnis zurücksetzen? Der Bot vergisst laufende Gebote, eigene Angebote und Kaufabsichten. Die Historie bleibt sichtbar.">
+        Gedächtnis zurücksetzen
+      </button>
+      <button class="btn-danger"
+              hx-post="/data/purge"
+              hx-target="#data-panel" hx-swap="outerHTML"
+              hx-disabled-elt="this"
+              hx-confirm="Historie endgültig löschen? Alle {{ inventory.trade_log.total }} Einträge verschwinden, auch aus dem Dashboard. Das lässt sich nicht rückgängig machen.">
+        Historie endgültig löschen
+      </button>
+    </div>
+
+    <p class="card-note" style="margin:0.9rem 0 0">
+      <strong>Zurücksetzen</strong> lässt die Einträge stehen und erklärt sie für ungültig —
+      im Dashboard bleiben sie durchgestrichen sichtbar. <strong>Löschen</strong> entfernt
+      sie wirklich. Die Tagessperre für den Login-Bonus überlebt beides: sonst würde
+      ausgerechnet das Aufräumen einen zweiten Abruf am selben Tag auslösen.
+    </p>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Zwischenspeicher</h2>
+      <span class="hint">{{ inventory.cached_rows_total }} Einträge</span>
+    </div>
+    <p class="card-note" style="margin-top:-0.5rem">
+      Kopien von Kickbase-Antworten, damit nicht jeder Durchlauf alles neu holt. Sie
+      verfallen von selbst; sie wegzuwerfen kostet nur ein paar Abfragen.
+    </p>
+
+    <div class="stat-grid">
+      {% for cache in inventory.caches %}
+        <div class="stat" title="{{ cache.description }}">
+          <div class="stat-label">{{ cache.title }}</div>
+          <div class="stat-value {% if not cache.stats.rows %}muted{% endif %}">
+            {{ cache.stats.rows }}
+          </div>
+          <div class="stat-sub">
+            {% if cache.stats.rows %}
+              {{ cache.stats.fresh }} noch gültig · {{ cache.stats.newest_fetch | age }}
+            {% else %}
+              leer
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+      <div class="stat" title="Anpfiff und Marktwert-Update — der Scheduler legt daraus seine Fenster.">
+        <div class="stat-label">Markt-Uhren</div>
+        <div class="stat-value {% if not inventory.market_meta_rows %}muted{% endif %}">
+          {{ inventory.market_meta_rows }}
+        </div>
+        <div class="stat-sub">bleiben beim Verwerfen erhalten</div>
+      </div>
+    </div>
+  </section>
+
+  {% if inventory.account %}
+    {% set acc = inventory.account %}
+    <section class="card">
+      <div class="card-head">
+        <h2>Hinterlegte Zugänge</h2>
+        <a class="hint" href="/setup/kickbase">ändern</a>
+      </div>
+      <p class="card-note" style="margin-top:-0.5rem">
+        Passwort, Kickbase-Token, API-Key und Mail-Passwort liegen verschlüsselt in der
+        Datenbank und stehen weder hier noch in der Export-Datei.
+      </p>
+
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">Kickbase-Konto</div>
+          <div class="stat-value" style="font-size:0.95rem">{{ acc.email_masked }}</div>
+          {% if acc.kb_user_id %}<div class="stat-sub">Manager {{ acc.kb_user_id }}</div>{% endif %}
+        </div>
+        <div class="stat">
+          <div class="stat-label">Aktive Liga</div>
+          <div class="stat-value {% if not acc.league_name %}muted{% endif %}" style="font-size:0.95rem">
+            {{ acc.league_name or "keine" }}
+          </div>
+          {% if acc.league_id %}<div class="stat-sub">ID {{ acc.league_id }}</div>{% endif %}
+        </div>
+        <div class="stat">
+          <div class="stat-label">Anthropic-Key</div>
+          <div class="stat-value {% if acc.anthropic_verified_at %}ok{% else %}muted{% endif %}"
+               style="font-size:0.95rem">
+            {{ "hinterlegt" if acc.anthropic_verified_at else "fehlt" }}
+          </div>
+          {% if acc.anthropic_verified_at %}
+            <div class="stat-sub">geprüft {{ acc.anthropic_verified_at | when }}</div>
+          {% endif %}
+        </div>
+        <div class="stat">
+          <div class="stat-label">Mail-Versand</div>
+          <div class="stat-value {% if acc.smtp_verified_at %}ok{% else %}muted{% endif %}"
+               style="font-size:0.95rem">
+            {{ acc.smtp_host or "nicht eingerichtet" }}
+          </div>
+          {% if acc.smtp_verified_at %}
+            <div class="stat-sub">getestet {{ acc.smtp_verified_at | when }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+</div>

@@ -3,136 +3,82 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Kickbase Auto-Manager{% endblock %}</title>
+  <title>{% block title %}Kickbase Auto-Manager{% endblock %} · Kickbase Auto-Manager</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚽</text></svg>">
+  <script>
+    /* Vor dem ersten Anstrich: gespeicherte Themewahl setzen, damit die Seite
+       nicht kurz hell aufblitzt, bevor das Skript am Seitenende greift. */
+    (function () {
+      try {
+        var saved = localStorage.getItem("kb-theme");
+        if (saved === "dark" || saved === "light") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (e) { /* Private-Mode o. ä. — dann eben Systemeinstellung. */ }
+    })();
+  </script>
   <script src="https://unpkg.com/htmx.org@2.0.3"
           integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq"
           crossorigin="anonymous"></script>
-  <style>
-    :root {
-      color-scheme: light dark;
-      --bg: #0f172a;
-      --panel: #1e293b;
-      --accent: #38bdf8;
-      --accent-strong: #0ea5e9;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --error: #f87171;
-      --ok: #4ade80;
-    }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: 2rem 1rem;
-    }
-    main { width: 100%; max-width: 640px; }
-    header { margin-bottom: 1.5rem; }
-    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
-    .subtitle { color: var(--muted); margin: 0; }
-    .steps {
-      display: flex;
-      gap: 0.5rem;
-      margin: 1.5rem 0;
-      list-style: none;
-      padding: 0;
-      font-size: 0.85rem;
-    }
-    .steps li {
-      flex: 1;
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
-      background: var(--panel);
-      color: var(--muted);
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .steps li.done { color: var(--ok); }
-    .steps li.current { color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
-    .steps .marker {
-      display: inline-flex;
-      width: 1.5rem; height: 1.5rem;
-      border-radius: 50%;
-      background: rgba(148, 163, 184, 0.2);
-      align-items: center; justify-content: center;
-      font-weight: 600;
-    }
-    .steps li.done .marker { background: var(--ok); color: #0f172a; }
-    .steps li.current .marker { background: var(--accent); color: #0f172a; }
-    .panel {
-      background: var(--panel);
-      border-radius: 12px;
-      padding: 1.5rem;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-    }
-    form { display: flex; flex-direction: column; gap: 1rem; }
-    label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
-    input, select {
-      background: #0f172a;
-      color: var(--text);
-      border: 1px solid rgba(148, 163, 184, 0.35);
-      border-radius: 6px;
-      padding: 0.55rem 0.75rem;
-      font: inherit;
-    }
-    input:focus, select:focus { outline: 2px solid var(--accent); }
-    .row { display: flex; gap: 1rem; }
-    .row > * { flex: 1; }
-    fieldset {
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-    }
-    legend { padding: 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
-    button {
-      background: var(--accent);
-      color: #0f172a;
-      border: 0;
-      border-radius: 8px;
-      padding: 0.7rem 1rem;
-      font-weight: 600;
-      font-size: 0.95rem;
-      cursor: pointer;
-    }
-    button:hover { background: var(--accent-strong); }
-    button[disabled] { opacity: 0.6; cursor: wait; }
-    .error {
-      background: rgba(248, 113, 113, 0.15);
-      color: var(--error);
-      border-radius: 6px;
-      padding: 0.75rem 1rem;
-      font-size: 0.9rem;
-    }
-    .hint { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0; }
-    ul.leagues { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-    ul.leagues label {
-      display: flex; flex-direction: row; align-items: center; gap: 0.75rem;
-      padding: 0.75rem; border-radius: 8px; background: #0f172a;
-      border: 1px solid rgba(148, 163, 184, 0.2);
-    }
-    ul.leagues input { width: auto; }
-    a { color: var(--accent); }
-  </style>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <main>
-    <header>
-      <h1>Kickbase Auto-Manager</h1>
-      <p class="subtitle">{% block header_subtitle %}Setup — {{ self.title() }}{% endblock %}</p>
-    </header>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{% if nav_active %}/dashboard{% else %}/setup{% endif %}">
+        <span class="brand-mark">KB</span>
+        <span>Auto-Manager</span>
+      </a>
+      {% if nav_active %}
+        <nav class="nav">
+          <a href="/dashboard" {% if nav_active == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
+          <a href="/data" {% if nav_active == 'data' %}class="active"{% endif %}>Daten</a>
+          <a href="/settings" {% if nav_active == 'settings' %}class="active"{% endif %}>Einstellungen</a>
+        </nav>
+      {% else %}
+        <span class="hint" style="margin-left:auto">Ersteinrichtung</span>
+      {% endif %}
+      <button type="button" class="theme-toggle" id="theme-toggle"
+              title="Hell / dunkel umschalten" aria-label="Hell oder dunkel umschalten">◐</button>
+    </div>
+  </header>
+
+  <main class="page {% block page_class %}{% endblock %}">
+    {% block page_head %}
+      <div class="page-head">
+        <h1>{{ self.title() }}</h1>
+        {% block subtitle %}{% endblock %}
+      </div>
+    {% endblock %}
 
     {% block stepper %}{% include "_stepper.html" %}{% endblock %}
 
     {% block body %}
-    <section class="panel">
-      {% block content %}{% endblock %}
-    </section>
+      <section class="card">
+        {% block content %}{% endblock %}
+      </section>
     {% endblock %}
   </main>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById("theme-toggle");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        var current = root.getAttribute("data-theme");
+        if (!current) {
+          /* Noch keine eigene Wahl: wir kippen weg von dem, was das System
+             gerade zeigt — sonst tut der erste Klick scheinbar nichts. */
+          current = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        var next = current === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("kb-theme", next); } catch (e) { /* egal */ }
+      });
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>
